@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import type { KeyResult } from "@/lib/mock-data"
 import { getProgressPercent, sumWeeklyValues } from "@/lib/mock-data"
+import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -35,6 +36,74 @@ const typeConfig = {
     color: "text-chart-3",
     bgColor: "bg-chart-3/10",
   },
+}
+
+function EditableCell({
+  week,
+  value,
+  krId,
+}: {
+  week: string
+  value: number
+  krId: string
+}) {
+  const { updateWeeklyValue } = useApp()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(value || ""))
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const commit = useCallback(() => {
+    setEditing(false)
+    const parsed = parseInt(draft, 10)
+    const newVal = isNaN(parsed) || parsed < 0 ? 0 : parsed
+    if (newVal !== value) {
+      updateWeeklyValue(krId, week, newVal)
+    }
+    setDraft(String(newVal || ""))
+  }, [draft, value, krId, week, updateWeeklyValue])
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        min={0}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit()
+          if (e.key === "Escape") {
+            setDraft(String(value || ""))
+            setEditing(false)
+          }
+          if (e.key === "Tab") {
+            // Allow natural tab; commit happens on blur
+          }
+        }}
+        autoFocus
+        className="h-7 w-12 rounded-md border border-ring bg-background text-center text-xs text-foreground outline-none ring-1 ring-ring/30 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={() => {
+        setDraft(String(value || ""))
+        setEditing(true)
+      }}
+      className={cn(
+        "inline-flex h-7 w-12 items-center justify-center rounded-md text-xs transition-colors cursor-text",
+        value > 0
+          ? "bg-primary/10 font-medium text-primary hover:bg-primary/20"
+          : "text-muted-foreground/50 hover:bg-secondary hover:text-muted-foreground"
+      )}
+      title={`Click to edit ${week}`}
+    >
+      {value || "-"}
+    </button>
+  )
 }
 
 export function KeyResultCard({ kr }: { kr: KeyResult }) {
@@ -151,16 +220,11 @@ export function KeyResultCard({ kr }: { kr: KeyResult }) {
               <tr>
                 {weeks.map((week) => (
                   <td key={week} className="text-center">
-                    <span
-                      className={cn(
-                        "inline-flex h-7 w-10 items-center justify-center rounded-md text-xs",
-                        kr.weeklyValues[week] > 0
-                          ? "bg-primary/10 font-medium text-primary"
-                          : "text-muted-foreground/50"
-                      )}
-                    >
-                      {kr.weeklyValues[week] || "-"}
-                    </span>
+                    <EditableCell
+                      week={week}
+                      value={kr.weeklyValues[week] ?? 0}
+                      krId={kr.id}
+                    />
                   </td>
                 ))}
               </tr>

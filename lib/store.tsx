@@ -10,6 +10,7 @@ interface AppState {
   activeCompany: Company
   setActiveCompanyId: (id: string) => void
   setCompanies: React.Dispatch<React.SetStateAction<Company[]>>
+  updateWeeklyValue: (keyResultId: string, week: string, value: number) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -20,6 +21,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0]
 
+  function updateWeeklyValue(keyResultId: string, week: string, value: number) {
+    setCompanies((prev) =>
+      prev.map((company) => ({
+        ...company,
+        quarters: company.quarters.map((quarter) => ({
+          ...quarter,
+          goals: quarter.goals.map((goal) => ({
+            ...goal,
+            keyResults: goal.keyResults.map((kr) =>
+              kr.id === keyResultId
+                ? { ...kr, weeklyValues: { ...kr.weeklyValues, [week]: value } }
+                : kr
+            ),
+          })),
+        })),
+      }))
+    )
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -29,6 +49,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activeCompany,
         setActiveCompanyId,
         setCompanies,
+        updateWeeklyValue,
       }}
     >
       {children}
