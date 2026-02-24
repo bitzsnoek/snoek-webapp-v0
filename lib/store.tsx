@@ -26,6 +26,10 @@ interface AppState {
   addYearlyGoal: (yearId: string, objective: string, keyResults: string[]) => void
   updateYearlyGoal: (yearId: string, goalId: string, objective: string, keyResults: Omit<import("./mock-data").YearlyKeyResult, "id">[]) => void
   deleteYearlyGoal: (yearId: string, goalId: string) => void
+  updateCompanyName: (name: string) => void
+  addFounder: (name: string, role: string) => void
+  updateFounder: (founderId: string, name: string, role: string) => void
+  removeFounder: (founderId: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -260,6 +264,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     patchYears(yearId, (goals) => goals.filter((g) => g.id !== goalId))
   }
 
+  function updateCompanyName(name: string) {
+    setCompanies((prev) =>
+      prev.map((c) => c.id === activeCompanyId ? { ...c, name } : c)
+    )
+  }
+
+  function addFounder(name: string, role: string) {
+    const id = `f-${Date.now()}`
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? { ...c, founders: [...c.founders, { id, name, role, avatar: "" }] }
+          : c
+      )
+    )
+  }
+
+  function updateFounder(founderId: string, name: string, role: string) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? { ...c, founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f) }
+          : c
+      )
+    )
+  }
+
+  function removeFounder(founderId: string) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? { ...c, founders: c.founders.filter((f) => f.id !== founderId) }
+          : c
+      )
+    )
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -309,6 +350,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addYearlyGoal,
         updateYearlyGoal,
         deleteYearlyGoal,
+        updateCompanyName,
+        addFounder,
+        updateFounder,
+        removeFounder,
       }}
     >
       {children}

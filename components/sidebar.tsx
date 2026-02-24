@@ -9,6 +9,7 @@ import {
   Target,
   BarChart3,
   Archive,
+  Settings,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -18,12 +19,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
-export type MainSection = "goals" | "metrics" | "archive"
+export type MainSection = "goals" | "metrics" | "archive" | "settings"
 
 const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
   { id: "archive", label: "Archive", icon: Archive },
+  { id: "settings", label: "Settings", icon: Settings },
 ]
 
 interface SidebarProps {
