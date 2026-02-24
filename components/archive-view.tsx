@@ -184,10 +184,10 @@ function ArchivedYearContent({
               <h3 className="text-sm font-semibold text-foreground">{goal.objective}</h3>
             </div>
             <div className="ml-11 flex flex-col gap-2">
-              {goal.keyResults.map((kr, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+              {goal.keyResults.map((kr) => (
+                <div key={kr.id} className="flex items-center gap-2 text-xs text-muted-foreground">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
-                  <span>{kr}</span>
+                  <span>{kr.title}</span>
                 </div>
               ))}
             </div>
