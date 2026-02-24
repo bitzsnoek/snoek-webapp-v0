@@ -89,7 +89,6 @@ function AddMetricDialog({
   onClose: () => void
 }) {
   const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
   const [category, setCategory] = useState(categories[0] ?? "Other")
   const [newCategory, setNewCategory] = useState("")
   const [useNew, setUseNew] = useState(false)
@@ -100,7 +99,7 @@ function AddMetricDialog({
     const finalCategory = useNew && newCategory.trim() ? newCategory.trim() : category
     onAdd({
       name: name.trim(),
-      description: description.trim(),
+      description: "",
       category: finalCategory,
       values: {},
     })
@@ -125,17 +124,6 @@ function AddMetricDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Monthly Recurring Revenue"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Description
-            </label>
-            <input
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary/30"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. From accounting"
             />
           </div>
           <div>
@@ -237,9 +225,6 @@ export function MonthlyMetrics() {
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-foreground w-[220px]">
                   Metric
                 </th>
-                <th className="px-3 py-2.5 text-left text-xs font-normal italic text-muted-foreground w-[180px]">
-                  Source
-                </th>
                 {months.map((m) => (
                   <th
                     key={m}
@@ -315,7 +300,7 @@ function CategoryGroup({
       {/* Category header row */}
       <tr className="border-t border-border">
         <td
-          colSpan={months.length + 3}
+          colSpan={months.length + 2}
           className="px-4 pt-5 pb-2 text-sm font-bold text-foreground"
         >
           {category}
@@ -361,9 +346,6 @@ function MetricRow({
     >
       <td className="px-4 py-1.5 text-sm text-foreground">
         {metric.name}
-      </td>
-      <td className="px-3 py-1.5 text-xs italic text-muted-foreground/60">
-        {metric.description}
       </td>
       {months.map((m) => (
         <td
