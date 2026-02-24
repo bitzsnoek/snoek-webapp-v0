@@ -244,7 +244,7 @@ function YearlyGoalGroup({
 
             <div className="flex flex-col gap-3">
               {goal.keyResults.map((kr) => (
-                <KeyResultCard key={kr.id} kr={kr} />
+                <KeyResultCard key={kr.id} kr={kr} quarterId={quarterId} goalId={goal.id} />
               ))}
             </div>
           </div>

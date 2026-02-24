@@ -7,6 +7,14 @@ import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import {
   ArrowUpRight,
@@ -17,6 +25,8 @@ import {
   Flame,
   Check,
   X,
+  UserPlus,
+  UserMinus,
 } from "lucide-react"
 
 const typeConfig = {
@@ -195,9 +205,96 @@ function InputCell({
   )
 }
 
+// ── Owner picker ────────────────────────────────────────────────────────────
+
+function OwnerPicker({
+  kr,
+  quarterId,
+  goalId,
+}: {
+  kr: KeyResult
+  quarterId: string
+  goalId: string
+}) {
+  const { activeCompany, assignKROwner } = useApp()
+  const founders = activeCompany.founders
+
+  const ownerInitials = kr.owner
+    ? kr.owner.split(" ").map((n) => n[0]).join("")
+    : null
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-full transition-colors",
+            kr.owner
+              ? "ring-1 ring-border hover:ring-primary/50"
+              : "border border-dashed border-muted-foreground/30 text-muted-foreground/40 hover:border-primary/50 hover:text-primary"
+          )}
+          title={kr.owner ? `Assigned to ${kr.owner} — click to change` : "Assign to founder"}
+        >
+          {ownerInitials ? (
+            <Avatar className="h-6 w-6">
+              <AvatarFallback className="bg-secondary text-[10px] text-foreground">
+                {ownerInitials}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserPlus className="h-3 w-3" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4}>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Assign founder</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {founders.map((founder) => (
+          <DropdownMenuItem
+            key={founder.id}
+            onClick={() => assignKROwner(quarterId, goalId, kr.id, founder.name)}
+            className="gap-2"
+          >
+            <Avatar className="h-5 w-5">
+              <AvatarFallback className="bg-secondary text-[9px] text-foreground">
+                {founder.avatar}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <span className="text-sm">{founder.name}</span>
+              <span className="text-xs text-muted-foreground">{founder.role}</span>
+            </div>
+            {kr.owner === founder.name && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+        {kr.owner && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => assignKROwner(quarterId, goalId, kr.id, null)}
+              className="gap-2 text-muted-foreground"
+            >
+              <UserMinus className="h-4 w-4" />
+              Unassign
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ── Main card ───────────────────────────────────────────────────────────────
 
-export function KeyResultCard({ kr }: { kr: KeyResult }) {
+export function KeyResultCard({
+  kr,
+  quarterId,
+  goalId,
+}: {
+  kr: KeyResult
+  quarterId: string
+  goalId: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const isInput = kr.type === "input"
   const progress = getProgressPercent(kr)
@@ -205,11 +302,6 @@ export function KeyResultCard({ kr }: { kr: KeyResult }) {
   const config = typeConfig[kr.type]
   const TypeIcon = config.icon
   const { met, total: trackedWeeks } = getWeeksOnTarget(kr)
-
-  const ownerInitials = kr.owner
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
 
   const currentWeek = getCurrentWeekKey()
   const currentWeekNum = parseInt(currentWeek.replace("W", ""), 10)
@@ -247,13 +339,9 @@ export function KeyResultCard({ kr }: { kr: KeyResult }) {
           </div>
         </div>
 
-        {/* Right: summary stat + avatar + expand */}
+        {/* Right: summary stat + owner picker + expand */}
         <div className="flex items-center gap-3">
-          <Avatar className="h-6 w-6">
-            <AvatarFallback className="bg-secondary text-[10px] text-foreground">
-              {ownerInitials}
-            </AvatarFallback>
-          </Avatar>
+          <OwnerPicker kr={kr} quarterId={quarterId} goalId={goalId} />
 
           {isInput ? (
             // Weeks-on-target pill

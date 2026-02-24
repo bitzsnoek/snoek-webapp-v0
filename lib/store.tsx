@@ -22,6 +22,7 @@ interface AppState {
   updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<import("./mock-data").KeyResult>) => void
   deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
   updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: import("./mock-data").Confidence) => void
+  assignKROwner: (quarterId: string, goalId: string, krId: string, owner: string | null) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -160,6 +161,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function assignKROwner(quarterId: string, goalId: string, krId: string, owner: string | null) {
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) =>
+        g.id === goalId
+          ? { ...g, keyResults: g.keyResults.map((k) => k.id === krId ? { ...k, owner } : k) }
+          : g
+      )
+    )
+  }
+
   function updateYearlyKRConfidence(
     yearId: string,
     goalId: string,
@@ -239,6 +250,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateKeyResult,
         deleteKeyResult,
         updateYearlyKRConfidence,
+        assignKROwner,
       }}
     >
       {children}

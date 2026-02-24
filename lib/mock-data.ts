@@ -22,7 +22,7 @@ export interface KeyResult {
   id: string
   title: string
   type: KeyResultType
-  owner: string
+  owner: string | null  // null = unassigned / inactive
   isMonthlyPriority: boolean
   target: number
   weeklyValues: Record<string, number> // e.g. { "W1": 5, "W2": 10, ... }
@@ -477,7 +477,7 @@ export function getMonthlyPriorities(company: Company): { quarter: Quarter; goal
   for (const quarter of company.quarters.filter((q) => q.isActive)) {
     for (const goal of quarter.goals) {
       for (const kr of goal.keyResults) {
-        if (kr.isMonthlyPriority) {
+        if (kr.isMonthlyPriority && kr.owner) {
           priorities.push({ quarter, goal, keyResult: kr })
         }
       }
