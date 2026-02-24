@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils"
 import {
   ArrowUpRight,
   ArrowDownRight,
-  Zap,
   FolderKanban,
   ChevronDown,
   ChevronUp,

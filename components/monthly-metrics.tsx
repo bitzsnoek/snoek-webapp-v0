@@ -3,7 +3,7 @@
 import { useApp } from "@/lib/store"
 import { formatMetricValue, metricCategoryLabels } from "@/lib/mock-data"
 import type { Metric } from "@/lib/mock-data"
-import { BarChart3, Plus, TrendingUp, TrendingDown, Minus, Trash2 } from "lucide-react"
+import { BarChart3, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"

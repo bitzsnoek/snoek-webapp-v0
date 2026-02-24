@@ -2,17 +2,11 @@
 
 import { useApp } from "@/lib/store"
 import { getMonthlyPriorities, getProgressPercent, sumWeeklyValues } from "@/lib/mock-data"
-import { Flame, ArrowUpRight, ArrowDownRight, FolderKanban } from "lucide-react"
+import { Flame } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-
-const typeIcons = {
-  input: ArrowUpRight,
-  output: ArrowDownRight,
-  project: FolderKanban,
-}
 
 export function MonthlyPriorities() {
   const { activeCompany } = useApp()
@@ -65,8 +59,6 @@ export function MonthlyPriorities() {
               {items.map(({ goal, keyResult: kr }) => {
                 const progress = getProgressPercent(kr)
                 const total = sumWeeklyValues(kr)
-                const TypeIcon = typeIcons[kr.type]
-
                 // Get last 4 weeks with values
                 const weeks = Object.entries(kr.weeklyValues)
                   .sort(
@@ -90,7 +82,7 @@ export function MonthlyPriorities() {
                             {kr.title}
                           </p>
                         </div>
-                        <p className="mt-0.5 ml-5.5 text-xs text-muted-foreground">
+                        <p className="mt-0.5 ml-6 text-xs text-muted-foreground">
                           {goal.objective}
                         </p>
                       </div>
