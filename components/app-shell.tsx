@@ -10,7 +10,7 @@ import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
-import { ChevronLeft, ChevronRight, Plus, Archive } from "lucide-react"
+import { Plus, Archive } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -169,24 +169,12 @@ export function AppShell() {
         collapsed={sidebarCollapsed}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
+        onCollapse={setSidebarCollapsed}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4">
-          {/* Sidebar toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="mr-4 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </button>
-
           {/* Goals tab bar */}
           {activeSection === "goals" && (
             <div className="flex h-full min-w-0 flex-1 items-stretch gap-0.5">

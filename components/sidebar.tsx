@@ -10,6 +10,8 @@ import {
   BarChart3,
   Archive,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -32,9 +34,10 @@ interface SidebarProps {
   collapsed: boolean
   activeSection: MainSection
   onSectionChange: (section: MainSection) => void
+  onCollapse: (collapsed: boolean) => void
 }
 
-export function Sidebar({ collapsed, activeSection, onSectionChange }: SidebarProps) {
+export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse }: SidebarProps) {
   const { coach, companies, activeCompany, setActiveCompanyId } = useApp()
 
   return (
@@ -155,25 +158,55 @@ export function Sidebar({ collapsed, activeSection, onSectionChange }: SidebarPr
         </nav>
       )}
 
-      {/* Coach */}
+      {/* Coach and collapse button */}
       <div className="border-t border-border p-3">
-        <div
-          className={cn(
-            "flex items-center gap-2.5",
-            collapsed && "justify-center"
-          )}
-        >
-          <Avatar className="h-8 w-8">
-            {coach.avatar.startsWith("/") && <AvatarImage src={coach.avatar} alt={coach.name} />}
-            <AvatarFallback className="bg-primary/20 text-xs text-primary">
-              {coach.avatar.startsWith("/") ? coach.name.split(" ").map((n) => n[0]).join("") : coach.avatar}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex items-center gap-2.5 justify-between">
+          <div
+            className={cn(
+              "flex items-center gap-2.5",
+              collapsed && "justify-center flex-1"
+            )}
+          >
+            <Avatar className="h-8 w-8">
+              {coach.avatar.startsWith("/") && <AvatarImage src={coach.avatar} alt={coach.name} />}
+              <AvatarFallback className="bg-primary/20 text-xs text-primary">
+                {coach.avatar.startsWith("/") ? coach.name.split(" ").map((n) => n[0]).join("") : coach.avatar}
+              </AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div>
+                <p className="text-sm font-medium text-foreground">{coach.name}</p>
+                <p className="text-xs text-muted-foreground">Coach</p>
+              </div>
+            )}
+          </div>
           {!collapsed && (
-            <div>
-              <p className="text-sm font-medium text-foreground">{coach.name}</p>
-              <p className="text-xs text-muted-foreground">Coach</p>
-            </div>
+            <button
+              onClick={() => onCollapse(!collapsed)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+          )}
+          {collapsed && (
+            <button
+              onClick={() => onCollapse(!collapsed)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
           )}
         </div>
       </div>
