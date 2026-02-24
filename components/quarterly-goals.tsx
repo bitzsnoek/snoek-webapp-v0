@@ -3,7 +3,7 @@
 import type { Quarter, Year } from "@/lib/mock-data"
 import { getProgressPercent } from "@/lib/mock-data"
 import { KeyResultCard } from "./key-result-card"
-import { TrendingUp, Plus } from "lucide-react"
+import { TrendingUp, Plus, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -176,7 +176,8 @@ function YearlyGoalGroup({ group }: { group: YearlyGoalGroupData }) {
     <div className="flex flex-col gap-4">
       {/* Yearly goal label — intentionally understated */}
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground/50">
+        <Target className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+        <span className="text-sm font-semibold text-muted-foreground/60">
           {group.yearlyObjective}
         </span>
         <div className="h-px flex-1 bg-border/50" />
