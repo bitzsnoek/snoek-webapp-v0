@@ -56,16 +56,12 @@ export interface Year {
   goals: YearlyGoal[]
 }
 
-export interface MetricValue {
-  month: string
-  value: number
-}
-
 export interface Metric {
   id: string
   name: string
-  category: "financials" | "users" | "sales_pipeline" | "other"
-  values: MetricValue[]
+  description: string
+  category: string
+  values: Record<number, number> // month number (1-12) -> value
 }
 
 export interface Founder {
@@ -291,76 +287,21 @@ export const mockCompanies: Company[] = [
       },
     ],
     metrics: [
-      {
-        id: "m1",
-        name: "Monthly Recurring Revenue",
-        category: "financials",
-        values: [
-          { month: "Jan 2025", value: 42000 },
-          { month: "Feb 2025", value: 48000 },
-          { month: "Mar 2025", value: 55000 },
-        ],
-      },
-      {
-        id: "m2",
-        name: "Cash Runway (months)",
-        category: "financials",
-        values: [
-          { month: "Jan 2025", value: 18 },
-          { month: "Feb 2025", value: 17 },
-          { month: "Mar 2025", value: 16 },
-        ],
-      },
-      {
-        id: "m3",
-        name: "Monthly Active Users",
-        category: "users",
-        values: [
-          { month: "Jan 2025", value: 1200 },
-          { month: "Feb 2025", value: 1450 },
-          { month: "Mar 2025", value: 1680 },
-        ],
-      },
-      {
-        id: "m4",
-        name: "User Churn Rate (%)",
-        category: "users",
-        values: [
-          { month: "Jan 2025", value: 4 },
-          { month: "Feb 2025", value: 3 },
-          { month: "Mar 2025", value: 3 },
-        ],
-      },
-      {
-        id: "m5",
-        name: "Qualified Leads",
-        category: "sales_pipeline",
-        values: [
-          { month: "Jan 2025", value: 35 },
-          { month: "Feb 2025", value: 42 },
-          { month: "Mar 2025", value: 58 },
-        ],
-      },
-      {
-        id: "m6",
-        name: "Pipeline Value",
-        category: "sales_pipeline",
-        values: [
-          { month: "Jan 2025", value: 120000 },
-          { month: "Feb 2025", value: 185000 },
-          { month: "Mar 2025", value: 240000 },
-        ],
-      },
-      {
-        id: "m7",
-        name: "NPS Score",
-        category: "other",
-        values: [
-          { month: "Jan 2025", value: 45 },
-          { month: "Feb 2025", value: 52 },
-          { month: "Mar 2025", value: 58 },
-        ],
-      },
+      { id: "m1", name: "Revenue YTD", description: "From accounting", category: "P&L", values: { 1: 42000, 2: 48000, 3: 55000 } },
+      { id: "m2", name: "Profit YTD", description: "From accounting", category: "P&L", values: { 1: -12000, 2: -8000, 3: -3000 } },
+      { id: "m3", name: "Average monthly costs", description: "Avg last 3 months", category: "P&L", values: { 1: 54000, 2: 56000, 3: 58000 } },
+      { id: "m4", name: "Break even target", description: "Calculated P&L", category: "P&L", values: { 1: 60000, 2: 60000, 3: 60000 } },
+      { id: "m5", name: "Accounts receivable", description: "End of month balance", category: "P&L", values: { 1: 15000, 2: 18000, 3: 22000 } },
+      { id: "m6", name: "Months of cash", description: "From cashflow forecast", category: "Cashflow", values: { 1: 18, 2: 17, 3: 16 } },
+      { id: "m7", name: "Cash buffer", description: "From cashflow forecast", category: "Cashflow", values: { 1: 320000, 2: 295000, 3: 270000 } },
+      { id: "m8", name: "Burn rate (cash)", description: "Cash out ex. VAT (normalized)", category: "Cashflow", values: { 1: 25000, 2: 25000, 3: 25000 } },
+      { id: "m9", name: "Sales deals closed", description: "EUR", category: "Sales", values: { 1: 12000, 2: 18000, 3: 22000 } },
+      { id: "m10", name: "Pipeline 90%", description: "EUR", category: "Sales", values: { 1: 45000, 2: 60000, 3: 80000 } },
+      { id: "m11", name: "Pipeline 50%", description: "EUR", category: "Sales", values: { 1: 120000, 2: 185000, 3: 240000 } },
+      { id: "m12", name: "First meetings planned", description: "#", category: "Sales", values: { 1: 8, 2: 12, 3: 15 } },
+      { id: "m13", name: "Monthly Active Users", description: "Unique users / month", category: "Product", values: { 1: 1200, 2: 1450, 3: 1680 } },
+      { id: "m14", name: "User Churn Rate", description: "% monthly", category: "Product", values: { 1: 4, 2: 3, 3: 3 } },
+      { id: "m15", name: "NPS Score", description: "Quarterly survey", category: "Product", values: { 1: 45, 2: 52, 3: 58 } },
     ],
   },
   {
@@ -421,26 +362,9 @@ export const mockCompanies: Company[] = [
       },
     ],
     metrics: [
-      {
-        id: "m8",
-        name: "Monthly Recurring Revenue",
-        category: "financials",
-        values: [
-          { month: "Jan 2025", value: 8000 },
-          { month: "Feb 2025", value: 12000 },
-          { month: "Mar 2025", value: 18000 },
-        ],
-      },
-      {
-        id: "m9",
-        name: "Active Customers",
-        category: "users",
-        values: [
-          { month: "Jan 2025", value: 22 },
-          { month: "Feb 2025", value: 31 },
-          { month: "Mar 2025", value: 45 },
-        ],
-      },
+      { id: "m20", name: "Monthly Recurring Revenue", description: "From accounting", category: "P&L", values: { 1: 8000, 2: 12000, 3: 18000 } },
+      { id: "m21", name: "Active Customers", description: "Paying accounts", category: "Product", values: { 1: 22, 2: 31, 3: 45 } },
+      { id: "m22", name: "Burn rate (cash)", description: "Cash out ex. VAT", category: "Cashflow", values: { 1: 15000, 2: 16000, 3: 17000 } },
     ],
   },
 ]
@@ -523,15 +447,4 @@ export function getCurrentWeekKey(): string {
   return `W${weekNum}`
 }
 
-export function formatMetricValue(value: number): string {
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
-  if (value >= 1000) return `${(value / 1000).toFixed(0)}K`
-  return value.toString()
-}
 
-export const metricCategoryLabels: Record<string, string> = {
-  financials: "Financial Metrics",
-  users: "User Metrics",
-  sales_pipeline: "Sales Pipeline",
-  other: "Other Metrics",
-}

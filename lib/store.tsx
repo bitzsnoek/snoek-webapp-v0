@@ -30,6 +30,9 @@ interface AppState {
   addFounder: (name: string, role: string) => void
   updateFounder: (founderId: string, name: string, role: string) => void
   removeFounder: (founderId: string) => void
+  updateMetricValue: (metricId: string, month: number, value: number) => void
+  addMetric: (metric: Omit<import("./mock-data").Metric, "id">) => void
+  deleteMetric: (metricId: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -301,6 +304,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function updateMetricValue(metricId: string, month: number, value: number) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? {
+              ...c,
+              metrics: c.metrics.map((m) =>
+                m.id === metricId ? { ...m, values: { ...m.values, [month]: value } } : m
+              ),
+            }
+          : c
+      )
+    )
+  }
+
+  function addMetric(metric: Omit<import("./mock-data").Metric, "id">) {
+    const id = `m-${Date.now()}`
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId ? { ...c, metrics: [...c.metrics, { id, ...metric }] } : c
+      )
+    )
+  }
+
+  function deleteMetric(metricId: string) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId ? { ...c, metrics: c.metrics.filter((m) => m.id !== metricId) } : c
+      )
+    )
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -354,6 +389,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addFounder,
         updateFounder,
         removeFounder,
+        updateMetricValue,
+        addMetric,
+        deleteMetric,
       }}
     >
       {children}
