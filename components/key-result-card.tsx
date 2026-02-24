@@ -404,7 +404,7 @@ export function KeyResultCard({
 
       {/* Expanded weekly table */}
       {expanded && (
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 overflow-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr>
