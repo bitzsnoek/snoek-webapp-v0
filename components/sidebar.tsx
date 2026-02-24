@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 export type MainSection = "goals" | "metrics" | "archive"
 
@@ -162,8 +162,9 @@ export function Sidebar({ collapsed, activeSection, onSectionChange }: SidebarPr
           )}
         >
           <Avatar className="h-8 w-8">
+            {coach.avatar.startsWith("/") && <AvatarImage src={coach.avatar} alt={coach.name} />}
             <AvatarFallback className="bg-primary/20 text-xs text-primary">
-              {coach.avatar}
+              {coach.avatar.startsWith("/") ? coach.name.split(" ").map((n) => n[0]).join("") : coach.avatar}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (

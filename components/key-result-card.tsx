@@ -6,7 +6,7 @@ import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarge
 import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -235,11 +235,19 @@ function OwnerPicker({
           )}
           title={kr.owner ? `Assigned to ${kr.owner} — click to change` : "Assign to founder"}
         >
-          {ownerInitials ? (
+          {kr.owner ? (
             <Avatar className="h-6 w-6">
-              <AvatarFallback className="bg-secondary text-[10px] text-foreground">
-                {ownerInitials}
-              </AvatarFallback>
+              {(() => {
+                const founder = founders.find((f) => f.name === kr.owner)
+                return (
+                  <>
+                    {founder?.avatar && <AvatarImage src={founder.avatar} alt={kr.owner} />}
+                    <AvatarFallback className="bg-secondary text-[10px] text-foreground">
+                      {kr.owner.split(" ").map((n) => n[0]).join("")}
+                    </AvatarFallback>
+                  </>
+                )
+              })()}
             </Avatar>
           ) : (
             <UserPlus className="h-3 w-3" />
@@ -256,8 +264,9 @@ function OwnerPicker({
             className="gap-2"
           >
             <Avatar className="h-5 w-5">
+              <AvatarImage src={founder.avatar} alt={founder.name} />
               <AvatarFallback className="bg-secondary text-[9px] text-foreground">
-                {founder.avatar}
+                {founder.name.split(" ").map((n) => n[0]).join("")}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">

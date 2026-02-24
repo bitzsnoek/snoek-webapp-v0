@@ -5,7 +5,7 @@ import { useApp } from "@/lib/store"
 import { getMonthlyPriorities } from "@/lib/mock-data"
 import { KeyResultCard } from "@/components/key-result-card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,7 +96,7 @@ export function MonthlyPriorities() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {allFounders.map((founder) => {
-              const initials = founder.split(" ").map((n) => n[0]).join("")
+              const founderObj = activeCompany.founders.find((f) => f.name === founder)
               return (
                 <DropdownMenuCheckboxItem
                   key={founder}
@@ -105,8 +105,9 @@ export function MonthlyPriorities() {
                   className="gap-2"
                 >
                   <Avatar className="h-5 w-5">
+                    {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={founder} />}
                     <AvatarFallback className="bg-secondary text-[9px] text-foreground">
-                      {initials}
+                      {founder.split(" ").map((n) => n[0]).join("")}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm">{founder}</span>
@@ -140,21 +141,23 @@ export function MonthlyPriorities() {
 
       {Object.entries(byOwner).length > 0 ? (
         Object.entries(byOwner).map(([owner, items]) => {
-        const initials = owner.split(" ").map((n) => n[0]).join("")
+          const founderObj = activeCompany.founders.find((f) => f.name === owner)
+          const initials = owner.split(" ").map((n) => n[0]).join("")
 
-        return (
-          <div key={owner} className="mb-8">
-            <div className="mb-3 flex items-center gap-2.5">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-secondary text-xs text-foreground">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <h2 className="text-sm font-semibold text-foreground">{owner}</h2>
-              <span className="text-xs text-muted-foreground">
-                {items.length} {items.length === 1 ? "priority" : "priorities"}
-              </span>
-            </div>
+          return (
+            <div key={owner} className="mb-8">
+              <div className="mb-3 flex items-center gap-2.5">
+                <Avatar className="h-7 w-7">
+                  {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={owner} />}
+                  <AvatarFallback className="bg-secondary text-xs text-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <h2 className="text-sm font-semibold text-foreground">{owner}</h2>
+                <span className="text-xs text-muted-foreground">
+                  {items.length} {items.length === 1 ? "priority" : "priorities"}
+                </span>
+              </div>
 
             <div className="flex flex-col gap-4">
               {items.map(({ quarter, goal, keyResult: kr }) => (

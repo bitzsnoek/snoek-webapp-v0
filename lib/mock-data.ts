@@ -96,14 +96,14 @@ export interface Coach {
 // ============================================================
 
 export const mockFounders: Founder[] = [
-  { id: "f1", name: "Alex Rivera", role: "CEO", avatar: "AR" },
-  { id: "f2", name: "Sam Chen", role: "CTO", avatar: "SC" },
-  { id: "f3", name: "Jordan Park", role: "COO", avatar: "JP" },
+  { id: "f1", name: "Alex Rivera", role: "CEO", avatar: "/avatars/alex-rivera.jpg" },
+  { id: "f2", name: "Sam Chen", role: "CTO", avatar: "/avatars/sam-chen.jpg" },
+  { id: "f3", name: "Jordan Park", role: "COO", avatar: "/avatars/jordan-park.jpg" },
 ]
 
 export const mockFounders2: Founder[] = [
-  { id: "f4", name: "Taylor Moore", role: "CEO", avatar: "TM" },
-  { id: "f5", name: "Jamie Lee", role: "CPO", avatar: "JL" },
+  { id: "f4", name: "Taylor Moore", role: "CEO", avatar: "/avatars/taylor-moore.jpg" },
+  { id: "f5", name: "Jamie Lee", role: "CPO", avatar: "/avatars/casey-patel.jpg" },
 ]
 
 export const mockCompanies: Company[] = [
