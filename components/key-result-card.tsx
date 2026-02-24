@@ -318,7 +318,12 @@ export function KeyResultCard({
   )
 
   return (
-    <div className="rounded-lg border border-border bg-background/50 p-4 transition-colors hover:border-border/80">
+    <div className={cn(
+      "rounded-lg border bg-background/50 p-4 transition-colors hover:border-border/80",
+      kr.owner
+        ? "border-border"
+        : "border-border/50 opacity-60"
+    )}>
       <div className="flex items-start justify-between gap-3">
         {/* Left: icon + title */}
         <div className="flex items-start gap-3">
