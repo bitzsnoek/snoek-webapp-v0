@@ -8,6 +8,7 @@ import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
+import { CompanySettings } from "./company-settings"
 import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
 import { ChevronLeft, ChevronRight, Plus, Archive } from "lucide-react"
 import {
@@ -255,7 +256,11 @@ export function AppShell() {
           {/* Section title for non-Goals sections */}
           {activeSection !== "goals" && (
             <h1 className="text-sm font-medium text-foreground">
-              {activeSection === "metrics" ? "Monthly Metrics" : "Archive"}
+              {activeSection === "metrics"
+                ? "Monthly Metrics"
+                : activeSection === "settings"
+                ? "Settings"
+                : "Archive"}
             </h1>
           )}
         </header>
@@ -273,6 +278,7 @@ export function AppShell() {
           )}
           {activeSection === "metrics" && <MonthlyMetrics />}
           {activeSection === "archive" && <ArchiveView />}
+          {activeSection === "settings" && <CompanySettings />}
         </main>
       </div>
 
