@@ -11,6 +11,8 @@ interface AppState {
   setActiveCompanyId: (id: string) => void
   setCompanies: React.Dispatch<React.SetStateAction<Company[]>>
   updateWeeklyValue: (keyResultId: string, week: string, value: number) => void
+  addYear: (year: number) => string
+  addQuarter: (label: string, year: number) => string
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -40,6 +42,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function addYear(year: number): string {
+    const id = `y-${Date.now()}`
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id === activeCompanyId
+          ? {
+              ...company,
+              years: [
+                { id, year, isActive: true, goals: [] },
+                ...company.years,
+              ],
+            }
+          : company
+      )
+    )
+    return id
+  }
+
+  function addQuarter(label: string, year: number): string {
+    const id = `q-${Date.now()}`
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id === activeCompanyId
+          ? {
+              ...company,
+              quarters: [
+                { id, label, year, isActive: true, goals: [] },
+                ...company.quarters,
+              ],
+            }
+          : company
+      )
+    )
+    return id
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -50,6 +88,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveCompanyId,
         setCompanies,
         updateWeeklyValue,
+        addYear,
+        addQuarter,
       }}
     >
       {children}

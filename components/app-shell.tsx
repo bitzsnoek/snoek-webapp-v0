@@ -9,13 +9,21 @@ import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Calendar, Target } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 type GoalTab = "yearly" | "quarterly" | "priorities"
 
 export function AppShell() {
-  const { activeCompany } = useApp()
+  const { activeCompany, addYear, addQuarter } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [activeGoalTab, setActiveGoalTab] = useState<GoalTab>("quarterly")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -36,6 +44,42 @@ export function AppShell() {
       { id: "priorities" as GoalTab, label: "Priorities" },
     ]
   }, [activeYears, activeQuarters])
+
+  function handleAddYear() {
+    const now = new Date()
+    const nextYear = now.getFullYear() + 1
+    // Check if this year already exists
+    const exists = activeCompany.years.some((y) => y.year === nextYear && y.isActive)
+    const year = exists ? nextYear + 1 : nextYear
+    addYear(year)
+    setActiveGoalTab("yearly")
+  }
+
+  function handleAddQuarter() {
+    const now = new Date()
+    const currentQ = Math.ceil((now.getMonth() + 1) / 3)
+    const year = now.getFullYear()
+
+    // Find the next quarter that doesn't exist yet
+    let q = currentQ
+    let y = year
+    for (let i = 0; i < 8; i++) {
+      const label = `Q${q} ${y}`
+      const exists = activeCompany.quarters.some(
+        (qtr) => qtr.label === label && qtr.isActive
+      )
+      if (!exists) {
+        addQuarter(label, y)
+        setActiveGoalTab("quarterly")
+        return
+      }
+      q++
+      if (q > 4) {
+        q = 1
+        y++
+      }
+    }
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -62,30 +106,57 @@ export function AppShell() {
 
           {/* Goal tabs - only visible when Goals section is active */}
           {activeSection === "goals" && (
-            <nav className="flex h-full items-stretch gap-1" role="tablist">
-              {goalTabs.map((tab) => {
-                const isActive = activeGoalTab === tab.id
-                return (
+            <div className="flex h-full items-stretch gap-1">
+              <nav className="flex h-full items-stretch gap-1" role="tablist">
+                {goalTabs.map((tab) => {
+                  const isActive = activeGoalTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveGoalTab(tab.id)}
+                      className={cn(
+                        "relative flex items-center px-3 text-sm transition-colors",
+                        isActive
+                          ? "font-medium text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab.label}
+                      {isActive && (
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  )
+                })}
+              </nav>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
-                    key={tab.id}
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveGoalTab(tab.id)}
-                    className={cn(
-                      "relative flex items-center px-3 text-sm transition-colors",
-                      isActive
-                        ? "font-medium text-primary"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
+                    className="ml-1 flex h-7 w-7 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                    aria-label="Add new goal tab"
                   >
-                    {tab.label}
-                    {isActive && (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />
-                    )}
+                    <Plus className="h-3.5 w-3.5" />
                   </button>
-                )
-              })}
-            </nav>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={8}>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Add new tab
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleAddYear}>
+                    <Calendar className="h-4 w-4" />
+                    Yearly Goals
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddQuarter}>
+                    <Target className="h-4 w-4" />
+                    Quarterly Goals
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
 
           {/* Section title for non-Goals sections */}
