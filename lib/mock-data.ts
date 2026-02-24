@@ -167,7 +167,7 @@ export const mockCompanies: Company[] = [
                 type: "input",
                 owner: "Alex Rivera",
                 isMonthlyPriority: true,
-                target: 200,
+                target: 20,
                 weeklyValues: { W1: 18, W2: 22, W3: 15, W4: 20, W5: 25, W6: 19, W7: 23, W8: 21, W9: 18, W10: 0, W11: 0, W12: 0 },
               },
               {
@@ -210,7 +210,7 @@ export const mockCompanies: Company[] = [
                 type: "input",
                 owner: "Jordan Park",
                 isMonthlyPriority: true,
-                target: 36,
+                target: 3,
                 weeklyValues: { W1: 3, W2: 3, W3: 3, W4: 3, W5: 3, W6: 3, W7: 3, W8: 3, W9: 3, W10: 0, W11: 0, W12: 0 },
               },
               {
@@ -235,7 +235,7 @@ export const mockCompanies: Company[] = [
                 type: "input",
                 owner: "Jordan Park",
                 isMonthlyPriority: true,
-                target: 12,
+                target: 1,
                 weeklyValues: { W1: 1, W2: 1, W3: 1, W4: 1, W5: 1, W6: 1, W7: 1, W8: 1, W9: 1, W10: 0, W11: 0, W12: 0 },
               },
               {
@@ -389,7 +389,7 @@ export const mockCompanies: Company[] = [
                 type: "input",
                 owner: "Taylor Moore",
                 isMonthlyPriority: true,
-                target: 1000,
+                target: 90,
                 weeklyValues: { W1: 80, W2: 90, W3: 85, W4: 95, W5: 100, W6: 88, W7: 92, W8: 95, W9: 90, W10: 0, W11: 0, W12: 0 },
               },
               {
@@ -470,6 +470,13 @@ export function getMonthlyPriorities(company: Company): { quarter: Quarter; goal
     }
   }
   return priorities
+}
+
+/** For input KRs: returns { met, total } for weeks that have a value entered. */
+export function getWeeksOnTarget(kr: KeyResult): { met: number; total: number } {
+  const entries = Object.values(kr.weeklyValues).filter((v) => v > 0)
+  const met = entries.filter((v) => v >= kr.target).length
+  return { met, total: entries.length }
 }
 
 export function sumWeeklyValues(kr: KeyResult): number {
