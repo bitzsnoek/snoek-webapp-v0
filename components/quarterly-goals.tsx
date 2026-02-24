@@ -3,10 +3,9 @@
 import type { Quarter, Year } from "@/lib/mock-data"
 import { getProgressPercent } from "@/lib/mock-data"
 import { KeyResultCard } from "./key-result-card"
-import { Target, TrendingUp, Plus } from "lucide-react"
+import { TrendingUp, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -174,47 +173,17 @@ function groupByYearlyGoal(quarter: Quarter, years: Year[]): YearlyGoalGroupData
 
 function YearlyGoalGroup({ group }: { group: YearlyGoalGroupData }) {
   return (
-    <div>
-      {/* Yearly goal header */}
-      <div className="mb-4 flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Target className="h-4 w-4 text-primary" />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">
-                {group.yearlyObjective}
-              </h2>
-              {group.yearlyKeyResults.length > 0 && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {group.yearlyKeyResults.join(" / ")}
-                </p>
-              )}
-            </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0 tabular-nums text-xs",
-                group.yearlyGoalProgress >= 75
-                  ? "border-primary/30 text-primary"
-                  : group.yearlyGoalProgress >= 50
-                  ? "border-chart-3/30 text-chart-3"
-                  : "text-muted-foreground"
-              )}
-            >
-              {group.yearlyGoalProgress}%
-            </Badge>
-          </div>
-          <Progress
-            value={Math.min(group.yearlyGoalProgress, 100)}
-            className="mt-2 h-1"
-          />
-        </div>
+    <div className="flex flex-col gap-4">
+      {/* Yearly goal label — intentionally understated */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground/50">
+          {group.yearlyObjective}
+        </span>
+        <div className="h-px flex-1 bg-border/50" />
       </div>
 
-      {/* Quarterly goals nested under this yearly goal */}
-      <div className="ml-5 border-l border-border pl-6 flex flex-col gap-5">
+      {/* Quarterly goals */}
+      <div className="flex flex-col gap-5">
         {group.quarterlyGoals.map(({ goal, avgProgress }) => (
           <div
             key={goal.id}
@@ -235,7 +204,7 @@ function YearlyGoalGroup({ group }: { group: YearlyGoalGroupData }) {
                 </div>
               </div>
               <Badge variant="outline" className="text-xs tabular-nums">
-                {avgProgress}% avg
+                {avgProgress}%
               </Badge>
             </div>
 
