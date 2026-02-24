@@ -13,6 +13,8 @@ interface AppState {
   updateWeeklyValue: (keyResultId: string, week: string, value: number) => void
   addYear: (year: number) => string
   addQuarter: (label: string, year: number) => string
+  archiveTab: (type: "year" | "quarter", id: string) => void
+  unarchiveTab: (type: "year" | "quarter", id: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -78,6 +80,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return id
   }
 
+  function archiveTab(type: "year" | "quarter", id: string) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : type === "year"
+          ? { ...company, years: company.years.map((y) => y.id === id ? { ...y, isActive: false } : y) }
+          : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: false } : q) }
+      )
+    )
+  }
+
+  function unarchiveTab(type: "year" | "quarter", id: string) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : type === "year"
+          ? { ...company, years: company.years.map((y) => y.id === id ? { ...y, isActive: true } : y) }
+          : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: true } : q) }
+      )
+    )
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -90,6 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateWeeklyValue,
         addYear,
         addQuarter,
+        archiveTab,
+        unarchiveTab,
       }}
     >
       {children}
