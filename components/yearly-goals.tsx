@@ -105,7 +105,9 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                       >
                         <div className="flex items-center gap-2.5 text-sm text-foreground/80">
                           <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30" />
-                          <span>{kr.title}</span>
+                          <span className={cn(kr.confidence === "discontinued" && "line-through text-muted-foreground/50")}>
+                            {kr.title}
+                          </span>
                         </div>
 
                         <DropdownMenu>
