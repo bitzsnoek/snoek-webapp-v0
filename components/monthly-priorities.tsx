@@ -139,18 +139,31 @@ export function MonthlyPriorities() {
           const initials = owner.split(" ").map((n) => n[0]).join("")
 
           return (
-            <div key={owner} className="mb-8">
-              <div className="mb-3 flex items-center gap-2.5">
-                <Avatar className="h-7 w-7">
-                  {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={owner} />}
-                  <AvatarFallback className="bg-secondary text-xs text-foreground">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                <h2 className="text-sm font-semibold text-foreground">{owner}</h2>
-                <span className="text-xs text-muted-foreground">
+            <div
+              key={owner}
+              className="mb-8 rounded-lg border border-border/60 bg-card/40 p-5"
+            >
+              {/* Founder header with clear visual hierarchy */}
+              <div className="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Avatar className="h-8 w-8">
+                      {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={owner} />}
+                      <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">{owner}</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {founderObj?.role}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs">
                   {items.length} {items.length === 1 ? "priority" : "priorities"}
-                </span>
+                </Badge>
               </div>
 
               <div className="flex flex-col gap-4">
