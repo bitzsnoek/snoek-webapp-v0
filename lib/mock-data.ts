@@ -485,6 +485,23 @@ export function getProgressPercent(kr: KeyResult): number {
   return kr.target > 0 ? Math.round((sum / kr.target) * 100) : 0
 }
 
+/** Returns the current week key (e.g. "W10") within the active quarter. */
+export function getCurrentWeekKey(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+
+  // Quarter start months: Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct
+  const month = now.getMonth() // 0-indexed
+  const quarterStartMonth = Math.floor(month / 3) * 3
+  const quarterStart = new Date(year, quarterStartMonth, 1)
+
+  const diffMs = now.getTime() - quarterStart.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const weekNum = Math.min(Math.floor(diffDays / 7) + 1, 13)
+
+  return `W${weekNum}`
+}
+
 export function formatMetricValue(value: number): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
   if (value >= 1000) return `${(value / 1000).toFixed(0)}K`

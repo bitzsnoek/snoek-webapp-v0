@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 import type { KeyResult } from "@/lib/mock-data"
-import { getProgressPercent, sumWeeklyValues } from "@/lib/mock-data"
+import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -118,6 +118,7 @@ export function KeyResultCard({ kr }: { kr: KeyResult }) {
     .map((n) => n[0])
     .join("")
 
+  const currentWeek = getCurrentWeekKey()
   const weeks = Object.keys(kr.weeklyValues).sort(
     (a, b) => parseInt(a.replace("W", "")) - parseInt(b.replace("W", ""))
   )
@@ -206,27 +207,54 @@ export function KeyResultCard({ kr }: { kr: KeyResult }) {
           <table className="w-full text-xs">
             <thead>
               <tr>
-                {weeks.map((week) => (
-                  <th
-                    key={week}
-                    className="pb-2 text-center font-medium text-muted-foreground"
-                  >
-                    {week}
-                  </th>
-                ))}
+                {weeks.map((week) => {
+                  const isCurrent = week === currentWeek
+                  return (
+                    <th
+                      key={week}
+                      className={cn(
+                        "pb-2 text-center font-medium",
+                        isCurrent
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-full px-1.5 py-0.5",
+                          isCurrent && "bg-primary/10 font-semibold"
+                        )}
+                      >
+                        {week}
+                      </span>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               <tr>
-                {weeks.map((week) => (
-                  <td key={week} className="text-center">
-                    <EditableCell
-                      week={week}
-                      value={kr.weeklyValues[week] ?? 0}
-                      krId={kr.id}
-                    />
-                  </td>
-                ))}
+                {weeks.map((week) => {
+                  const isCurrent = week === currentWeek
+                  return (
+                    <td
+                      key={week}
+                      className={cn(
+                        "text-center",
+                        isCurrent && "relative"
+                      )}
+                    >
+                      {isCurrent && (
+                        <div className="absolute inset-x-0 -top-1 -bottom-1 rounded-md border border-primary/30 bg-primary/5 pointer-events-none" />
+                      )}
+                      <EditableCell
+                        week={week}
+                        value={kr.weeklyValues[week] ?? 0}
+                        krId={kr.id}
+                      />
+                    </td>
+                  )
+                })}
               </tr>
             </tbody>
           </table>
