@@ -22,7 +22,6 @@ import {
   FolderKanban,
   ChevronDown,
   ChevronUp,
-  Flame,
   Check,
   X,
   UserPlus,
@@ -327,10 +326,12 @@ export function KeyResultCard({
             <TypeIcon className={cn("h-3.5 w-3.5", config.color)} />
           </div>
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-2 hover:opacity-75 transition-opacity text-left w-full"
+            >
               <p className="text-sm font-medium text-foreground">{kr.title}</p>
-              {kr.isMonthlyPriority && <Flame className="h-3.5 w-3.5 text-chart-3" />}
-            </div>
+            </button>
             <div className="mt-1 flex items-center gap-2">
               <Badge variant="outline" className={cn("text-xs", config.color)}>
                 {config.label}
