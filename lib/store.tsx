@@ -15,6 +15,12 @@ interface AppState {
   addQuarter: (label: string, year: number) => string
   archiveTab: (type: "year" | "quarter", id: string) => void
   unarchiveTab: (type: "year" | "quarter", id: string) => void
+  addQuarterlyGoal: (quarterId: string, objective: string, yearlyGoalId: string) => string
+  updateQuarterlyGoal: (quarterId: string, goalId: string, objective: string, yearlyGoalId: string) => void
+  deleteQuarterlyGoal: (quarterId: string, goalId: string) => void
+  addKeyResult: (quarterId: string, goalId: string, kr: Omit<import("./mock-data").KeyResult, "id">) => void
+  updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<import("./mock-data").KeyResult>) => void
+  deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -80,6 +86,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return id
   }
 
+  function patchQuarters(
+    quarterId: string,
+    fn: (goals: import("./mock-data").QuarterlyGoal[]) => import("./mock-data").QuarterlyGoal[]
+  ) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : {
+              ...company,
+              quarters: company.quarters.map((q) =>
+                q.id === quarterId ? { ...q, goals: fn(q.goals) } : q
+              ),
+            }
+      )
+    )
+  }
+
+  function addQuarterlyGoal(quarterId: string, objective: string, yearlyGoalId: string): string {
+    const id = `qg-${Date.now()}`
+    patchQuarters(quarterId, (goals) => [
+      ...goals,
+      { id, objective, yearlyGoalId, keyResults: [] },
+    ])
+    return id
+  }
+
+  function updateQuarterlyGoal(quarterId: string, goalId: string, objective: string, yearlyGoalId: string) {
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) => g.id === goalId ? { ...g, objective, yearlyGoalId } : g)
+    )
+  }
+
+  function deleteQuarterlyGoal(quarterId: string, goalId: string) {
+    patchQuarters(quarterId, (goals) => goals.filter((g) => g.id !== goalId))
+  }
+
+  function addKeyResult(
+    quarterId: string,
+    goalId: string,
+    kr: Omit<import("./mock-data").KeyResult, "id">
+  ) {
+    const id = `kr-${Date.now()}`
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) =>
+        g.id === goalId ? { ...g, keyResults: [...g.keyResults, { id, ...kr }] } : g
+      )
+    )
+  }
+
+  function updateKeyResult(
+    quarterId: string,
+    goalId: string,
+    krId: string,
+    kr: Partial<import("./mock-data").KeyResult>
+  ) {
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) =>
+        g.id === goalId
+          ? { ...g, keyResults: g.keyResults.map((k) => k.id === krId ? { ...k, ...kr } : k) }
+          : g
+      )
+    )
+  }
+
+  function deleteKeyResult(quarterId: string, goalId: string, krId: string) {
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) =>
+        g.id === goalId ? { ...g, keyResults: g.keyResults.filter((k) => k.id !== krId) } : g
+      )
+    )
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -118,6 +197,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addQuarter,
         archiveTab,
         unarchiveTab,
+        addQuarterlyGoal,
+        updateQuarterlyGoal,
+        deleteQuarterlyGoal,
+        addKeyResult,
+        updateKeyResult,
+        deleteKeyResult,
       }}
     >
       {children}
