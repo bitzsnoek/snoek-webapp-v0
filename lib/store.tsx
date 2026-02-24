@@ -21,6 +21,7 @@ interface AppState {
   addKeyResult: (quarterId: string, goalId: string, kr: Omit<import("./mock-data").KeyResult, "id">) => void
   updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<import("./mock-data").KeyResult>) => void
   deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
+  updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: import("./mock-data").Confidence) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -159,6 +160,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function updateYearlyKRConfidence(
+    yearId: string,
+    goalId: string,
+    krId: string,
+    confidence: import("./mock-data").Confidence
+  ) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : {
+              ...company,
+              years: company.years.map((y) =>
+                y.id !== yearId
+                  ? y
+                  : {
+                      ...y,
+                      goals: y.goals.map((g) =>
+                        g.id !== goalId
+                          ? g
+                          : {
+                              ...g,
+                              keyResults: g.keyResults.map((kr) =>
+                                kr.id === krId ? { ...kr, confidence } : kr
+                              ),
+                            }
+                      ),
+                    }
+              ),
+            }
+      )
+    )
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -203,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addKeyResult,
         updateKeyResult,
         deleteKeyResult,
+        updateYearlyKRConfidence,
       }}
     >
       {children}

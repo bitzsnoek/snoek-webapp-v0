@@ -4,6 +4,20 @@
 
 export type KeyResultType = "input" | "output" | "project"
 
+export type Confidence =
+  | "not_started"
+  | "confident"
+  | "moderately_confident"
+  | "not_confident"
+  | "done"
+  | "discontinued"
+
+export interface YearlyKeyResult {
+  id: string
+  title: string
+  confidence: Confidence
+}
+
 export interface KeyResult {
   id: string
   title: string
@@ -32,7 +46,7 @@ export interface Quarter {
 export interface YearlyGoal {
   id: string
   objective: string
-  keyResults: string[]
+  keyResults: YearlyKeyResult[]
 }
 
 export interface Year {
@@ -107,27 +121,27 @@ export const mockCompanies: Company[] = [
             id: "yg1",
             objective: "Reach product-market fit and scale revenue to 1M ARR",
             keyResults: [
-              "Achieve 1M ARR by end of year",
-              "Reach 500 paying customers",
-              "Reduce churn to below 3% monthly",
+              { id: "ykr1", title: "Achieve 1M ARR by end of year", confidence: "moderately_confident" },
+              { id: "ykr2", title: "Reach 500 paying customers", confidence: "confident" },
+              { id: "ykr3", title: "Reduce churn to below 3% monthly", confidence: "not_confident" },
             ],
           },
           {
             id: "yg2",
             objective: "Build a world-class engineering team",
             keyResults: [
-              "Hire 5 senior engineers",
-              "Achieve 90%+ team satisfaction score",
-              "Ship 12 major features",
+              { id: "ykr4", title: "Hire 5 senior engineers", confidence: "moderately_confident" },
+              { id: "ykr5", title: "Achieve 90%+ team satisfaction score", confidence: "not_started" },
+              { id: "ykr6", title: "Ship 12 major features", confidence: "confident" },
             ],
           },
           {
             id: "yg3",
             objective: "Establish brand authority in the market",
             keyResults: [
-              "Reach 10,000 newsletter subscribers",
-              "Speak at 4 industry conferences",
-              "Get featured in 3 major publications",
+              { id: "ykr7", title: "Reach 10,000 newsletter subscribers", confidence: "confident" },
+              { id: "ykr8", title: "Speak at 4 industry conferences", confidence: "done" },
+              { id: "ykr9", title: "Get featured in 3 major publications", confidence: "not_started" },
             ],
           },
         ],
@@ -141,9 +155,9 @@ export const mockCompanies: Company[] = [
             id: "yg0",
             objective: "Validate the product concept and secure seed funding",
             keyResults: [
-              "Raise 500K in seed funding",
-              "Launch MVP and get 50 beta users",
-              "Conduct 100 customer interviews",
+              { id: "ykr0a", title: "Raise 500K in seed funding", confidence: "done" },
+              { id: "ykr0b", title: "Launch MVP and get 50 beta users", confidence: "done" },
+              { id: "ykr0c", title: "Conduct 100 customer interviews", confidence: "done" },
             ],
           },
         ],
@@ -363,9 +377,9 @@ export const mockCompanies: Company[] = [
             id: "yg4",
             objective: "Launch B2B SaaS product and acquire first 100 customers",
             keyResults: [
-              "Acquire 100 paying B2B customers",
-              "Achieve 50K MRR",
-              "Launch self-serve onboarding",
+              { id: "ykr10", title: "Acquire 100 paying B2B customers", confidence: "moderately_confident" },
+              { id: "ykr11", title: "Achieve 50K MRR", confidence: "not_confident" },
+              { id: "ykr12", title: "Launch self-serve onboarding", confidence: "confident" },
             ],
           },
         ],
