@@ -214,12 +214,11 @@ function YearlyGoalGroup({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Target className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
-        <span className="text-sm font-semibold text-muted-foreground/60">
+      <div className="rounded-lg border border-border/50 bg-primary/5 px-4 py-3 flex items-center gap-2">
+        <Target className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+        <span className="text-sm font-semibold text-foreground">
           {group.yearlyObjective}
         </span>
-        <div className="h-px flex-1 bg-border/50" />
       </div>
 
       <div className="flex flex-col gap-5">
