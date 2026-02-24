@@ -24,7 +24,7 @@ export function MonthlyPriorities() {
       <div className="mb-8">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground">
-            Monthly Priorities
+            Priorities
           </h1>
           <Badge className="bg-chart-3/10 text-chart-3 border-chart-3/20">
             {priorities.length} active

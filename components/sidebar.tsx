@@ -1,8 +1,18 @@
 "use client"
 
 import { useApp } from "@/lib/store"
+import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
-import { Building2, ChevronDown, Compass } from "lucide-react"
+import {
+  Building2,
+  ChevronDown,
+  Compass,
+  Target,
+  TrendingUp,
+  Flame,
+  BarChart3,
+  Archive,
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,8 +21,51 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
+export type NavSection =
+  | "yearly"
+  | "quarterly"
+  | "priorities"
+  | "metrics"
+  | "archive"
+
+function getQuarterLabel(quarters: ReturnType<typeof getActiveQuarters>): string {
+  if (quarters.length === 0) return ""
+  const q = quarters[0]
+  const qNum = q.label.split(" ")[0] // "Q1"
+  const yearShort = String(q.year).slice(-2) // "25"
+  return `${qNum} '${yearShort}`
+}
+
+function getYearLabel(years: ReturnType<typeof getActiveYears>): string {
+  if (years.length === 0) return ""
+  return String(years[0].year)
+}
+
+function getCurrentMonthShort(): string {
+  return new Date().toLocaleString("en-US", { month: "short" })
+}
+
+interface SidebarProps {
+  collapsed: boolean
+  activeSection: NavSection
+  onSectionChange: (section: NavSection) => void
+}
+
+export function Sidebar({ collapsed, activeSection, onSectionChange }: SidebarProps) {
   const { coach, companies, activeCompany, setActiveCompanyId } = useApp()
+
+  const activeYears = getActiveYears(activeCompany)
+  const activeQuarters = getActiveQuarters(activeCompany)
+
+  const yearLabel = getYearLabel(activeYears)
+  const quarterLabel = getQuarterLabel(activeQuarters)
+  const monthLabel = getCurrentMonthShort()
+
+  const goalItems: { id: NavSection; label: string; tag: string; icon: typeof Target }[] = [
+    { id: "yearly", label: "Yearly Goals", tag: yearLabel, icon: Target },
+    { id: "quarterly", label: "Quarterly Goals", tag: quarterLabel, icon: TrendingUp },
+    { id: "priorities", label: "Priorities", tag: monthLabel, icon: Flame },
+  ]
 
   return (
     <aside
@@ -55,7 +108,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
                       {activeCompany.name}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {activeCompany.founders.length} founders
+                      {activeCompany.founders.length} founder{activeCompany.founders.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -80,31 +133,133 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         </DropdownMenu>
       </div>
 
-      {/* Founders */}
+      {/* Navigation */}
       {!collapsed && (
-        <div className="flex-1 overflow-y-auto p-3">
-          <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Founders
+        <nav className="flex-1 overflow-y-auto p-3">
+          {/* Goals section */}
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Goals
           </p>
-          <div className="flex flex-col gap-1">
-            {activeCompany.founders.map((founder) => (
-              <div
-                key={founder.id}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5"
-              >
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-secondary text-xs text-foreground">
-                    {founder.avatar}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm text-foreground">{founder.name}</p>
-                  <p className="text-xs text-muted-foreground">{founder.role}</p>
-                </div>
-              </div>
-            ))}
+          <div className="mb-4 flex flex-col gap-0.5">
+            {goalItems.map((item) => {
+              const Icon = item.icon
+              const isActive = activeSection === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onSectionChange(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {item.tag && (
+                    <span
+                      className={cn(
+                        "text-[11px] tabular-nums",
+                        isActive ? "text-primary/70" : "text-muted-foreground/60"
+                      )}
+                    >
+                      {item.tag}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
-        </div>
+
+          {/* Metrics section */}
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Reporting
+          </p>
+          <div className="mb-4 flex flex-col gap-0.5">
+            <button
+              onClick={() => onSectionChange("metrics")}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                activeSection === "metrics"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+            >
+              <BarChart3 className="h-4 w-4 shrink-0" />
+              <span className="flex-1">Monthly Metrics</span>
+            </button>
+          </div>
+
+          {/* Archive section */}
+          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            History
+          </p>
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => onSectionChange("archive")}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                activeSection === "archive"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+            >
+              <Archive className="h-4 w-4 shrink-0" />
+              <span className="flex-1">Archive</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* Collapsed nav icons */}
+      {collapsed && (
+        <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
+          {goalItems.map((item) => {
+            const Icon = item.icon
+            const isActive = activeSection === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSectionChange(item.id)}
+                title={item.label}
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            )
+          })}
+          <div className="my-2 h-px w-6 bg-border" />
+          <button
+            onClick={() => onSectionChange("metrics")}
+            title="Monthly Metrics"
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+              activeSection === "metrics"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onSectionChange("archive")}
+            title="Archive"
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+              activeSection === "archive"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <Archive className="h-4 w-4" />
+          </button>
+        </nav>
       )}
 
       {/* Coach */}
