@@ -5,7 +5,6 @@ import { getProgressPercent } from "@/lib/mock-data"
 import { KeyResultCard } from "./key-result-card"
 import { TrendingUp, Plus, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -199,14 +198,8 @@ function YearlyGoalGroup({ group }: { group: YearlyGoalGroupData }) {
                   <h3 className="text-sm font-semibold text-foreground">
                     {goal.objective}
                   </h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {goal.keyResults.length} key result{goal.keyResults.length !== 1 ? "s" : ""}
-                  </p>
                 </div>
               </div>
-              <Badge variant="outline" className="text-xs tabular-nums">
-                {avgProgress}%
-              </Badge>
             </div>
 
             <div className="flex flex-col gap-3">
