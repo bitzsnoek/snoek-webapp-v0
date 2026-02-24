@@ -23,6 +23,9 @@ interface AppState {
   deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
   updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: import("./mock-data").Confidence) => void
   assignKROwner: (quarterId: string, goalId: string, krId: string, owner: string | null) => void
+  addYearlyGoal: (yearId: string, objective: string, keyResults: string[]) => void
+  updateYearlyGoal: (yearId: string, goalId: string, objective: string, keyResults: Omit<import("./mock-data").YearlyKeyResult, "id">[]) => void
+  deleteYearlyGoal: (yearId: string, goalId: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -205,6 +208,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function patchYears(
+    yearId: string,
+    fn: (goals: import("./mock-data").YearlyGoal[]) => import("./mock-data").YearlyGoal[]
+  ) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : {
+              ...company,
+              years: company.years.map((y) =>
+                y.id === yearId ? { ...y, goals: fn(y.goals) } : y
+              ),
+            }
+      )
+    )
+  }
+
+  function addYearlyGoal(yearId: string, objective: string, keyResultTitles: string[]) {
+    const goalId = `yg-${Date.now()}`
+    const keyResults: import("./mock-data").YearlyKeyResult[] = keyResultTitles
+      .filter((t) => t.trim())
+      .map((title, i) => ({ id: `ykr-${Date.now()}-${i}`, title, confidence: "not_started" as import("./mock-data").Confidence }))
+    patchYears(yearId, (goals) => [...goals, { id: goalId, objective, keyResults }])
+  }
+
+  function updateYearlyGoal(
+    yearId: string,
+    goalId: string,
+    objective: string,
+    keyResults: Omit<import("./mock-data").YearlyKeyResult, "id">[]
+  ) {
+    patchYears(yearId, (goals) =>
+      goals.map((g) =>
+        g.id !== goalId
+          ? g
+          : {
+              ...g,
+              objective,
+              keyResults: keyResults.map((kr, i) => {
+                const existing = g.keyResults[i]
+                return { id: existing?.id ?? `ykr-${Date.now()}-${i}`, ...kr }
+              }),
+            }
+      )
+    )
+  }
+
+  function deleteYearlyGoal(yearId: string, goalId: string) {
+    patchYears(yearId, (goals) => goals.filter((g) => g.id !== goalId))
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -251,6 +306,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteKeyResult,
         updateYearlyKRConfidence,
         assignKROwner,
+        addYearlyGoal,
+        updateYearlyGoal,
+        deleteYearlyGoal,
       }}
     >
       {children}
