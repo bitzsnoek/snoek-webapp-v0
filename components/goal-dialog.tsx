@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useApp } from "@/lib/store"
 import type { QuarterlyGoal, KeyResult, KeyResultType, Year } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
