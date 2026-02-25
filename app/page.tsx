@@ -11,27 +11,38 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
+        console.log('[v0] Creating Supabase client')
+        const supabase = createClient()
+        
+        console.log('[v0] Checking session...')
+        
+        // Add a timeout for the session check
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        )
+        
+        const result = await Promise.race([
+          sessionPromise,
+          timeoutPromise,
+        ]) as any
 
-        console.log('[v0] Session check:', { session: !!session, error: sessionError })
+        console.log('[v0] Session check result:', { hasSession: !!result?.data?.session, error: result?.error })
 
-        if (sessionError) {
-          console.error('[v0] Session error:', sessionError)
-          setError(sessionError.message)
+        if (result?.error) {
+          console.error('[v0] Session error:', result.error)
+          setError(result.error.message)
           setIsLoading(false)
           return
         }
 
-        if (!session) {
+        if (!result?.data?.session) {
           console.log('[v0] No session, redirecting to login')
+          setIsLoading(false)
           router.push('/auth/login')
         } else {
           console.log('[v0] Session found, authenticated')
@@ -40,13 +51,14 @@ export default function Home() {
         }
       } catch (err) {
         console.error('[v0] Auth check error:', err)
-        setError(err instanceof Error ? err.message : 'Unknown error')
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError(message)
         setIsLoading(false)
       }
     }
 
     checkAuth()
-  }, [router, supabase.auth])
+  }, [router])
 
   if (error) {
     return (
@@ -55,7 +67,13 @@ export default function Home() {
           <div className="rounded-lg border border-red-200 bg-red-50 p-6">
             <h2 className="text-lg font-semibold text-red-900 mb-2">Connection Error</h2>
             <p className="text-sm text-red-800 mb-4">{error}</p>
-            <p className="text-xs text-red-700">Please check that your Supabase URL and API key are correct in the environment variables.</p>
+            <p className="text-xs text-red-700 mb-4">Please check that your Supabase URL and API key are correct in the environment variables.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>
