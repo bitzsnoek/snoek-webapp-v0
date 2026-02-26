@@ -10,7 +10,7 @@ import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
-import { Plus, Archive } from "lucide-react"
+import { Plus, Archive, Menu } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,7 @@ export function AppShell() {
   const { activeCompany, addYear, addQuarter, archiveTab } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   // Active tab id: "year-{yearId}", "quarter-{quarterId}", or "priorities"
   const [activeTabId, setActiveTabId] = useState<GoalTabId>("quarter-q1-2025")
@@ -126,17 +127,13 @@ export function AppShell() {
         return
       }
       addYear(yr)
-      // Switch to the new tab — we don't know the id yet, so we'll pick it after re-render
-      // by relying on activeYears updating; use a flag approach
       setAddDialog(null)
-      // The new year will be first in sortedYears after state updates
       setTimeout(() => {
         const company = activeCompany
         const newYear = company.years.find((y) => y.year === yr)
         if (newYear) setActiveTabId(`year-${newYear.id}`)
       }, 50)
     } else {
-      // Quarter: expect "Q1 2026" or "Q1"
       const raw = addValue.trim().toUpperCase()
       const match = raw.match(/^Q([1-4])\s*(\d{4})?$/)
       if (!match) {
@@ -164,20 +161,31 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       <Sidebar
         collapsed={sidebarCollapsed}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         onCollapse={setSidebarCollapsed}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4">
+        <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-3 md:px-4 gap-2">
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground md:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
           {/* Goals tab bar */}
           {activeSection === "goals" && (
-            <div className="flex h-full min-w-0 flex-1 items-stretch gap-0.5">
+            <div className="flex h-full min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto scrollbar-none">
               {/* Year tabs */}
               {sortedYears.map((year) => {
                 const tabId: GoalTabId = `year-${year.id}`
@@ -208,7 +216,7 @@ export function AppShell() {
                 )
               })}
 
-              {/* Priorities tab — always present, no archive button */}
+              {/* Priorities tab */}
               <GoalTab
                 label="Priorities"
                 isActive={activeTabId === "priorities"}
@@ -254,7 +262,7 @@ export function AppShell() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {activeSection === "goals" && activeTabId === "priorities" && (
             <MonthlyPriorities />
           )}
@@ -328,13 +336,13 @@ function GoalTab({
   onArchive?: () => void
 }) {
   return (
-    <div className="group relative flex h-full items-stretch">
+    <div className="group relative flex h-full shrink-0 items-stretch">
       <button
         role="tab"
         aria-selected={isActive}
         onClick={onClick}
         className={cn(
-          "relative flex items-center gap-1 px-3 text-sm transition-colors",
+          "relative flex items-center gap-1 px-3 text-sm whitespace-nowrap transition-colors",
           isActive
             ? "font-medium text-primary"
             : "text-muted-foreground hover:text-foreground",
@@ -356,7 +364,7 @@ function GoalTab({
           }}
           title="Archive this tab"
           className={cn(
-            "flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100",
+            "hidden md:flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100",
             isActive && "text-muted-foreground/60"
           )}
           aria-label="Archive tab"

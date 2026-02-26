@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,20 +36,29 @@ interface SidebarProps {
   activeSection: MainSection
   onSectionChange: (section: MainSection) => void
   onCollapse: (collapsed: boolean) => void
+  mobileOpen: boolean
+  onMobileClose: () => void
 }
 
-export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse }: SidebarProps) {
+export function Sidebar({
+  collapsed,
+  activeSection,
+  onSectionChange,
+  onCollapse,
+  mobileOpen,
+  onMobileClose,
+}: SidebarProps) {
   const { coach, companies, activeCompany, setActiveCompanyId } = useApp()
 
-  return (
-    <aside
-      className={cn(
-        "flex flex-col border-r border-border bg-card transition-all duration-200",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
+  function handleNavClick(section: MainSection) {
+    onSectionChange(section)
+    onMobileClose()
+  }
+
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="flex h-14 items-center border-b border-border px-4">
+      <div className="flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
             <Compass className="h-4 w-4 text-primary-foreground" />
@@ -59,6 +69,14 @@ export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse 
             </span>
           )}
         </div>
+        {/* Mobile close button */}
+        <button
+          onClick={onMobileClose}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground md:hidden"
+          aria-label="Close sidebar"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Company switcher */}
@@ -116,9 +134,9 @@ export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse 
               return (
                 <button
                   key={item.id}
-                  onClick={() => onSectionChange(item.id)}
+                  onClick={() => handleNavClick(item.id)}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 md:py-2 text-left text-sm transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -142,7 +160,7 @@ export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse 
             return (
               <button
                 key={item.id}
-                onClick={() => onSectionChange(item.id)}
+                onClick={() => handleNavClick(item.id)}
                 title={item.label}
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
@@ -180,36 +198,54 @@ export function Sidebar({ collapsed, activeSection, onSectionChange, onCollapse 
               </div>
             )}
           </div>
-          {!collapsed && (
-            <button
-              onClick={() => onCollapse(!collapsed)}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </button>
-          )}
-          {collapsed && (
-            <button
-              onClick={() => onCollapse(!collapsed)}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </button>
-          )}
+          {/* Collapse toggle - desktop only */}
+          <button
+            onClick={() => onCollapse(!collapsed)}
+            className="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile drawer */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-card transition-transform duration-200 md:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "hidden md:flex flex-col border-r border-border bg-card transition-all duration-200",
+          collapsed ? "w-16" : "w-64"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   )
 }

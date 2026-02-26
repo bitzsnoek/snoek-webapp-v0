@@ -81,11 +81,11 @@ export function ArchiveView() {
       ) : (
         <>
           {/* Tab bar matching Goals style */}
-          <div className="-mx-6 -mt-6 mb-6 flex h-12 items-stretch border-b border-border bg-background px-6">
+          <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-6 flex h-12 items-stretch overflow-x-auto scrollbar-none border-b border-border bg-background px-4 md:px-6">
             {allTabs.map((tab) => {
               const isActive = tab.id === validActiveTabId
               return (
-                <div key={tab.id} className="group relative flex h-full items-stretch">
+                <div key={tab.id} className="group relative flex h-full shrink-0 items-stretch">
                   <button
                     role="tab"
                     aria-selected={isActive}

@@ -324,20 +324,20 @@ export function KeyResultCard({
         ? "border-border"
         : "border-border/50 opacity-60"
     )}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         {/* Left: icon + title */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-w-0">
           <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md", config.bgColor)}>
             <TypeIcon className={cn("h-3.5 w-3.5", config.color)} />
           </div>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <button
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-2 hover:opacity-75 transition-opacity text-left w-full"
             >
               <p className="text-sm font-medium text-foreground">{kr.title}</p>
             </button>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex flex-wrap items-center gap-2">
               <Badge variant="outline" className={cn("text-xs", config.color)}>
                 {config.label}
               </Badge>
@@ -355,7 +355,7 @@ export function KeyResultCard({
         </div>
 
         {/* Right: summary stat + owner picker + expand */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-10 sm:ml-0 shrink-0">
           <OwnerPicker kr={kr} quarterId={quarterId} goalId={goalId} />
 
           {isInput ? (
@@ -388,7 +388,7 @@ export function KeyResultCard({
 
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex h-8 w-8 sm:h-6 sm:w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -404,8 +404,8 @@ export function KeyResultCard({
 
       {/* Expanded weekly table */}
       {expanded && (
-        <div className="mt-4 overflow-hidden">
-          <table className="w-full text-xs">
+        <div className="mt-4 overflow-x-auto -mx-4 px-4">
+          <table className="w-full min-w-[480px] text-xs">
             <thead>
               <tr>
                 {weeks.map((week) => {

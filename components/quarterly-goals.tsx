@@ -224,8 +224,8 @@ function YearlyGoalGroup({
 
       <div className="flex flex-col gap-5">
         {group.quarterlyGoals.map(({ goal }) => (
-          <div key={goal.id} className="group/goal rounded-xl border border-border bg-card p-5">
-            <div className="mb-4 flex items-start justify-between">
+          <div key={goal.id} className="group/goal rounded-xl border border-border bg-card p-4 md:p-5">
+            <div className="mb-4 flex items-start justify-between gap-2">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chart-2/10">
                   <TrendingUp className="h-3.5 w-3.5 text-chart-2" />

@@ -91,7 +91,7 @@ export function CompanySettings() {
       </div>
 
       {/* Company Name */}
-      <section className="mb-10 rounded-xl border border-border bg-card p-6">
+      <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
         <div className="mb-4 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
             <Building2 className="h-4 w-4 text-foreground" />
@@ -154,8 +154,8 @@ export function CompanySettings() {
       </section>
 
       {/* Founders */}
-      <section className="rounded-xl border border-border bg-card p-6">
-        <div className="mb-4 flex items-center justify-between">
+      <section className="rounded-xl border border-border bg-card p-4 md:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
               <UserPlus className="h-4 w-4 text-foreground" />

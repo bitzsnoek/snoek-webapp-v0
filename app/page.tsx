@@ -11,14 +11,10 @@ export default function Home() {
 
   const checkAuth = useCallback(async () => {
     try {
-      console.log('[v0] checkAuth: creating client...')
       const supabase = createClient()
-      console.log('[v0] checkAuth: calling getSession...')
-      const { data: { session }, error } = await supabase.auth.getSession()
-      console.log('[v0] checkAuth: result', { hasSession: !!session, error })
+      const { data: { session } } = await supabase.auth.getSession()
       setStatus(session ? 'authenticated' : 'unauthenticated')
-    } catch (err) {
-      console.error('[v0] checkAuth: caught error', err)
+    } catch {
       setStatus('unauthenticated')
     }
   }, [])

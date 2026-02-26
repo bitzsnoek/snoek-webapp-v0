@@ -262,7 +262,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
       {confettiOrigin && <ConfettiBurst origin={confettiOrigin} />}
       {dialog && <GoalDialog state={dialog} onClose={() => setDialog(null)} />}
 
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Yearly Goals</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -270,7 +270,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
           </p>
         </div>
         {years.length > 0 && (
-          <Button size="sm" className="gap-2" onClick={() => setDialog({ yearId: years[0].id, goal: null })}>
+          <Button size="sm" className="gap-2 shrink-0 self-start sm:self-auto" onClick={() => setDialog({ yearId: years[0].id, goal: null })}>
             <Plus className="h-4 w-4" />
             Add Goal
           </Button>
@@ -301,7 +301,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                   </button>
                 </div>
 
-                <div className="ml-11 flex flex-col gap-1.5">
+                <div className="ml-0 sm:ml-11 flex flex-col gap-1.5">
                   {goal.keyResults.map((kr) => {
                     const option = getOption(kr.confidence)
                     const isDone = kr.confidence === "done"
@@ -310,7 +310,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                       <div
                         key={kr.id}
                         className={cn(
-                          "flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-secondary/50",
+                          "flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 rounded-lg px-2 py-2 sm:py-1.5 transition-colors hover:bg-secondary/50",
                           isDone && "bg-sky-500/5"
                         )}
                       >

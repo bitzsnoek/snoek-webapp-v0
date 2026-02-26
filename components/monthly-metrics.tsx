@@ -203,22 +203,22 @@ export function MonthlyMetrics() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Monthly Metrics</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Track the health and impact of strategy on company results
           </p>
         </div>
-        <Button size="sm" className="gap-2" onClick={() => setShowAdd(true)}>
+        <Button size="sm" className="gap-2 shrink-0 self-start sm:self-auto" onClick={() => setShowAdd(true)}>
           <Plus className="h-4 w-4" />
           Add Metric
         </Button>
       </div>
 
       {metrics.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full border-collapse">
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[600px] border-collapse">
             {/* Header row: metric name column + description + month columns */}
             <thead>
               <tr className="border-b border-border bg-secondary/50">
