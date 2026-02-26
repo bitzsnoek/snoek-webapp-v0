@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Filter, X } from "lucide-react"
+import { Filter, Flame, X } from "lucide-react"
 
 export function MonthlyPriorities() {
   const { activeCompany } = useApp()
