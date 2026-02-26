@@ -1,9 +1,12 @@
 "use client"
 
-import { createContext, useContext, useState, type ReactNode } from "react"
-import { mockCompanies, mockCoach, type Company, type Coach } from "./mock-data"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData } from "./supabase-data"
+import type { Company, Coach, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
+  isLoading: boolean
   coach: Coach
   companies: Company[]
   activeCompanyId: string
@@ -18,32 +21,113 @@ interface AppState {
   addQuarterlyGoal: (quarterId: string, objective: string, yearlyGoalId: string) => string
   updateQuarterlyGoal: (quarterId: string, goalId: string, objective: string, yearlyGoalId: string) => void
   deleteQuarterlyGoal: (quarterId: string, goalId: string) => void
-  addKeyResult: (quarterId: string, goalId: string, kr: Omit<import("./mock-data").KeyResult, "id">) => void
-  updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<import("./mock-data").KeyResult>) => void
+  addKeyResult: (quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) => void
+  updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<KeyResult>) => void
   deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
-  updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: import("./mock-data").Confidence) => void
+  updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: Confidence) => void
   assignKROwner: (quarterId: string, goalId: string, krId: string, owner: string | null) => void
   addYearlyGoal: (yearId: string, objective: string, keyResults: string[]) => void
-  updateYearlyGoal: (yearId: string, goalId: string, objective: string, keyResults: Omit<import("./mock-data").YearlyKeyResult, "id">[]) => void
+  updateYearlyGoal: (yearId: string, goalId: string, objective: string, keyResults: Omit<YearlyKeyResult, "id">[]) => void
   deleteYearlyGoal: (yearId: string, goalId: string) => void
   updateCompanyName: (name: string) => void
   addFounder: (name: string, role: string) => void
   updateFounder: (founderId: string, name: string, role: string) => void
   removeFounder: (founderId: string) => void
   updateMetricValue: (metricId: string, month: number, value: number) => void
-  addMetric: (metric: Omit<import("./mock-data").Metric, "id">) => void
+  addMetric: (metric: Omit<Metric, "id">) => void
   deleteMetric: (metricId: string) => void
+  refreshData: () => Promise<void>
 }
 
 const AppContext = createContext<AppState | null>(null)
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>(mockCompanies)
-  const [activeCompanyId, setActiveCompanyId] = useState(mockCompanies[0].id)
+const emptyCompany: Company = {
+  id: "",
+  name: "",
+  founders: [],
+  years: [],
+  quarters: [],
+  metrics: [],
+}
 
-  const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0]
+const defaultCoach: Coach = {
+  id: "coach",
+  name: "Coach",
+  avatar: "",
+  clientIds: [],
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [activeCompanyId, setActiveCompanyId] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+
+  const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? emptyCompany
+
+  // Load data from Supabase on mount
+  const loadData = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+
+      const data = await fetchUserCompanies(session.user.id)
+      if (data.length > 0) {
+        setCompanies(data)
+        setActiveCompanyId(data[0].id)
+      }
+    } catch (err) {
+      console.error("[v0] Failed to load data:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // Helper to refresh a single company after mutations
+  async function refreshCompany(companyId: string) {
+    const updated = await fetchCompanyData(companyId)
+    if (updated) {
+      setCompanies((prev) => prev.map((c) => c.id === companyId ? updated : c))
+    }
+  }
+
+  // Helper to get owner member ID from name
+  function getOwnerMemberId(ownerName: string | null): string | null {
+    if (!ownerName) return null
+    const member = activeCompany.founders.find((f) => f.name === ownerName)
+    return member?.id ?? null
+  }
+
+  // Parse quarter key into year + quarter number
+  function parseQuarterKey(quarterId: string): { year: number; quarter: number } {
+    // quarterId could be "2025-1" or the old format "q1-2025"
+    const parts = quarterId.split("-")
+    if (parts.length === 2 && !isNaN(parseInt(parts[0])) && !isNaN(parseInt(parts[1]))) {
+      return { year: parseInt(parts[0]), quarter: parseInt(parts[1]) }
+    }
+    // Try matching Q1 2025 format
+    const match = quarterId.match(/[qQ](\d).*(\d{4})/)
+    if (match) return { year: parseInt(match[2]), quarter: parseInt(match[1]) }
+    return { year: 2025, quarter: 1 }
+  }
+
+  // Parse year from yearId
+  function parseYear(yearId: string): number {
+    const match = yearId.match(/(\d{4})/)
+    if (match) return parseInt(match[1])
+    // Try to find the year object
+    const yearObj = activeCompany.years.find((y) => y.id === yearId)
+    return yearObj?.year ?? 2025
+  }
+
+  // =========== MUTATIONS (optimistic local + async DB write) ===========
 
   function updateWeeklyValue(keyResultId: string, week: string, value: number) {
+    // Optimistic local update
     setCompanies((prev) =>
       prev.map((company) => ({
         ...company,
@@ -60,41 +144,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         })),
       }))
     )
+    // Persist
+    const weekNum = parseInt(week.replace("W", ""))
+    dbUpdateWeeklyValue(keyResultId, weekNum, value)
   }
 
   function addYear(year: number): string {
-    const id = `y-${Date.now()}`
+    const id = `y-${year}`
     setCompanies((prev) =>
       prev.map((company) =>
         company.id === activeCompanyId
-          ? {
-              ...company,
-              years: [
-                { id, year, isActive: true, goals: [] },
-                ...company.years,
-              ],
-            }
+          ? { ...company, years: [{ id, year, isActive: true, goals: [] }, ...company.years] }
           : company
       )
     )
+    dbAddYear(activeCompanyId, year)
     return id
   }
 
   function addQuarter(label: string, year: number): string {
-    const id = `q-${Date.now()}`
+    const match = label.match(/Q(\d)/)
+    const q = match ? parseInt(match[1]) : 1
+    const id = `${year}-${q}`
     setCompanies((prev) =>
       prev.map((company) =>
         company.id === activeCompanyId
-          ? {
-              ...company,
-              quarters: [
-                { id, label, year, isActive: true, goals: [] },
-                ...company.quarters,
-              ],
-            }
+          ? { ...company, quarters: [{ id, label, year, isActive: true, goals: [] }, ...company.quarters] }
           : company
       )
     )
+    dbAddQuarter(activeCompanyId, label, year)
     return id
   }
 
@@ -117,43 +196,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function addQuarterlyGoal(quarterId: string, objective: string, yearlyGoalId: string): string {
-    const id = `qg-${Date.now()}`
+    const tempId = `qg-${Date.now()}`
     patchQuarters(quarterId, (goals) => [
       ...goals,
-      { id, objective, yearlyGoalId, keyResults: [] },
+      { id: tempId, objective, yearlyGoalId, keyResults: [] },
     ])
-    return id
+    const { year, quarter } = parseQuarterKey(quarterId)
+    dbAddQuarterlyGoal(activeCompanyId, year, quarter, yearlyGoalId, objective).then(() => {
+      refreshCompany(activeCompanyId)
+    })
+    return tempId
   }
 
   function updateQuarterlyGoal(quarterId: string, goalId: string, objective: string, yearlyGoalId: string) {
     patchQuarters(quarterId, (goals) =>
       goals.map((g) => g.id === goalId ? { ...g, objective, yearlyGoalId } : g)
     )
+    dbUpdateQuarterlyGoal(goalId, objective, yearlyGoalId)
   }
 
   function deleteQuarterlyGoal(quarterId: string, goalId: string) {
     patchQuarters(quarterId, (goals) => goals.filter((g) => g.id !== goalId))
+    dbDeleteQuarterlyGoal(goalId)
   }
 
-  function addKeyResult(
-    quarterId: string,
-    goalId: string,
-    kr: Omit<import("./mock-data").KeyResult, "id">
-  ) {
-    const id = `kr-${Date.now()}`
+  function addKeyResult(quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) {
+    const tempId = `kr-${Date.now()}`
     patchQuarters(quarterId, (goals) =>
       goals.map((g) =>
-        g.id === goalId ? { ...g, keyResults: [...g.keyResults, { id, ...kr }] } : g
+        g.id === goalId ? { ...g, keyResults: [...g.keyResults, { id: tempId, ...kr }] } : g
       )
     )
+    const ownerMemberId = getOwnerMemberId(kr.owner)
+    dbAddKeyResult(goalId, kr, ownerMemberId).then(() => {
+      refreshCompany(activeCompanyId)
+    })
   }
 
-  function updateKeyResult(
-    quarterId: string,
-    goalId: string,
-    krId: string,
-    kr: Partial<import("./mock-data").KeyResult>
-  ) {
+  function updateKeyResult(quarterId: string, goalId: string, krId: string, kr: Partial<KeyResult>) {
     patchQuarters(quarterId, (goals) =>
       goals.map((g) =>
         g.id === goalId
@@ -161,6 +241,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : g
       )
     )
+    const ownerMemberId = kr.owner !== undefined ? getOwnerMemberId(kr.owner) : undefined
+    dbUpdateKeyResult(krId, kr, ownerMemberId)
   }
 
   function deleteKeyResult(quarterId: string, goalId: string, krId: string) {
@@ -169,6 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         g.id === goalId ? { ...g, keyResults: g.keyResults.filter((k) => k.id !== krId) } : g
       )
     )
+    dbDeleteKeyResult(krId)
   }
 
   function assignKROwner(quarterId: string, goalId: string, krId: string, owner: string | null) {
@@ -179,14 +262,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : g
       )
     )
+    dbAssignKROwner(krId, getOwnerMemberId(owner))
   }
 
-  function updateYearlyKRConfidence(
-    yearId: string,
-    goalId: string,
-    krId: string,
-    confidence: import("./mock-data").Confidence
-  ) {
+  function updateYearlyKRConfidence(yearId: string, goalId: string, krId: string, confidence: Confidence) {
     setCompanies((prev) =>
       prev.map((company) =>
         company.id !== activeCompanyId
@@ -213,6 +292,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
       )
     )
+    dbUpdateYearlyKRConfidence(krId, confidence)
   }
 
   function patchYears(
@@ -234,19 +314,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function addYearlyGoal(yearId: string, objective: string, keyResultTitles: string[]) {
-    const goalId = `yg-${Date.now()}`
-    const keyResults: import("./mock-data").YearlyKeyResult[] = keyResultTitles
+    const tempGoalId = `yg-${Date.now()}`
+    const keyResults: YearlyKeyResult[] = keyResultTitles
       .filter((t) => t.trim())
-      .map((title, i) => ({ id: `ykr-${Date.now()}-${i}`, title, confidence: "not_started" as import("./mock-data").Confidence }))
-    patchYears(yearId, (goals) => [...goals, { id: goalId, objective, keyResults }])
+      .map((title, i) => ({ id: `ykr-${Date.now()}-${i}`, title, confidence: "not_started" as Confidence }))
+    patchYears(yearId, (goals) => [...goals, { id: tempGoalId, objective, keyResults }])
+
+    const year = parseYear(yearId)
+    dbAddYearlyGoal(activeCompanyId, year, objective, keyResultTitles).then(() => {
+      refreshCompany(activeCompanyId)
+    })
   }
 
-  function updateYearlyGoal(
-    yearId: string,
-    goalId: string,
-    objective: string,
-    keyResults: Omit<import("./mock-data").YearlyKeyResult, "id">[]
-  ) {
+  function updateYearlyGoal(yearId: string, goalId: string, objective: string, keyResults: Omit<YearlyKeyResult, "id">[]) {
     patchYears(yearId, (goals) =>
       goals.map((g) =>
         g.id !== goalId
@@ -261,27 +341,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }
       )
     )
+    dbUpdateYearlyGoal(goalId, objective, keyResults.map((kr) => ({ title: kr.title, confidence: kr.confidence })) as any)
   }
 
   function deleteYearlyGoal(yearId: string, goalId: string) {
     patchYears(yearId, (goals) => goals.filter((g) => g.id !== goalId))
+    dbDeleteYearlyGoal(goalId)
   }
 
   function updateCompanyName(name: string) {
     setCompanies((prev) =>
       prev.map((c) => c.id === activeCompanyId ? { ...c, name } : c)
     )
+    dbUpdateCompanyName(activeCompanyId, name)
   }
 
   function addFounder(name: string, role: string) {
-    const id = `f-${Date.now()}`
+    const tempId = `f-${Date.now()}`
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
-          ? { ...c, founders: [...c.founders, { id, name, role, avatar: "" }] }
+          ? { ...c, founders: [...c.founders, { id: tempId, name, role, avatar: "" }] }
           : c
       )
     )
+    dbAddFounder(activeCompanyId, name, role).then(() => {
+      refreshCompany(activeCompanyId)
+    })
   }
 
   function updateFounder(founderId: string, name: string, role: string) {
@@ -292,6 +378,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : c
       )
     )
+    dbUpdateFounder(founderId, name, role)
   }
 
   function removeFounder(founderId: string) {
@@ -302,6 +389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : c
       )
     )
+    dbRemoveFounder(founderId)
   }
 
   function updateMetricValue(metricId: string, month: number, value: number) {
@@ -317,15 +405,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : c
       )
     )
+    dbUpdateMetricValue(metricId, month, value)
   }
 
-  function addMetric(metric: Omit<import("./mock-data").Metric, "id">) {
-    const id = `m-${Date.now()}`
+  function addMetric(metric: Omit<Metric, "id">) {
+    const tempId = `m-${Date.now()}`
     setCompanies((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId ? { ...c, metrics: [...c.metrics, { id, ...metric }] } : c
+        c.id === activeCompanyId ? { ...c, metrics: [...c.metrics, { id: tempId, ...metric }] } : c
       )
     )
+    dbAddMetric(activeCompanyId, metric).then(() => {
+      refreshCompany(activeCompanyId)
+    })
   }
 
   function deleteMetric(metricId: string) {
@@ -334,6 +426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         c.id === activeCompanyId ? { ...c, metrics: c.metrics.filter((m) => m.id !== metricId) } : c
       )
     )
+    dbDeleteMetric(metricId)
   }
 
   function archiveTab(type: "year" | "quarter", id: string) {
@@ -346,6 +439,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: false } : q) }
       )
     )
+    if (type === "year") {
+      const yearObj = activeCompany.years.find((y) => y.id === id)
+      if (yearObj) dbArchiveYear(activeCompanyId, yearObj.year, true)
+    } else {
+      dbArchiveQuarter(activeCompanyId, id, true)
+    }
   }
 
   function unarchiveTab(type: "year" | "quarter", id: string) {
@@ -358,12 +457,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: true } : q) }
       )
     )
+    if (type === "year") {
+      const yearObj = activeCompany.years.find((y) => y.id === id)
+      if (yearObj) dbArchiveYear(activeCompanyId, yearObj.year, false)
+    } else {
+      dbArchiveQuarter(activeCompanyId, id, false)
+    }
   }
 
   return (
     <AppContext.Provider
       value={{
-        coach: mockCoach,
+        isLoading,
+        coach: defaultCoach,
         companies,
         activeCompanyId,
         activeCompany,
@@ -392,6 +498,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateMetricValue,
         addMetric,
         deleteMetric,
+        refreshData: loadData,
       }}
     >
       {children}

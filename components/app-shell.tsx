@@ -9,7 +9,7 @@ import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
-import { getActiveYears, getActiveQuarters } from "@/lib/mock-data"
+
 import { Plus, Archive, Menu } from "lucide-react"
 import {
   Dialog,
@@ -37,21 +37,27 @@ type GoalTabId = `year-${string}` | `quarter-${string}` | "priorities"
 type AddDialogType = "year" | "quarter" | null
 
 export function AppShell() {
-  const { activeCompany, addYear, addQuarter, archiveTab } = useApp()
+  const { activeCompany, addYear, addQuarter, archiveTab, isLoading } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Active tab id: "year-{yearId}", "quarter-{quarterId}", or "priorities"
-  const [activeTabId, setActiveTabId] = useState<GoalTabId>("quarter-q1-2025")
+  const [activeTabId, setActiveTabId] = useState<GoalTabId>("priorities")
 
   // "Add tab" dialog state
   const [addDialog, setAddDialog] = useState<AddDialogType>(null)
   const [addValue, setAddValue] = useState("")
   const [addError, setAddError] = useState("")
 
-  const activeYears = getActiveYears(activeCompany)
-  const activeQuarters = getActiveQuarters(activeCompany)
+  const activeYears = activeCompany.years.filter((y) => y.isActive)
+  const activeQuarters = activeCompany.quarters.filter((q) => q.isActive)
+
+  // Set default tab to first quarter when data loads
+  const firstQuarter = activeQuarters[0]
+  if (activeTabId === "priorities" && firstQuarter && !isLoading) {
+    // Keep priorities as default - that's fine
+  }
 
   // Sort years descending, quarters descending by year then quarter number
   const sortedYears = useMemo(
@@ -158,6 +164,19 @@ export function AppShell() {
         if (newQ) setActiveTabId(`quarter-${newQ.id}`)
       }, 50)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
+            <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
+          <p className="text-muted-foreground">Loading data...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
