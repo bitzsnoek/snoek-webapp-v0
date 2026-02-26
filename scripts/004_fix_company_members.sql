@@ -6,9 +6,11 @@ ALTER TABLE company_members DROP CONSTRAINT IF EXISTS company_members_company_id
 
 -- Clean up any partial seed data from failed run
 DELETE FROM weekly_values;
-DELETE FROM key_results;
+DELETE FROM quarterly_key_results;
 DELETE FROM quarterly_goals;
+DELETE FROM yearly_key_results;
 DELETE FROM yearly_goals;
+DELETE FROM metric_values;
 DELETE FROM metrics;
 DELETE FROM company_members;
 DELETE FROM companies;
