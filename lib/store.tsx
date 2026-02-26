@@ -61,23 +61,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [activeCompanyId, setActiveCompanyId] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? emptyCompany
 
   // Load data from Supabase on mount
   const loadData = useCallback(async () => {
     try {
+      setLoadError(null)
+      console.log("[v0] loadData: starting...")
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) return
+      console.log("[v0] loadData: session user id:", session?.user?.id)
+      if (!session?.user) {
+        console.log("[v0] loadData: no session, skipping")
+        return
+      }
 
       const data = await fetchUserCompanies(session.user.id)
+      console.log("[v0] loadData: fetched companies:", data.length, data.map(c => ({ id: c.id, name: c.name, quarters: c.quarters.length, years: c.years.length })))
       if (data.length > 0) {
         setCompanies(data)
         setActiveCompanyId(data[0].id)
       }
     } catch (err) {
       console.error("[v0] Failed to load data:", err)
+      setLoadError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsLoading(false)
     }
@@ -463,6 +472,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       dbArchiveQuarter(activeCompanyId, id, false)
     }
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md rounded-lg border border-destructive/30 bg-destructive/5 p-6">
+          <h2 className="text-lg font-semibold text-foreground mb-2">Failed to load data</h2>
+          <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
+          <button onClick={loadData} className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90">Retry</button>
+        </div>
+      </div>
+    )
   }
 
   return (

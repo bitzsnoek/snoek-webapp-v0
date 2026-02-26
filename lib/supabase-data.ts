@@ -49,19 +49,27 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   const supabase = createClient()
 
   // Phase 1: Fetch core data in parallel
-  const [
-    { data: company },
-    { data: members },
-    { data: yearlyGoals },
-    { data: quarterlyGoals },
-    { data: metrics },
-  ] = await Promise.all([
+  const [companyRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("company_members").select("*").eq("company_id", companyId),
     supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
     supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
     supabase.from("metrics").select("*").eq("company_id", companyId),
   ])
+
+  console.log("[v0] fetchCompanyData phase1:", {
+    company: companyRes.error?.message ?? `ok (${companyRes.data?.name})`,
+    members: membersRes.error?.message ?? `ok (${membersRes.data?.length})`,
+    yearlyGoals: yearlyGoalsRes.error?.message ?? `ok (${yearlyGoalsRes.data?.length})`,
+    quarterlyGoals: quarterlyGoalsRes.error?.message ?? `ok (${quarterlyGoalsRes.data?.length})`,
+    metrics: metricsRes.error?.message ?? `ok (${metricsRes.data?.length})`,
+  })
+
+  const company = companyRes.data
+  const members = membersRes.data
+  const yearlyGoals = yearlyGoalsRes.data
+  const quarterlyGoals = quarterlyGoalsRes.data
+  const metrics = metricsRes.data
 
   if (!company) return null
 
@@ -221,10 +229,12 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
 export async function fetchUserCompanies(userId: string): Promise<Company[]> {
   const supabase = createClient()
 
-  const { data: memberships } = await supabase
+  const { data: memberships, error: membershipError } = await supabase
     .from("company_members")
     .select("company_id")
     .eq("user_id", userId)
+
+  console.log("[v0] fetchUserCompanies:", { userId, memberships: memberships?.length, error: membershipError?.message })
 
   if (!memberships || memberships.length === 0) return []
 
