@@ -7,7 +7,7 @@ const _inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const _jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" })
 
 export const metadata: Metadata = {
-  title: 'GoalTracker - Strategy Coaching Dashboard',
+  title: 'Snoek - Strategy Coaching Dashboard',
   description: 'Track goals, OKRs, and company metrics for the founders you coach',
   icons: {
     icon: [

@@ -65,7 +65,7 @@ export function Sidebar({
           </div>
           {!collapsed && (
             <span className="text-sm font-semibold text-foreground">
-              GoalTracker
+              Snoek
             </span>
           )}
         </div>
