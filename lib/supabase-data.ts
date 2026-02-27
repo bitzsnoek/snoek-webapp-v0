@@ -377,7 +377,7 @@ export async function dbAddCompany(name: string, userId: string): Promise<string
   const supabase = createClient()
   const { data, error } = await supabase
     .from("companies")
-    .insert({ name })
+    .insert({ name, coach_id: userId })
     .select()
     .single()
   if (error || !data) { console.error("dbAddCompany error:", error); return null }
