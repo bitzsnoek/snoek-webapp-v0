@@ -114,7 +114,7 @@ export function ArchiveView() {
                     }}
                     title="Unarchive — move back to Goals"
                     className={cn(
-                      "flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 opacity-0 transition-all hover:text-primary group-hover:opacity-100",
+                      "flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 md:opacity-0 transition-all hover:text-primary md:group-hover:opacity-100",
                       isActive && "text-muted-foreground/60"
                     )}
                     aria-label="Unarchive"

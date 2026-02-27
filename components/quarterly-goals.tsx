@@ -234,7 +234,7 @@ function YearlyGoalGroup({
               </div>
               <button
                 onClick={() => onEdit(goal)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/goal:opacity-100"
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground md:opacity-0 transition-opacity hover:text-foreground md:group-hover/goal:opacity-100"
                 title="Edit goal"
               >
                 <Pencil className="h-3 w-3" />
