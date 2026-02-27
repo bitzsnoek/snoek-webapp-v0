@@ -71,20 +71,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoadError(null)
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      console.log("[v0] session:", session?.user?.id, session?.user?.email)
       if (!session?.user) {
         setLoadError("No active session found. Please log in.")
         return
       }
 
       const data = await fetchUserCompanies(session.user.id)
-      console.log("[v0] fetched companies:", JSON.stringify(data.map(c => ({
-        id: c.id, name: c.name, 
-        founders: c.founders.length, 
-        years: c.years.length, 
-        quarters: c.quarters.length,
-        metrics: c.metrics.length,
-      }))))
       if (data.length > 0) {
         setCompanies(data)
         setActiveCompanyId(data[0].id)

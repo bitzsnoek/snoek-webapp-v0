@@ -63,15 +63,6 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   const quarterlyGoals = quarterlyGoalsRes.data
   const metrics = metricsRes.data
 
-  console.log("[v0] fetchCompanyData:", {
-    companyId,
-    company: company?.name ?? companyRes.error?.message,
-    members: members?.length ?? membersRes.error?.message,
-    yearlyGoals: yearlyGoals?.length ?? yearlyGoalsRes.error?.message,
-    quarterlyGoals: quarterlyGoals?.length ?? quarterlyGoalsRes.error?.message,
-    metrics: metrics?.length ?? metricsRes.error?.message,
-  })
-
   if (!company) return null
 
   // Phase 2: Fetch related data using IDs from phase 1
@@ -234,8 +225,6 @@ export async function fetchUserCompanies(userId: string): Promise<Company[]> {
     .from("company_members")
     .select("company_id")
     .eq("user_id", userId)
-
-  console.log("[v0] fetchUserCompanies: userId=", userId, "memberships=", JSON.stringify(memberships), "error=", membershipError?.message)
 
   if (!memberships || memberships.length === 0) return []
 
