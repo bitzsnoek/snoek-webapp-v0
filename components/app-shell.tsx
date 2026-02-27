@@ -11,7 +11,6 @@ import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 
 import { Building2, Plus, Archive, Menu } from "lucide-react"
-import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
