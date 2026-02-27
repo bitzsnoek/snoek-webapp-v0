@@ -375,18 +375,20 @@ export async function dbAssignKROwner(krId: string, ownerMemberId: string | null
 
 export async function dbAddCompany(name: string, userId: string): Promise<string | null> {
   const supabase = createClient()
+  console.log("[v0] dbAddCompany: inserting company", { name, userId })
   const { data, error } = await supabase
     .from("companies")
     .insert({ name, coach_id: userId })
     .select()
     .single()
-  if (error || !data) { console.error("dbAddCompany error:", error); return null }
+  console.log("[v0] dbAddCompany: company insert result", { data, error: error?.message, code: error?.code, details: error?.details })
+  if (error || !data) return null
 
-  // Add the current user as a founder/member so RLS allows access
+  console.log("[v0] dbAddCompany: inserting member for company", data.id)
   const { error: memberError } = await supabase
     .from("company_members")
     .insert({ company_id: data.id, user_id: userId, role: "founder", name: "Me", role_title: "Coach" })
-  if (memberError) console.error("dbAddCompany member error:", memberError)
+  console.log("[v0] dbAddCompany: member insert result", { error: memberError?.message, code: memberError?.code, details: memberError?.details })
 
   return data.id as string
 }
