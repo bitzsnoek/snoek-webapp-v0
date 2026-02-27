@@ -226,7 +226,7 @@ export function CompanySettings() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
                     <button
                       onClick={() => openEditFounder(founder)}
                       className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
