@@ -375,22 +375,22 @@ export async function dbAssignKROwner(krId: string, ownerMemberId: string | null
 
 export async function dbAddCompany(name: string, userId: string): Promise<string | null> {
   const supabase = createClient()
-  console.log("[v0] dbAddCompany: inserting company", { name, userId })
-  const { data, error } = await supabase
-    .from("companies")
-    .insert({ name, coach_id: userId })
-    .select()
-    .single()
-  console.log("[v0] dbAddCompany: company insert result", { data, error: error?.message, code: error?.code, details: error?.details })
-  if (error || !data) return null
+  // Generate ID client-side to avoid the SELECT RLS chicken-and-egg issue:
+  // The INSERT succeeds but .select() is blocked because the user isn't a member yet.
+  const companyId = crypto.randomUUID()
 
-  console.log("[v0] dbAddCompany: inserting member for company", data.id)
+  const { error } = await supabase
+    .from("companies")
+    .insert({ id: companyId, name, coach_id: userId })
+  if (error) { console.error("dbAddCompany company error:", error); return null }
+
+  // Now add the user as a member so RLS grants full access
   const { error: memberError } = await supabase
     .from("company_members")
-    .insert({ company_id: data.id, user_id: userId, role: "founder", name: "Me", role_title: "Coach" })
-  console.log("[v0] dbAddCompany: member insert result", { error: memberError?.message, code: memberError?.code, details: memberError?.details })
+    .insert({ company_id: companyId, user_id: userId, role: "coach", name: "Coach" })
+  if (memberError) { console.error("dbAddCompany member error:", memberError); return null }
 
-  return data.id as string
+  return companyId
 }
 
 export async function dbDeleteCompany(companyId: string) {
