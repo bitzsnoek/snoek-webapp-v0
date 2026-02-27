@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData } from "./supabase-data"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany } from "./supabase-data"
 import type { Company, Coach, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
@@ -36,6 +36,8 @@ interface AppState {
   updateMetricValue: (metricId: string, month: number, value: number) => void
   addMetric: (metric: Omit<Metric, "id">) => void
   deleteMetric: (metricId: string) => void
+  addCompany: (name: string) => Promise<void>
+  deleteCompany: (companyId: string) => Promise<void>
   refreshData: () => Promise<void>
 }
 
@@ -77,11 +79,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await fetchUserCompanies(session.user.id)
+      setCompanies(data)
       if (data.length > 0) {
-        setCompanies(data)
         setActiveCompanyId(data[0].id)
-      } else {
-        setLoadError("No companies found for this user. User ID: " + session.user.id)
       }
     } catch (err) {
       console.error("[v0] Failed to load data:", err)
@@ -437,6 +437,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dbDeleteMetric(metricId)
   }
 
+  async function addCompany(name: string) {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+
+    const newId = await dbAddCompany(name, session.user.id)
+    if (!newId) return
+
+    const newCompany = await fetchCompanyData(newId)
+    if (newCompany) {
+      setCompanies((prev) => [...prev, newCompany])
+      setActiveCompanyId(newId)
+    }
+  }
+
+  async function deleteCompany(companyId: string) {
+    await dbDeleteCompany(companyId)
+    setCompanies((prev) => {
+      const remaining = prev.filter((c) => c.id !== companyId)
+      if (activeCompanyId === companyId && remaining.length > 0) {
+        setActiveCompanyId(remaining[0].id)
+      }
+      return remaining
+    })
+  }
+
   function archiveTab(type: "year" | "quarter", id: string) {
     setCompanies((prev) =>
       prev.map((company) =>
@@ -518,6 +544,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateMetricValue,
         addMetric,
         deleteMetric,
+        addCompany,
+        deleteCompany,
         refreshData: loadData,
       }}
     >

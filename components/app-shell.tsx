@@ -10,7 +10,8 @@ import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 
-import { Plus, Archive, Menu } from "lucide-react"
+import { Building2, Plus, Archive, Menu } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,7 @@ type GoalTabId = `year-${string}` | `quarter-${string}` | "priorities"
 type AddDialogType = "year" | "quarter" | null
 
 export function AppShell() {
-  const { activeCompany, addYear, addQuarter, archiveTab, isLoading } = useApp()
+  const { activeCompany, companies, addYear, addQuarter, archiveTab, addCompany, isLoading } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -166,6 +167,18 @@ export function AppShell() {
     }
   }
 
+  const [newCompanyName, setNewCompanyName] = useState("")
+  const [creatingCompany, setCreatingCompany] = useState(false)
+
+  async function handleCreateFirstCompany() {
+    const name = newCompanyName.trim()
+    if (!name) return
+    setCreatingCompany(true)
+    await addCompany(name)
+    setCreatingCompany(false)
+    setNewCompanyName("")
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
@@ -174,6 +187,34 @@ export function AppShell() {
             <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           </div>
           <p className="text-muted-foreground">Loading data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (companies.length === 0) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-background p-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+            <Building2 className="h-7 w-7 text-primary" />
+          </div>
+          <h1 className="text-xl font-semibold text-foreground">Welcome to Snoek</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Get started by adding your first company to coach.
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
+            <Input
+              placeholder="Company name"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateFirstCompany()}
+              className="text-center"
+            />
+            <Button onClick={handleCreateFirstCompany} disabled={!newCompanyName.trim() || creatingCompany}>
+              {creatingCompany ? "Creating..." : "Add company"}
+            </Button>
+          </div>
         </div>
       </div>
     )

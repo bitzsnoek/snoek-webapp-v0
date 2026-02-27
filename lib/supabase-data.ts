@@ -373,6 +373,64 @@ export async function dbAssignKROwner(krId: string, ownerMemberId: string | null
   await supabase.from("quarterly_key_results").update({ owner_id: ownerMemberId }).eq("id", krId)
 }
 
+export async function dbAddCompany(name: string, userId: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("companies")
+    .insert({ name })
+    .select()
+    .single()
+  if (error || !data) { console.error("dbAddCompany error:", error); return null }
+
+  // Add the current user as a founder/member so RLS allows access
+  const { error: memberError } = await supabase
+    .from("company_members")
+    .insert({ company_id: data.id, user_id: userId, role: "founder", name: "Me", role_title: "Coach" })
+  if (memberError) console.error("dbAddCompany member error:", memberError)
+
+  return data.id as string
+}
+
+export async function dbDeleteCompany(companyId: string) {
+  const supabase = createClient()
+
+  // Cascade delete all related data (child-first)
+  // 1. weekly_values via quarterly_key_results via quarterly_goals
+  const { data: qGoals } = await supabase.from("quarterly_goals").select("id").eq("company_id", companyId)
+  const qGoalIds = (qGoals ?? []).map((g: any) => g.id)
+  if (qGoalIds.length > 0) {
+    const { data: qKrs } = await supabase.from("quarterly_key_results").select("id").in("quarterly_goal_id", qGoalIds)
+    const qKrIds = (qKrs ?? []).map((kr: any) => kr.id)
+    if (qKrIds.length > 0) {
+      await supabase.from("weekly_values").delete().in("quarterly_key_result_id", qKrIds)
+    }
+    await supabase.from("quarterly_key_results").delete().in("quarterly_goal_id", qGoalIds)
+  }
+  await supabase.from("quarterly_goals").delete().eq("company_id", companyId)
+
+  // 2. yearly_key_results via yearly_goals
+  const { data: yGoals } = await supabase.from("yearly_goals").select("id").eq("company_id", companyId)
+  const yGoalIds = (yGoals ?? []).map((g: any) => g.id)
+  if (yGoalIds.length > 0) {
+    await supabase.from("yearly_key_results").delete().in("yearly_goal_id", yGoalIds)
+  }
+  await supabase.from("yearly_goals").delete().eq("company_id", companyId)
+
+  // 3. metric_values via metrics
+  const { data: mets } = await supabase.from("metrics").select("id").eq("company_id", companyId)
+  const metIds = (mets ?? []).map((m: any) => m.id)
+  if (metIds.length > 0) {
+    await supabase.from("metric_values").delete().in("metric_id", metIds)
+  }
+  await supabase.from("metrics").delete().eq("company_id", companyId)
+
+  // 4. company_members
+  await supabase.from("company_members").delete().eq("company_id", companyId)
+
+  // 5. company itself
+  await supabase.from("companies").delete().eq("id", companyId)
+}
+
 export async function dbUpdateCompanyName(companyId: string, name: string) {
   const supabase = createClient()
   await supabase.from("companies").update({ name }).eq("id", companyId)

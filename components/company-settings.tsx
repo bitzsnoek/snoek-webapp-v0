@@ -14,16 +14,18 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Building2, Plus, Pencil, Trash2, UserPlus } from "lucide-react"
+import { AlertTriangle, Building2, Plus, Pencil, Trash2, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function CompanySettings() {
   const {
     activeCompany,
+    companies,
     updateCompanyName,
     addFounder,
     updateFounder,
     removeFounder,
+    deleteCompany,
   } = useApp()
 
   const [companyName, setCompanyName] = useState(activeCompany.name)
@@ -38,8 +40,22 @@ export function CompanySettings() {
     role: string
   }>({ open: false, mode: "add", name: "", role: "" })
 
-  // Confirm delete state
+  // Confirm delete founder state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // Danger zone: delete company
+  const [deleteCompanyDialog, setDeleteCompanyDialog] = useState(false)
+  const [deleteCompanyConfirm, setDeleteCompanyConfirm] = useState("")
+  const [deletingCompany, setDeletingCompany] = useState(false)
+
+  async function handleDeleteCompany() {
+    if (deleteCompanyConfirm !== activeCompany.name) return
+    setDeletingCompany(true)
+    await deleteCompany(activeCompany.id)
+    setDeletingCompany(false)
+    setDeleteCompanyDialog(false)
+    setDeleteCompanyConfirm("")
+  }
 
   function handleSaveName() {
     const trimmed = companyName.trim()
@@ -253,6 +269,71 @@ export function CompanySettings() {
           </div>
         )}
       </section>
+
+      {/* Danger Zone */}
+      <section className="mt-10 rounded-xl border border-destructive/30 bg-card p-4 md:p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground">Danger Zone</h2>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Delete this company</p>
+            <p className="text-xs text-muted-foreground">
+              Permanently remove this company and all its data. This cannot be undone.
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteCompanyDialog(true)}
+          >
+            Delete company
+          </Button>
+        </div>
+      </section>
+
+      {/* Delete Company Confirmation Dialog */}
+      <Dialog open={deleteCompanyDialog} onOpenChange={(open) => { if (!open) { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {activeCompany.name}?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the company, all goals, key results, metrics, and founder data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="delete-confirm" className="text-sm text-muted-foreground">
+                Type <span className="font-semibold text-foreground">{activeCompany.name}</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirm"
+                placeholder={activeCompany.name}
+                value={deleteCompanyConfirm}
+                onChange={(e) => setDeleteCompanyConfirm(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleDeleteCompany()}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCompany}
+              disabled={deleteCompanyConfirm !== activeCompany.name || deletingCompany}
+            >
+              {deletingCompany ? "Deleting..." : "Delete permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Founder Dialog */}
       <Dialog

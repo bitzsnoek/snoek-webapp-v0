@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import {
@@ -12,14 +13,27 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Plus,
   X,
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 export type MainSection = "goals" | "metrics" | "archive" | "settings"
@@ -48,11 +62,24 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
 }: SidebarProps) {
-  const { coach, companies, activeCompany, setActiveCompanyId } = useApp()
+  const { coach, companies, activeCompany, setActiveCompanyId, addCompany } = useApp()
+  const [addCompanyOpen, setAddCompanyOpen] = useState(false)
+  const [newCompanyName, setNewCompanyName] = useState("")
+  const [addingCompany, setAddingCompany] = useState(false)
 
   function handleNavClick(section: MainSection) {
     onSectionChange(section)
     onMobileClose()
+  }
+
+  async function handleAddCompany() {
+    const name = newCompanyName.trim()
+    if (!name) return
+    setAddingCompany(true)
+    await addCompany(name)
+    setAddingCompany(false)
+    setNewCompanyName("")
+    setAddCompanyOpen(false)
   }
 
   const sidebarContent = (
@@ -120,6 +147,11 @@ export function Sidebar({
                 {company.name}
               </DropdownMenuItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setAddCompanyOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add company
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -218,6 +250,37 @@ export function Sidebar({
 
   return (
     <>
+      {/* Add company dialog */}
+      <Dialog open={addCompanyOpen} onOpenChange={(open) => { if (!open) { setAddCompanyOpen(false); setNewCompanyName("") } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Company</DialogTitle>
+            <DialogDescription>Add a new company to coach.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-company-name">Company name</Label>
+              <Input
+                id="new-company-name"
+                placeholder="Acme Inc."
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCompany()}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddCompanyOpen(false); setNewCompanyName("") }}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddCompany} disabled={!newCompanyName.trim() || addingCompany}>
+              {addingCompany ? "Adding..." : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
