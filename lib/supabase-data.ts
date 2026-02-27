@@ -57,14 +57,6 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     supabase.from("metrics").select("*").eq("company_id", companyId),
   ])
 
-  console.log("[v0] fetchCompanyData phase1:", {
-    company: companyRes.error?.message ?? `ok (${companyRes.data?.name})`,
-    members: membersRes.error?.message ?? `ok (${membersRes.data?.length})`,
-    yearlyGoals: yearlyGoalsRes.error?.message ?? `ok (${yearlyGoalsRes.data?.length})`,
-    quarterlyGoals: quarterlyGoalsRes.error?.message ?? `ok (${quarterlyGoalsRes.data?.length})`,
-    metrics: metricsRes.error?.message ?? `ok (${metricsRes.data?.length})`,
-  })
-
   const company = companyRes.data
   const members = membersRes.data
   const yearlyGoals = yearlyGoalsRes.data
@@ -233,8 +225,6 @@ export async function fetchUserCompanies(userId: string): Promise<Company[]> {
     .from("company_members")
     .select("company_id")
     .eq("user_id", userId)
-
-  console.log("[v0] fetchUserCompanies:", { userId, memberships: memberships?.length, error: membershipError?.message })
 
   if (!memberships || memberships.length === 0) return []
 

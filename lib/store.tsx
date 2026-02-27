@@ -69,17 +69,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadData = useCallback(async () => {
     try {
       setLoadError(null)
-      console.log("[v0] loadData: starting...")
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      console.log("[v0] loadData: session user id:", session?.user?.id)
-      if (!session?.user) {
-        console.log("[v0] loadData: no session, skipping")
-        return
-      }
+      if (!session?.user) return
 
       const data = await fetchUserCompanies(session.user.id)
-      console.log("[v0] loadData: fetched companies:", data.length, data.map(c => ({ id: c.id, name: c.name, quarters: c.quarters.length, years: c.years.length })))
       if (data.length > 0) {
         setCompanies(data)
         setActiveCompanyId(data[0].id)
