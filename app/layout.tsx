@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${_inter.variable} ${_jetbrainsMono.variable} bg-background`}>
+    <html lang="en" className={`${_inter.variable} ${_jetbrainsMono.variable} bg-background`} suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
         {children}
       </body>
