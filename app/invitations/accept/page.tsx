@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { dbAcceptInvitation } from "@/lib/supabase-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CheckCircle2, AlertCircle, Loader2, Mail } from "lucide-react"
@@ -58,7 +57,13 @@ function AcceptInvitationInner() {
         return
       }
 
-      const result = await dbAcceptInvitation(token, session.user.id)
+      // Call server-side API route that uses service role to bypass RLS
+      const res = await fetch("/api/accept-invitation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+      const result = await res.json()
 
       if (result.success && result.companyId) {
         setStatus("success")
