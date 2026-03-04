@@ -1,34 +1,55 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AppProvider } from '@/lib/store'
 import { AppShell } from '@/components/app-shell'
 import { LoginForm } from '@/components/login-form'
 
 export default function Home() {
+  const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
 
   const checkAuth = useCallback(async () => {
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
+
+      if (session) {
+        // Check if there's a pending invite token to process
+        const pendingInvite = localStorage.getItem('pending_invite_token')
+        if (pendingInvite) {
+          localStorage.removeItem('pending_invite_token')
+          router.push(`/invitations/accept?token=${pendingInvite}`)
+          return
+        }
+      }
+
       setStatus(session ? 'authenticated' : 'unauthenticated')
     } catch {
       setStatus('unauthenticated')
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     checkAuth()
 
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        const pendingInvite = localStorage.getItem('pending_invite_token')
+        if (pendingInvite) {
+          localStorage.removeItem('pending_invite_token')
+          router.push(`/invitations/accept?token=${pendingInvite}`)
+          return
+        }
+      }
       setStatus(session ? 'authenticated' : 'unauthenticated')
     })
 
     return () => subscription.unsubscribe()
-  }, [checkAuth])
+  }, [checkAuth, router])
 
   if (status === 'loading') {
     return (

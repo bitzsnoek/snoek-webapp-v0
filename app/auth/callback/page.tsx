@@ -12,7 +12,8 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       const url = new URL(window.location.href)
       const code = url.searchParams.get('code') || ''
-      const inviteToken = url.searchParams.get('invite')
+      // Check for invite token in query params or localStorage
+      const inviteToken = url.searchParams.get('invite') || localStorage.getItem('pending_invite_token')
 
       // Exchange the code for a session
       const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -21,6 +22,8 @@ export default function AuthCallback() {
         console.error('Auth error:', error)
         router.push('/auth/error')
       } else if (inviteToken) {
+        // Clean up stored token
+        localStorage.removeItem('pending_invite_token')
         // Redirect to invitation acceptance page
         router.push(`/invitations/accept?token=${inviteToken}`)
       } else {
