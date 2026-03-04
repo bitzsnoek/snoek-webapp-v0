@@ -459,7 +459,8 @@ export async function dbInviteUser(
   companyId: string,
   email: string,
   role: "founder" | "coach",
-  invitedBy: string
+  invitedBy: string,
+  founderName?: string
 ): Promise<Invitation | null> {
   const supabase = createClient()
   const token = crypto.randomUUID()
@@ -482,7 +483,35 @@ export async function dbInviteUser(
     console.error("dbInviteUser error:", error)
     return null
   }
-  return data as Invitation
+
+  const invitation = data as Invitation
+
+  // Send invitation email
+  try {
+    const senderProfile = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", invitedBy)
+      .single()
+
+    const senderName = senderProfile.data?.full_name || "Your coach"
+
+    await fetch("/api/send-invitation-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        founderName: founderName || email.split("@")[0],
+        invitationToken: token,
+        senderName,
+      }),
+    })
+  } catch (emailError) {
+    console.error("Failed to send invitation email:", emailError)
+    // Don't fail the invitation creation if email fails
+  }
+
+  return invitation
 }
 
 export async function dbGetInvitations(companyId: string): Promise<Invitation[]> {
