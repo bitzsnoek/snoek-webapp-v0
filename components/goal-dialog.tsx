@@ -244,7 +244,10 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                   {/* Target */}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      {kr.type === "project" ? "Target (%)" : "Target"}
+                      {kr.type === "project"
+                        ? "Target (%)"
+                        : `Target / ${(kr.targetFrequency === "weekly" ? "week" : kr.targetFrequency === "monthly" ? "month" : "quarter")}`
+                      }
                     </Label>
                     <Input
                       type="number"
