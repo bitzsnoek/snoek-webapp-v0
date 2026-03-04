@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       // User exists -- update their password and confirm email
       const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
         existingUser.id,
-        { password, email_confirm: true }
+        { password, email_confirm: true, user_metadata: { full_name: name.trim() } }
       )
       if (updateError) {
         console.error("Update user error:", updateError)
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
         email,
         password,
         email_confirm: true,
+        user_metadata: { full_name: name.trim() },
       })
       if (createError || !newUser.user) {
         console.error("Create user error:", createError)
