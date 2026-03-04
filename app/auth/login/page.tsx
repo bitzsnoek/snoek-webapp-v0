@@ -1,12 +1,28 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail } from 'lucide-react'
+import { Mail, Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    }>
+      <LoginInner />
+    </Suspense>
+  )
+}
+
+function LoginInner() {
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams.get('invite')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -18,12 +34,19 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    // Preserve invite token through the auth callback
+    const callbackUrl = new URL(
+      process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+      `${window.location.origin}/auth/callback`
+    )
+    if (inviteToken) {
+      callbackUrl.searchParams.set('invite', inviteToken)
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-          `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callbackUrl.toString(),
       },
     })
 
@@ -46,10 +69,12 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-center text-2xl font-bold text-foreground mb-2">
-            Sign in with Magic Link
+            {inviteToken ? 'Accept Your Invitation' : 'Sign in with Magic Link'}
           </h1>
           <p className="text-center text-sm text-muted-foreground mb-6">
-            Enter your email to receive a magic link
+            {inviteToken
+              ? 'Enter your email to sign in and join the company. If you don\'t have an account yet, one will be created for you.'
+              : 'Enter your email to receive a magic link'}
           </p>
 
           {sent ? (
