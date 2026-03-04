@@ -290,14 +290,7 @@ export function KeyResultCard({
   quarterId: string
   goalId: string
 }) {
-  const { currentUser, activeCompany } = useApp()
-
-  // Auto-expand key results assigned to the current user so they can see their weekly input fields
-  const currentMember = activeCompany.members?.find(
-    (m) => m.email === currentUser.email || m.name === currentUser.name
-  )
-  const isOwnedByCurrentUser = kr.owner && currentMember && kr.owner === currentMember.name
-  const [expanded, setExpanded] = useState(!!isOwnedByCurrentUser)
+  const [expanded, setExpanded] = useState(false)
   const isInput = kr.type === "input"
   const progress = getProgressPercent(kr)
   const total = sumWeeklyValues(kr)
@@ -307,9 +300,13 @@ export function KeyResultCard({
 
   const currentWeek = getCurrentWeekKey()
   const currentWeekNum = parseInt(currentWeek.replace("W", ""), 10)
-  const weeks = Object.keys(kr.weeklyValues).sort(
-    (a, b) => parseInt(a.replace("W", "")) - parseInt(b.replace("W", ""))
-  )
+
+  // Always show all 13 weeks of a quarter, even if no data exists yet
+  const dataWeeks = Object.keys(kr.weeklyValues)
+  const maxWeek = dataWeeks.length > 0
+    ? Math.max(13, ...dataWeeks.map((w) => parseInt(w.replace("W", ""), 10)))
+    : 13
+  const weeks = Array.from({ length: maxWeek }, (_, i) => `W${i + 1}`)
 
   return (
     <div className={cn(
