@@ -490,15 +490,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function addCompany(name: string) {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
-    console.log("[v0] addCompany session:", !!session?.user, session?.user?.id)
     if (!session?.user) return
 
     const newId = await dbAddCompany(name, session.user.id)
-    console.log("[v0] addCompany newId:", newId)
     if (!newId) return
 
     const newCompany = await fetchCompanyData(newId)
-    console.log("[v0] addCompany fetched:", !!newCompany, newCompany?.name)
     if (newCompany) {
       setCompanies((prev) => {
         // Prevent duplicates if addCompany is called multiple times
