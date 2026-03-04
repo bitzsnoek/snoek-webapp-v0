@@ -123,7 +123,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const data = await fetchUserCompanies(session.user.id)
       setCompanies(data)
       if (data.length > 0) {
-        setActiveCompanyId(data[0].id)
+        // Preserve current active company if it still exists, otherwise default to first
+        setActiveCompanyId((current) => {
+          if (current && data.some((c) => c.id === current)) return current
+          return data[0].id
+        })
       }
     } catch (err) {
       console.error("[v0] Failed to load data:", err)
