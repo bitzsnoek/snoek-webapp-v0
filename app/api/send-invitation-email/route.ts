@@ -20,8 +20,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the base URL from the request
-    const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    // Determine the correct base URL for the invitation link
+    const forwardedHost = request.headers.get("x-forwarded-host")
+    const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
+    const host = forwardedHost || process.env.VERCEL_PROJECT_PRODUCTION_URL || request.nextUrl.host
+    const protocol = forwardedHost ? forwardedProto : request.nextUrl.protocol.replace(":", "")
+    const baseUrl = `${protocol}://${host}`
     const acceptLink = `${baseUrl}/invitations/accept?token=${invitationToken}`
 
     const emailContent = `
