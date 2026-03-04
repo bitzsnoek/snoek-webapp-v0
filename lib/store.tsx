@@ -3,11 +3,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, type Invitation, type UnconnectedFounder } from "./supabase-data"
-import type { Company, Coach, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
+import type { Company, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
   isLoading: boolean
   coach: Coach
+  currentUser: CurrentUser
   companies: Company[]
   activeCompanyId: string
   activeCompany: Company
@@ -42,6 +43,7 @@ interface AppState {
   getInvitations: () => Promise<Invitation[]>
   cancelInvitation: (invitationId: string) => Promise<void>
   acceptInvitation: (token: string) => Promise<{ success: boolean; companyId?: string; error?: string }>
+  updateProfile: (name: string) => Promise<void>
   refreshData: () => Promise<void>
 }
 
@@ -63,9 +65,18 @@ const defaultCoach: Coach = {
   clientIds: [],
 }
 
+const defaultUser: CurrentUser = {
+  id: "",
+  name: "",
+  email: "",
+  avatar: "",
+  role: "founder",
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [activeCompanyId, setActiveCompanyId] = useState("")
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(defaultUser)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -81,6 +92,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoadError("No active session found. Please log in.")
         return
       }
+
+      // Load user profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", session.user.id)
+        .single()
+
+      // Determine user role: check if they own any company (coach) or are a member
+      const { data: ownedCompanies } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("coach_id", session.user.id)
+        .limit(1)
+
+      const userRole = (ownedCompanies && ownedCompanies.length > 0) ? "coach" : "founder"
+      const userName = profile?.full_name || session.user.email?.split("@")[0] || "User"
+      const initials = userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+
+      setCurrentUser({
+        id: session.user.id,
+        name: userName,
+        email: session.user.email || "",
+        avatar: initials,
+        role: userRole,
+      })
 
       const data = await fetchUserCompanies(session.user.id)
       setCompanies(data)
@@ -531,6 +568,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return await dbAcceptInvitation(token, session.user.id)
   }
 
+  async function updateProfile(name: string) {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+
+    await supabase
+      .from("profiles")
+      .update({ full_name: name })
+      .eq("id", session.user.id)
+
+    const initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    setCurrentUser((prev) => ({ ...prev, name, avatar: initials }))
+  }
+
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -548,6 +599,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         isLoading,
         coach: defaultCoach,
+        currentUser,
         companies,
         activeCompanyId,
         activeCompany,
@@ -582,6 +634,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getInvitations,
         cancelInvitation,
         acceptInvitation,
+        updateProfile,
         refreshData: loadData,
       }}
     >

@@ -9,6 +9,7 @@ import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
+import { AccountSettings } from "./account-settings"
 
 import { Building2, Plus, Archive, Menu } from "lucide-react"
 import {
@@ -315,6 +316,8 @@ export function AppShell() {
                 ? "Monthly Metrics"
                 : activeSection === "settings"
                 ? "Settings"
+                : activeSection === "account"
+                ? "Account"
                 : "Archive"}
             </h1>
           )}
@@ -334,6 +337,7 @@ export function AppShell() {
           {activeSection === "metrics" && <MonthlyMetrics />}
           {activeSection === "archive" && <ArchiveView />}
           {activeSection === "settings" && <CompanySettings />}
+          {activeSection === "account" && <AccountSettings />}
         </main>
       </div>
 

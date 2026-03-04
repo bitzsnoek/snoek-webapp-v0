@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "archive" | "settings"
+export type MainSection = "goals" | "metrics" | "archive" | "settings" | "account"
 
 const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "goals", label: "Goals", icon: Target },
@@ -65,7 +65,7 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
 }: SidebarProps) {
-  const { coach, companies, activeCompany, setActiveCompanyId, addCompany } = useApp()
+  const { currentUser, companies, activeCompany, setActiveCompanyId, addCompany } = useApp()
   const router = useRouter()
   const [addCompanyOpen, setAddCompanyOpen] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState("")
@@ -218,52 +218,46 @@ export function Sidebar({
         </nav>
       )}
 
-      {/* Coach and collapse button */}
+      {/* User area and collapse button */}
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-2.5 justify-between">
-          <div
+          <button
+            onClick={() => { handleNavClick("account"); }}
             className={cn(
-              "flex items-center gap-2.5",
-              collapsed && "justify-center flex-1"
+              "flex items-center gap-2.5 rounded-lg transition-colors hover:bg-secondary p-1 -m-1",
+              collapsed && "justify-center flex-1",
+              activeSection === "account" && "bg-primary/10"
             )}
+            title="Account settings"
           >
             <Avatar className="h-8 w-8">
-              {coach.avatar.startsWith("/") && <AvatarImage src={coach.avatar} alt={coach.name} />}
-              <AvatarFallback className="bg-primary/20 text-xs text-primary">
-                {coach.avatar.startsWith("/") ? coach.name.split(" ").map((n) => n[0]).join("") : coach.avatar}
+              <AvatarFallback className={cn(
+                "text-xs",
+                activeSection === "account" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                {currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             {!collapsed && (
-              <div>
-                <p className="text-sm font-medium text-foreground">{coach.name}</p>
-                <p className="text-xs text-muted-foreground">Coach</p>
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">{currentUser.name || "User"}</p>
+                <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
               </div>
             )}
-          </div>
-          <div className="flex items-center gap-1">
-            {/* Sign out button */}
-            <button
-              onClick={handleSignOut}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
-            {/* Collapse toggle - desktop only */}
-            <button
-              onClick={() => onCollapse(!collapsed)}
-              className="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </button>
-          </div>
+          </button>
+          {/* Collapse toggle - desktop only */}
+          <button
+            onClick={() => onCollapse(!collapsed)}
+            className="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
     </>
