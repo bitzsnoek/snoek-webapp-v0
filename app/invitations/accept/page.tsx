@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CheckCircle2, AlertCircle, Loader2, Mail, Lock } from "lucide-react"
+import { CheckCircle2, AlertCircle, Loader2, Lock } from "lucide-react"
 
 export default function AcceptInvitationPage() {
   return (
@@ -29,40 +29,62 @@ function AcceptInvitationInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
-  const [status, setStatus] = useState<"loading" | "needs-auth" | "accepting" | "set-password" | "success" | "error" | "expired">("loading")
+  const [status, setStatus] = useState<"loading" | "signup" | "accepting" | "success" | "error" | "expired">("loading")
   const [message, setMessage] = useState("")
   const [companyName, setCompanyName] = useState("")
-  const [companyId, setCompanyId] = useState("")
+  const [invitationEmail, setInvitationEmail] = useState("")
   const [email, setEmail] = useState("")
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const [sendingLink, setSendingLink] = useState(false)
-  const [authError, setAuthError] = useState<string | null>(null)
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [savingPassword, setSavingPassword] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const token = searchParams.get("token")
 
-  // Try to accept the invitation if user is authenticated
-  async function tryAcceptInvitation() {
+  // Check invitation validity and whether user is already authenticated
+  async function checkInvitation() {
     if (!token) {
       setStatus("error")
       setMessage("No invitation token found")
       return
     }
 
-    setStatus("accepting")
-
     try {
+      // First check if user is already authenticated
       const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        setStatus("needs-auth")
+      if (session) {
+        // Already signed in -- accept the invitation directly
+        await acceptWithExistingSession()
         return
       }
 
-      // Call server-side API route that uses service role to bypass RLS
+      // Not authenticated -- fetch invitation details to show the signup form
+      const res = await fetch(`/api/invitation-details?token=${token}`)
+      const result = await res.json()
+
+      if (result.error?.includes("expired")) {
+        setStatus("expired")
+        setMessage("This invitation has expired. Please ask for a new one.")
+      } else if (result.error) {
+        setStatus("error")
+        setMessage(result.error)
+      } else {
+        setInvitationEmail(result.email || "")
+        setEmail(result.email || "")
+        if (result.companyName) setCompanyName(result.companyName)
+        setStatus("signup")
+      }
+    } catch {
+      setStatus("error")
+      setMessage("An error occurred while loading the invitation")
+    }
+  }
+
+  // Accept invitation when user is already signed in
+  async function acceptWithExistingSession() {
+    setStatus("accepting")
+    try {
       const res = await fetch("/api/accept-invitation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,104 +92,72 @@ function AcceptInvitationInner() {
       })
       const result = await res.json()
 
-      if (result.success && result.companyId) {
-        setCompanyId(result.companyId)
-
-        const { data: company } = await supabase
-          .from("companies")
-          .select("name")
-          .eq("id", result.companyId)
-          .single()
-
-        if (company) setCompanyName(company.name)
-
-        // Go to set-password step so the new user creates a password
-        setStatus("set-password")
-      } else if (result.error?.includes("expired")) {
-        setStatus("expired")
-        setMessage("This invitation has expired. Please ask for a new one.")
+      if (result.success) {
+        setStatus("success")
+        setTimeout(() => router.push("/"), 2000)
       } else {
         setStatus("error")
         setMessage(result.error || "Failed to accept invitation")
       }
-    } catch (err) {
+    } catch {
       setStatus("error")
       setMessage("An error occurred while accepting the invitation")
-      console.error("Accept invitation error:", err)
     }
   }
 
-  // Send magic link for authentication via Postmark
-  async function handleSendMagicLink(e: React.FormEvent) {
+  // Handle the combined signup + accept invitation flow
+  async function handleSignupAndAccept(e: React.FormEvent) {
     e.preventDefault()
-    setSendingLink(true)
-    setAuthError(null)
-
-    try {
-      // After verify-magic-link establishes the session, redirect directly
-      // back to this accept page to complete the invitation acceptance
-      const redirectTo = `${window.location.origin}/invitations/accept?token=${token}`
-
-      const res = await fetch("/api/send-magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, redirectTo }),
-      })
-      const result = await res.json()
-
-      if (!res.ok || result.error) {
-        setAuthError(result.error || "Failed to send magic link")
-      } else {
-        setMagicLinkSent(true)
-      }
-    } catch {
-      setAuthError("Failed to send magic link. Please try again.")
-    } finally {
-      setSendingLink(false)
-    }
-  }
-
-  // Set password for the newly authenticated user
-  async function handleSetPassword(e: React.FormEvent) {
-    e.preventDefault()
-    setPasswordError(null)
+    setFormError(null)
 
     if (password.length < 8) {
-      setPasswordError("Password must be at least 8 characters.")
+      setFormError("Password must be at least 8 characters.")
       return
     }
     if (password !== confirmPassword) {
-      setPasswordError("Passwords do not match.")
+      setFormError("Passwords do not match.")
       return
     }
 
-    setSavingPassword(true)
+    setSubmitting(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password })
-      if (error) {
-        setPasswordError(error.message)
-      } else {
-        setStatus("success")
-        setTimeout(() => router.push("/"), 2000)
+      // 1. Create account + accept invitation in one API call
+      const res = await fetch("/api/accept-invitation-with-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, email, password }),
+      })
+      const result = await res.json()
+
+      if (!res.ok || !result.success) {
+        setFormError(result.error || "Failed to create account")
+        setSubmitting(false)
+        return
       }
+
+      // 2. Sign in with the new credentials
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (signInError) {
+        setFormError("Account created but sign-in failed. Try logging in manually.")
+        setSubmitting(false)
+        return
+      }
+
+      // 3. Success!
+      setStatus("success")
+      setTimeout(() => router.push("/"), 2000)
     } catch {
-      setPasswordError("Something went wrong. Please try again.")
-    } finally {
-      setSavingPassword(false)
+      setFormError("Something went wrong. Please try again.")
+      setSubmitting(false)
     }
   }
 
-  // Initial check + listen for auth state changes (e.g. after magic link clicked in same browser)
   useEffect(() => {
-    tryAcceptInvitation()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        tryAcceptInvitation()
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    checkInvitation()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
@@ -182,66 +172,33 @@ function AcceptInvitationInner() {
           </>
         )}
 
-        {status === "needs-auth" && (
-          <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="mb-2 text-lg font-semibold text-foreground">Accept Your Invitation</h1>
-            <p className="mb-6 text-sm text-muted-foreground">
-              {"Enter your email to sign in and join the company. If you don't have an account yet, one will be created for you."}
-            </p>
-
-            {magicLinkSent ? (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-primary" />
-                <p className="text-sm font-medium text-foreground">Check your email!</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {"We've sent a magic link to "}<strong>{email}</strong>{". Click it to sign in and accept the invitation."}
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSendMagicLink} className="space-y-4 text-left">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Email</label>
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={sendingLink}
-                    className="w-full"
-                  />
-                </div>
-                {authError && (
-                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-                    <p className="text-xs text-destructive">{authError}</p>
-                  </div>
-                )}
-                <Button type="submit" disabled={sendingLink} className="w-full">
-                  {sendingLink ? "Sending..." : "Send Magic Link"}
-                </Button>
-              </form>
-            )}
-          </>
-        )}
-
-        {status === "set-password" && (
+        {status === "signup" && (
           <>
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <Lock className="h-6 w-6 text-primary" />
             </div>
             <h1 className="mb-2 text-lg font-semibold text-foreground">
-              Set Your Password
+              {companyName ? `Join ${companyName}` : "Accept Your Invitation"}
             </h1>
             <p className="mb-6 text-sm text-muted-foreground">
-              {companyName
-                ? `You've joined ${companyName}! Create a password so you can sign in anytime.`
-                : "Create a password so you can sign in anytime."}
+              {"Set a password to create your account and join the company."}
             </p>
 
-            <form onSubmit={handleSetPassword} className="space-y-4 text-left">
+            <form onSubmit={handleSignupAndAccept} className="space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Email</label>
+                <Input
+                  type="email"
+                  value={email}
+                  disabled
+                  className="w-full bg-muted"
+                />
+                {invitationEmail && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {"This invitation was sent to this email address."}
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">Password</label>
                 <Input
@@ -251,7 +208,7 @@ function AcceptInvitationInner() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  disabled={savingPassword}
+                  disabled={submitting}
                   className="w-full"
                 />
               </div>
@@ -264,17 +221,17 @@ function AcceptInvitationInner() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   minLength={8}
-                  disabled={savingPassword}
+                  disabled={submitting}
                   className="w-full"
                 />
               </div>
-              {passwordError && (
+              {formError && (
                 <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-                  <p className="text-xs text-destructive">{passwordError}</p>
+                  <p className="text-xs text-destructive">{formError}</p>
                 </div>
               )}
-              <Button type="submit" disabled={savingPassword} className="w-full">
-                {savingPassword ? "Saving..." : "Set Password & Continue"}
+              <Button type="submit" disabled={submitting} className="w-full">
+                {submitting ? "Creating account..." : "Create Account & Join"}
               </Button>
             </form>
           </>
