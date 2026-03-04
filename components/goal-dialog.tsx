@@ -46,6 +46,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
       : [emptyKr()]
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
 
   // All yearly goals across all active years
   const allYearlyGoals = years.flatMap((y) => y.goals.map((g) => ({ ...g, year: y.year })))
@@ -62,7 +63,10 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
   }
 
   async function handleSave() {
+    if (saving) return
     if (!validate()) return
+    setSaving(true)
+    try {
     if (goal) {
       // Update existing goal objective + yearly goal link
       updateQuarterlyGoal(quarterId, goal.id, objective.trim(), yearlyGoalId)
@@ -93,6 +97,9 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
     // Refresh after all mutations are done
     await refreshData()
     onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleDelete() {
@@ -112,7 +119,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={saving ? undefined : onClose} />
 
       {/* Panel */}
       <div className="relative z-10 mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
@@ -279,11 +286,11 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
             <div />
           )}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave}>
-              {goal ? "Save changes" : "Add goal"}
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : goal ? "Save changes" : "Add goal"}
             </Button>
           </div>
         </div>
