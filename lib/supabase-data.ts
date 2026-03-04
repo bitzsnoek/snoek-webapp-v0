@@ -531,17 +531,40 @@ export async function dbAcceptInvitation(
     return { success: false, error: "Invitation has expired" }
   }
 
-  // Add user as company member
-  const { error: memberError } = await supabase.from("company_members").insert({
-    company_id: inv.company_id,
-    user_id: userId,
-    role: inv.role,
-    name: inv.email.split("@")[0],
-  })
+  // Check if an unconnected founder with matching name exists in this company
+  const nameFromEmail = inv.email.split("@")[0]
+  const { data: existingMember } = await supabase
+    .from("company_members")
+    .select("id")
+    .eq("company_id", inv.company_id)
+    .is("user_id", null)
+    .ilike("name", nameFromEmail)
+    .single()
 
-  if (memberError) {
-    console.error("dbAcceptInvitation member error:", memberError)
-    return { success: false, error: "Failed to add user to company" }
+  if (existingMember) {
+    // Link the auth user to the existing unconnected founder
+    const { error: linkError } = await supabase
+      .from("company_members")
+      .update({ user_id: userId })
+      .eq("id", existingMember.id)
+
+    if (linkError) {
+      console.error("dbAcceptInvitation link error:", linkError)
+      return { success: false, error: "Failed to link user to founder" }
+    }
+  } else {
+    // Create a new company member for this user
+    const { error: memberError } = await supabase.from("company_members").insert({
+      company_id: inv.company_id,
+      user_id: userId,
+      role: inv.role,
+      name: nameFromEmail,
+    })
+
+    if (memberError) {
+      console.error("dbAcceptInvitation member error:", memberError)
+      return { success: false, error: "Failed to add user to company" }
+    }
   }
 
   // Mark invitation as accepted
@@ -556,6 +579,30 @@ export async function dbAcceptInvitation(
   }
 
   return { success: true, companyId: inv.company_id }
+}
+
+export interface UnconnectedFounder {
+  id: string
+  company_id: string
+  name: string
+  role_title: string
+  role: string
+}
+
+export async function dbGetUnconnectedFounders(companyId: string): Promise<UnconnectedFounder[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("company_members")
+    .select("id, company_id, name, role_title, role")
+    .eq("company_id", companyId)
+    .is("user_id", null)
+    .order("name", { ascending: true })
+
+  if (error) {
+    console.error("dbGetUnconnectedFounders error:", error)
+    return []
+  }
+  return (data ?? []) as UnconnectedFounder[]
 }
 
 export async function dbAddFounder(companyId: string, name: string, roleTitle: string) {

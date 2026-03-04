@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, type Invitation } from "./supabase-data"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, type Invitation, type UnconnectedFounder } from "./supabase-data"
 import type { Company, Coach, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
