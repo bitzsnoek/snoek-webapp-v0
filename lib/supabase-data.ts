@@ -463,12 +463,16 @@ export async function dbInviteUser(
   founderName?: string
 ): Promise<Invitation | null> {
   const supabase = createClient()
+  // Generate IDs client-side to avoid .select() RLS issues
+  const id = crypto.randomUUID()
   const token = crypto.randomUUID()
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const createdAt = new Date().toISOString()
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("invitations")
     .insert({
+      id,
       company_id: companyId,
       email,
       role,
@@ -476,15 +480,25 @@ export async function dbInviteUser(
       invited_by: invitedBy,
       expires_at: expiresAt,
     })
-    .select()
-    .single()
 
   if (error) {
     console.error("dbInviteUser error:", error)
     return null
   }
 
-  const invitation = data as Invitation
+  // Build the invitation object locally since we can't read it back via RLS
+  const invitation: Invitation = {
+    id,
+    company_id: companyId,
+    email,
+    role,
+    token,
+    invited_by: invitedBy,
+    status: "pending",
+    accepted_at: null,
+    expires_at: expiresAt,
+    created_at: createdAt,
+  }
 
   // Send invitation email
   try {
