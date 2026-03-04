@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, email, password } = await request.json()
+    const { token, email, password, name } = await request.json()
 
-    if (!token || !email || !password) {
+    if (!token || !email || !password || !name?.trim()) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -96,9 +96,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Ensure profile exists
+    const displayName = name.trim()
     await adminSupabase
       .from("profiles")
-      .upsert({ id: userId, full_name: email.split("@")[0] }, { onConflict: "id" })
+      .upsert({ id: userId, full_name: displayName }, { onConflict: "id" })
 
     // 4. Link user to company
     const { data: alreadyMember } = await adminSupabase
@@ -111,10 +112,10 @@ export async function POST(request: NextRequest) {
 
     if (!alreadyMember) {
       if (invitation.member_id) {
-        // Link to the specific member row
+        // Link to the specific member row and update name
         const { error: linkError } = await adminSupabase
           .from("company_members")
-          .update({ user_id: userId })
+          .update({ user_id: userId, name: displayName })
           .eq("id", invitation.member_id)
           .is("user_id", null)
 
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
             company_id: invitation.company_id,
             user_id: userId,
             role: invitation.role,
-            name: email.split("@")[0],
+            name: displayName,
           })
 
         if (memberError) {
