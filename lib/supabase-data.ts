@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import type { Company, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Founder, Confidence } from "./mock-data"
+import type { Company, CompanyMember, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Founder, Confidence } from "./mock-data"
 
 // ============================================================
 // Map DB confidence values to frontend Confidence type
@@ -95,7 +95,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   // Build founder lookup by member id
   const memberMap = new Map((members ?? []).map((m: any) => [m.id, m]))
 
-  // Build founders
+  // Build founders (backwards compat)
   const founders: Founder[] = (members ?? [])
     .filter((m: any) => m.role === "founder")
     .map((m: any) => ({
@@ -104,6 +104,15 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
       role: m.role_title ?? "",
       avatar: "",
     }))
+
+  // Build all members (coaches + founders) for owner assignment
+  const allMembers: CompanyMember[] = (members ?? []).map((m: any) => ({
+    id: m.id,
+    name: m.name ?? "",
+    role: m.role ?? "founder",
+    roleTitle: m.role_title ?? m.role ?? "",
+    avatar: m.avatar_url ?? "",
+  }))
 
   // Build weekly values lookup: kr_id -> { W1: val, W2: val, ... }
   const weeklyMap = new Map<string, Record<string, number>>()
@@ -209,6 +218,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     id: company.id,
     name: company.name,
     founders,
+    members: allMembers,
     years: Array.from(yearMap.values()),
     quarters: Array.from(quarterMap.values()),
     metrics: metricList,

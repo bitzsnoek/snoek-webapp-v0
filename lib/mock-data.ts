@@ -71,10 +71,19 @@ export interface Founder {
   avatar: string
 }
 
+export interface CompanyMember {
+  id: string
+  name: string
+  role: "coach" | "founder"
+  roleTitle: string
+  avatar: string
+}
+
 export interface Company {
   id: string
   name: string
   founders: Founder[]
+  members: CompanyMember[]
   years: Year[]
   quarters: Quarter[]
   metrics: Metric[]

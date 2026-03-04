@@ -36,7 +36,7 @@ const emptyKr = (): Omit<KeyResult, "id"> => ({
 })
 
 export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps) {
-  const { addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal } = useApp()
+  const { activeCompany, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal } = useApp()
 
   const [objective, setObjective] = useState(goal?.objective ?? "")
   const [yearlyGoalId, setYearlyGoalId] = useState(goal?.yearlyGoalId ?? "")
@@ -203,12 +203,23 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                   {/* Owner */}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Owner</Label>
-                    <Input
-                      placeholder="Name"
-                      value={kr.owner}
-                      onChange={(e) => updateKr(i, { owner: e.target.value })}
-                      className="h-8 text-xs"
-                    />
+                    <Select
+                      value={kr.owner || "_unassigned"}
+                      onValueChange={(v) => updateKr(i, { owner: v === "_unassigned" ? "" : v })}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Unassigned" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_unassigned">Unassigned</SelectItem>
+                        {activeCompany.members.map((member) => (
+                          <SelectItem key={member.id} value={member.name}>
+                            {member.name}
+                            <span className="ml-1 text-muted-foreground capitalize">({member.role})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Target */}
