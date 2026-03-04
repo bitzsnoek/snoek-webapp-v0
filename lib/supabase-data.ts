@@ -112,7 +112,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     role: m.role ?? "founder",
     roleTitle: m.role_title ?? m.role ?? "",
     avatar: m.avatar_url ?? "",
-    email: m.email ?? "",
+    email: m.user_email ?? "",
   }))
 
   // Build weekly values lookup: kr_id -> { W1: val, W2: val, ... }
