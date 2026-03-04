@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany } from "./supabase-data"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, type Invitation, type UnconnectedFounder } from "./supabase-data"
 import type { Company, Coach, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
@@ -38,6 +38,10 @@ interface AppState {
   deleteMetric: (metricId: string) => void
   addCompany: (name: string) => Promise<void>
   deleteCompany: (companyId: string) => Promise<void>
+  inviteUser: (email: string, role: "founder" | "coach") => Promise<Invitation | null>
+  getInvitations: () => Promise<Invitation[]>
+  cancelInvitation: (invitationId: string) => Promise<void>
+  acceptInvitation: (token: string) => Promise<{ success: boolean; companyId?: string; error?: string }>
   refreshData: () => Promise<void>
 }
 
@@ -499,6 +503,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function inviteUser(email: string, role: "founder" | "coach"): Promise<Invitation | null> {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return null
+
+    return await dbInviteUser(activeCompanyId, email, role, session.user.id)
+  }
+
+  async function getInvitations(): Promise<Invitation[]> {
+    return await dbGetInvitations(activeCompanyId)
+  }
+
+  async function cancelInvitation(invitationId: string): Promise<void> {
+    await dbCancelInvitation(invitationId)
+  }
+
+  async function acceptInvitation(token: string): Promise<{ success: boolean; companyId?: string; error?: string }> {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return { success: false, error: "Not authenticated" }
+
+    return await dbAcceptInvitation(token, session.user.id)
+  }
+
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -546,6 +574,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteMetric,
         addCompany,
         deleteCompany,
+        inviteUser,
+        getInvitations,
+        cancelInvitation,
+        acceptInvitation,
         refreshData: loadData,
       }}
     >
