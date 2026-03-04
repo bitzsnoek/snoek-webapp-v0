@@ -77,6 +77,7 @@ export interface CompanyMember {
   role: "coach" | "founder"
   roleTitle: string
   avatar: string
+  email: string
 }
 
 export interface Company {

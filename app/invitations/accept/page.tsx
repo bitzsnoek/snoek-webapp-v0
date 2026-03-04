@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CheckCircle2, AlertCircle, Loader2, Mail } from "lucide-react"
+import { CheckCircle2, AlertCircle, Loader2, Mail, Lock } from "lucide-react"
 
 export default function AcceptInvitationPage() {
   return (
@@ -29,13 +29,18 @@ function AcceptInvitationInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
-  const [status, setStatus] = useState<"loading" | "needs-auth" | "accepting" | "success" | "error" | "expired">("loading")
+  const [status, setStatus] = useState<"loading" | "needs-auth" | "accepting" | "set-password" | "success" | "error" | "expired">("loading")
   const [message, setMessage] = useState("")
   const [companyName, setCompanyName] = useState("")
+  const [companyId, setCompanyId] = useState("")
   const [email, setEmail] = useState("")
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [sendingLink, setSendingLink] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [savingPassword, setSavingPassword] = useState(false)
 
   const token = searchParams.get("token")
 
@@ -66,7 +71,7 @@ function AcceptInvitationInner() {
       const result = await res.json()
 
       if (result.success && result.companyId) {
-        setStatus("success")
+        setCompanyId(result.companyId)
 
         const { data: company } = await supabase
           .from("companies")
@@ -76,7 +81,8 @@ function AcceptInvitationInner() {
 
         if (company) setCompanyName(company.name)
 
-        setTimeout(() => router.push("/"), 2000)
+        // Go to set-password step so the new user creates a password
+        setStatus("set-password")
       } else if (result.error?.includes("expired")) {
         setStatus("expired")
         setMessage("This invitation has expired. Please ask for a new one.")
@@ -110,6 +116,36 @@ function AcceptInvitationInner() {
     } else {
       setMagicLinkSent(true)
       setSendingLink(false)
+    }
+  }
+
+  // Set password for the newly authenticated user
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPasswordError(null)
+
+    if (password.length < 8) {
+      setPasswordError("Password must be at least 8 characters.")
+      return
+    }
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match.")
+      return
+    }
+
+    setSavingPassword(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) {
+        setPasswordError(error.message)
+      } else {
+        setStatus("success")
+        setTimeout(() => router.push("/"), 2000)
+      }
+    } catch {
+      setPasswordError("Something went wrong. Please try again.")
+    } finally {
+      setSavingPassword(false)
     }
   }
 
@@ -180,6 +216,59 @@ function AcceptInvitationInner() {
                 </Button>
               </form>
             )}
+          </>
+        )}
+
+        {status === "set-password" && (
+          <>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="mb-2 text-lg font-semibold text-foreground">
+              Set Your Password
+            </h1>
+            <p className="mb-6 text-sm text-muted-foreground">
+              {companyName
+                ? `You've joined ${companyName}! Create a password so you can sign in anytime.`
+                : "Create a password so you can sign in anytime."}
+            </p>
+
+            <form onSubmit={handleSetPassword} className="space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Password</label>
+                <Input
+                  type="password"
+                  placeholder="Minimum 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  disabled={savingPassword}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Confirm password</label>
+                <Input
+                  type="password"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  disabled={savingPassword}
+                  className="w-full"
+                />
+              </div>
+              {passwordError && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                  <p className="text-xs text-destructive">{passwordError}</p>
+                </div>
+              )}
+              <Button type="submit" disabled={savingPassword} className="w-full">
+                {savingPassword ? "Saving..." : "Set Password & Continue"}
+              </Button>
+            </form>
           </>
         )}
 

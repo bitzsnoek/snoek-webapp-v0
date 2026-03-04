@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Plus, Pencil, Trash2, UserPlus } from "lucide-react"
+import { AlertTriangle, Building2, Plus, Pencil, Trash2, UserPlus, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
 
@@ -382,6 +382,24 @@ export function CompanySettings() {
                 onKeyDown={(e) => e.key === "Enter" && handleSaveFounder()}
               />
             </div>
+            {founderDialog.mode === "edit" && founderDialog.founderId && (() => {
+              const member = activeCompany.members?.find((m) => m.id === founderDialog.founderId)
+              const email = member?.email
+              return email ? (
+                <div className="flex flex-col gap-2">
+                  <Label className="text-muted-foreground">Email</Label>
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">{email}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Label className="text-muted-foreground">Email</Label>
+                  <p className="text-xs text-muted-foreground/60 italic">No user account connected</p>
+                </div>
+              )
+            })()}
           </div>
           <DialogFooter>
             <Button

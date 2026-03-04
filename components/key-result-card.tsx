@@ -300,9 +300,13 @@ export function KeyResultCard({
 
   const currentWeek = getCurrentWeekKey()
   const currentWeekNum = parseInt(currentWeek.replace("W", ""), 10)
-  const weeks = Object.keys(kr.weeklyValues).sort(
-    (a, b) => parseInt(a.replace("W", "")) - parseInt(b.replace("W", ""))
-  )
+
+  // Always show all 13 weeks of a quarter, even if no data exists yet
+  const dataWeeks = Object.keys(kr.weeklyValues)
+  const maxWeek = dataWeeks.length > 0
+    ? Math.max(13, ...dataWeeks.map((w) => parseInt(w.replace("W", ""), 10)))
+    : 13
+  const weeks = Array.from({ length: maxWeek }, (_, i) => `W${i + 1}`)
 
   return (
     <div className={cn(
@@ -391,8 +395,11 @@ export function KeyResultCard({
 
       {/* Expanded weekly table */}
       {expanded && (
-        <div className="mt-4 overflow-x-auto -mx-4 px-4">
-          <table className="w-full min-w-[480px] text-xs">
+        <div
+          className="mt-4 -mx-4 px-4 overflow-x-auto pb-1"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}
+        >
+          <table className="w-full text-xs" style={{ minWidth: `${weeks.length * 52}px` }}>
             <thead>
               <tr>
                 {weeks.map((week) => {
