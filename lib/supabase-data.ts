@@ -221,16 +221,28 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
 export async function fetchUserCompanies(userId: string): Promise<Company[]> {
   const supabase = createClient()
 
-  const { data: memberships, error: membershipError } = await supabase
+  // Get companies where user is a member
+  const { data: memberships } = await supabase
     .from("company_members")
     .select("company_id")
     .eq("user_id", userId)
 
-  if (!memberships || memberships.length === 0) return []
+  // Also get companies where user is the coach (owner)
+  const { data: coached } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("coach_id", userId)
+
+  // Deduplicate company IDs
+  const companyIds = new Set<string>()
+  for (const m of memberships ?? []) companyIds.add(m.company_id)
+  for (const c of coached ?? []) companyIds.add(c.id)
+
+  if (companyIds.size === 0) return []
 
   const companies: Company[] = []
-  for (const m of memberships) {
-    const company = await fetchCompanyData(m.company_id)
+  for (const id of companyIds) {
+    const company = await fetchCompanyData(id)
     if (company) companies.push(company)
   }
   return companies
@@ -574,39 +586,50 @@ export async function dbAcceptInvitation(
     return { success: false, error: "Invitation has expired" }
   }
 
-  // Check if an unconnected founder with matching name exists in this company
-  const nameFromEmail = inv.email.split("@")[0]
-  const { data: existingMember } = await supabase
+  // Check if user is already a member of this company
+  const { data: alreadyMember } = await supabase
     .from("company_members")
     .select("id")
     .eq("company_id", inv.company_id)
-    .is("user_id", null)
-    .ilike("name", nameFromEmail)
-    .single()
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle()
 
-  if (existingMember) {
-    // Link the auth user to the existing unconnected founder
-    const { error: linkError } = await supabase
+  if (!alreadyMember) {
+    // Check if an unconnected founder with matching name exists in this company
+    const nameFromEmail = inv.email.split("@")[0]
+    const { data: existingMember } = await supabase
       .from("company_members")
-      .update({ user_id: userId })
-      .eq("id", existingMember.id)
+      .select("id")
+      .eq("company_id", inv.company_id)
+      .is("user_id", null)
+      .ilike("name", nameFromEmail)
+      .single()
 
-    if (linkError) {
-      console.error("dbAcceptInvitation link error:", linkError)
-      return { success: false, error: "Failed to link user to founder" }
-    }
-  } else {
-    // Create a new company member for this user
-    const { error: memberError } = await supabase.from("company_members").insert({
-      company_id: inv.company_id,
-      user_id: userId,
-      role: inv.role,
-      name: nameFromEmail,
-    })
+    if (existingMember) {
+      // Link the auth user to the existing unconnected founder
+      const { error: linkError } = await supabase
+        .from("company_members")
+        .update({ user_id: userId })
+        .eq("id", existingMember.id)
 
-    if (memberError) {
-      console.error("dbAcceptInvitation member error:", memberError)
-      return { success: false, error: "Failed to add user to company" }
+      if (linkError) {
+        console.error("dbAcceptInvitation link error:", linkError)
+        return { success: false, error: "Failed to link user to founder" }
+      }
+    } else {
+      // Create a new company member for this user
+      const { error: memberError } = await supabase.from("company_members").insert({
+        company_id: inv.company_id,
+        user_id: userId,
+        role: inv.role,
+        name: nameFromEmail,
+      })
+
+      if (memberError) {
+        console.error("dbAcceptInvitation member error:", memberError)
+        return { success: false, error: "Failed to add user to company" }
+      }
     }
   }
 

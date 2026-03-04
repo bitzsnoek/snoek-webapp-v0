@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useApp } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 import {
   Building2,
   ChevronDown,
@@ -15,6 +16,7 @@ import {
   ChevronRight,
   Plus,
   X,
+  LogOut,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,6 +37,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { createClient } from "@/lib/supabase/client"
 
 export type MainSection = "goals" | "metrics" | "archive" | "settings"
 
@@ -63,9 +66,16 @@ export function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const { coach, companies, activeCompany, setActiveCompanyId, addCompany } = useApp()
+  const router = useRouter()
   const [addCompanyOpen, setAddCompanyOpen] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState("")
   const [addingCompany, setAddingCompany] = useState(false)
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/auth/login")
+  }
 
   function handleNavClick(section: MainSection) {
     onSectionChange(section)
@@ -230,19 +240,30 @@ export function Sidebar({
               </div>
             )}
           </div>
-          {/* Collapse toggle - desktop only */}
-          <button
-            onClick={() => onCollapse(!collapsed)}
-            className="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Sign out button */}
+            <button
+              onClick={handleSignOut}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+            {/* Collapse toggle - desktop only */}
+            <button
+              onClick={() => onCollapse(!collapsed)}
+              className="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </>
