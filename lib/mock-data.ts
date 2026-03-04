@@ -18,6 +18,8 @@ export interface YearlyKeyResult {
   confidence: Confidence
 }
 
+export type TargetFrequency = "weekly" | "monthly" | "quarterly"
+
 export interface KeyResult {
   id: string
   title: string
@@ -25,6 +27,7 @@ export interface KeyResult {
   owner: string | null  // null = unassigned / inactive
   isMonthlyPriority: boolean
   target: number
+  targetFrequency: TargetFrequency
   weeklyValues: Record<string, number> // e.g. { "W1": 5, "W2": 10, ... }
 }
 

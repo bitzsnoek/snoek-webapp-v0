@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
-import type { QuarterlyGoal, KeyResult, KeyResultType, Year } from "@/lib/mock-data"
+import type { QuarterlyGoal, KeyResult, KeyResultType, TargetFrequency, Year } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +32,7 @@ const emptyKr = (): Omit<KeyResult, "id"> => ({
   owner: "",
   isMonthlyPriority: false,
   target: 0,
+  targetFrequency: "quarterly",
   weeklyValues: Object.fromEntries(WEEKS.map((w) => [w, 0])),
 })
 
@@ -202,7 +203,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className={cn("grid gap-3", kr.type === "project" ? "grid-cols-3" : "grid-cols-4")}>
                   {/* Type */}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Type</Label>
@@ -243,7 +244,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                   {/* Target */}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">
-                      {kr.type === "input" ? "Weekly target" : kr.type === "project" ? "Target (%)" : "Quarterly target"}
+                      {kr.type === "project" ? "Target (%)" : "Target"}
                     </Label>
                     <Input
                       type="number"
@@ -255,6 +256,26 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                     />
                     {errors[`kr_${i}_target`] && <p className="text-xs text-destructive">{errors[`kr_${i}_target`]}</p>}
                   </div>
+
+                  {/* Target Frequency (only for input/output) */}
+                  {kr.type !== "project" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Frequency</Label>
+                      <Select
+                        value={kr.targetFrequency || "quarterly"}
+                        onValueChange={(v) => updateKr(i, { targetFrequency: v as TargetFrequency })}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Monthly priority toggle */}
