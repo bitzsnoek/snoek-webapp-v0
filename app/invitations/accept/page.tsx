@@ -46,7 +46,8 @@ function AcceptInvitationInner() {
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!session) {
-          // User not logged in - redirect to login with token
+          // Store the invite token so we can retrieve it after login
+          localStorage.setItem("pending_invite_token", token)
           router.push(`/auth/login?invite=${token}`)
           return
         }
