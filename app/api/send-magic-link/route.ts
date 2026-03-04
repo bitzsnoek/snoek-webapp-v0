@@ -50,12 +50,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // The generated link contains the token - extract and rebuild with our host
-    // data.properties contains hashed_token, verification_url, etc.
-    const magicLink = data.properties?.action_link
-    if (!magicLink) {
+    // The generated action_link uses Supabase's Site URL (often localhost).
+    // Extract the token params and rebuild the link using our actual host.
+    const actionLink = data.properties?.action_link
+    if (!actionLink) {
       return NextResponse.json({ error: "Failed to generate magic link" }, { status: 500 })
     }
+
+    const actionUrl = new URL(actionLink)
+    // The action link format is: {siteUrl}/auth/v1/verify?token=...&type=magiclink&redirect_to=...
+    // We need to rebuild it as: {supabaseUrl}/auth/v1/verify?token=...&type=magiclink&redirect_to={ourRedirectTo}
+    const verifyUrl = new URL(`${supabaseUrl}/auth/v1/verify`)
+    verifyUrl.searchParams.set("token", actionUrl.searchParams.get("token") || "")
+    verifyUrl.searchParams.set("type", actionUrl.searchParams.get("type") || "magiclink")
+    verifyUrl.searchParams.set("redirect_to", finalRedirectTo)
+    const magicLink = verifyUrl.toString()
 
     // Send the magic link email via Postmark
     const emailContent = `
