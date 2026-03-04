@@ -109,7 +109,15 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
   }
 
   function updateKr(i: number, patch: Partial<Omit<KeyResult, "id">>) {
-    setKeyResults((prev) => prev.map((kr, idx) => idx === i ? { ...kr, ...patch } : kr))
+    setKeyResults((prev) => prev.map((kr, idx) => {
+      if (idx !== i) return kr
+      const updated = { ...kr, ...patch }
+      // Auto-fill target to 100% when switching to project type
+      if (patch.type === "project" && kr.type !== "project") {
+        updated.target = 100
+      }
+      return updated
+    }))
   }
 
   function removeKr(i: number) {
