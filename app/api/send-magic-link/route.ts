@@ -57,12 +57,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to generate magic link" }, { status: 500 })
     }
 
-    const actionUrl = new URL(actionLink)
-    // The action link format is: {siteUrl}/auth/v1/verify?token=...&type=magiclink&redirect_to=...
-    // We need to rebuild it as: {supabaseUrl}/auth/v1/verify?token=...&type=magiclink&redirect_to={ourRedirectTo}
-    const verifyUrl = new URL(`${supabaseUrl}/auth/v1/verify`)
-    verifyUrl.searchParams.set("token", actionUrl.searchParams.get("token") || "")
-    verifyUrl.searchParams.set("type", actionUrl.searchParams.get("type") || "magiclink")
+    // Build magic link that goes through our own verify endpoint
+    // which will use the hashed_token to verify and sign the user in
+    const hashedToken = data.properties?.hashed_token
+    if (!hashedToken) {
+      return NextResponse.json({ error: "Failed to generate magic link token" }, { status: 500 })
+    }
+
+    const verifyUrl = new URL(`${productionHost}/api/auth/verify-magic-link`)
+    verifyUrl.searchParams.set("token_hash", hashedToken)
+    verifyUrl.searchParams.set("type", "magiclink")
     verifyUrl.searchParams.set("redirect_to", finalRedirectTo)
     const magicLink = verifyUrl.toString()
 
