@@ -35,19 +35,19 @@ function LoginInner() {
     setError(null)
 
     try {
-      // Preserve invite token through the auth callback
-      const callbackUrl = new URL(
-        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-        `${window.location.origin}/auth/callback`
-      )
+      // verify-magic-link establishes the session, then redirects to the final URL
+      let redirectTo: string
       if (inviteToken) {
-        callbackUrl.searchParams.set('invite', inviteToken)
+        // Redirect directly to the accept page after session is set
+        redirectTo = `${window.location.origin}/invitations/accept?token=${inviteToken}`
+      } else {
+        redirectTo = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/`
       }
 
       const res = await fetch('/api/send-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, redirectTo: callbackUrl.toString() }),
+        body: JSON.stringify({ email, redirectTo }),
       })
       const result = await res.json()
 
