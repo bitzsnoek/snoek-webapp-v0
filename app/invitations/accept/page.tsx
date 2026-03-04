@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useApp } from "@/lib/store"
@@ -8,6 +8,24 @@ import { Button } from "@/components/ui/button"
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 
 export default function AcceptInvitationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-dvh items-center justify-center bg-background p-4">
+          <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
+            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+            <h1 className="mb-2 text-lg font-semibold text-foreground">Processing Invitation...</h1>
+            <p className="text-sm text-muted-foreground">Please wait while we accept your invitation.</p>
+          </div>
+        </div>
+      }
+    >
+      <AcceptInvitationInner />
+    </Suspense>
+  )
+}
+
+function AcceptInvitationInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { acceptInvitation } = useApp()
