@@ -21,13 +21,18 @@ export function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign in. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function handleMagicLink(e: React.FormEvent<HTMLFormElement>) {
@@ -35,22 +40,27 @@ export function LoginForm() {
     setLoading(true)
     setError(null)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-          `${window.location.origin}/auth/callback`,
-      },
-    })
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo:
+            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+            `${window.location.origin}/auth/callback`,
+        },
+      })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      setSent(true)
+      if (error) {
+        setError(error.message)
+      } else {
+        setSent(true)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send magic link. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
