@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { dbAcceptInvitation } from "@/lib/supabase-data"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { CheckCircle2, AlertCircle, Loader2, Mail } from "lucide-react"
 
 export default function AcceptInvitationPage() {
   return (
@@ -28,77 +29,152 @@ export default function AcceptInvitationPage() {
 function AcceptInvitationInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [status, setStatus] = useState<"loading" | "success" | "error" | "expired">("loading")
+  const supabase = createClient()
+  const [status, setStatus] = useState<"loading" | "needs-auth" | "accepting" | "success" | "error" | "expired">("loading")
   const [message, setMessage] = useState("")
   const [companyName, setCompanyName] = useState("")
+  const [email, setEmail] = useState("")
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [sendingLink, setSendingLink] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const acceptToken = async () => {
-      const token = searchParams.get("token")
-      if (!token) {
-        setStatus("error")
-        setMessage("No invitation token found")
+  const token = searchParams.get("token")
+
+  // Try to accept the invitation if user is authenticated
+  async function tryAcceptInvitation() {
+    if (!token) {
+      setStatus("error")
+      setMessage("No invitation token found")
+      return
+    }
+
+    setStatus("accepting")
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        setStatus("needs-auth")
         return
       }
 
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
+      const result = await dbAcceptInvitation(token, session.user.id)
 
-        if (!session) {
-          // Store the invite token so we can retrieve it after login
-          localStorage.setItem("pending_invite_token", token)
-          router.push(`/auth/login?invite=${token}`)
-          return
-        }
+      if (result.success && result.companyId) {
+        setStatus("success")
 
-        // User is logged in - accept the invitation
-        const result = await dbAcceptInvitation(token, session.user.id)
+        const { data: company } = await supabase
+          .from("companies")
+          .select("name")
+          .eq("id", result.companyId)
+          .single()
 
-        if (result.success && result.companyId) {
-          setStatus("success")
-          setMessage("Invitation accepted! Redirecting to your company...")
-          
-          // Fetch company name for display
-          const { data: company } = await supabase
-            .from("companies")
-            .select("name")
-            .eq("id", result.companyId)
-            .single()
-          
-          if (company) {
-            setCompanyName(company.name)
-          }
+        if (company) setCompanyName(company.name)
 
-          // Redirect to the company after a short delay
-          setTimeout(() => {
-            router.push("/")
-          }, 2000)
-        } else if (result.error?.includes("expired")) {
-          setStatus("expired")
-          setMessage("This invitation has expired. Please ask for a new one.")
-        } else {
-          setStatus("error")
-          setMessage(result.error || "Failed to accept invitation")
-        }
-      } catch (err) {
+        setTimeout(() => router.push("/"), 2000)
+      } else if (result.error?.includes("expired")) {
+        setStatus("expired")
+        setMessage("This invitation has expired. Please ask for a new one.")
+      } else {
         setStatus("error")
-        setMessage("An error occurred while accepting the invitation")
-        console.error("Accept invitation error:", err)
+        setMessage(result.error || "Failed to accept invitation")
       }
+    } catch (err) {
+      setStatus("error")
+      setMessage("An error occurred while accepting the invitation")
+      console.error("Accept invitation error:", err)
     }
+  }
 
-    acceptToken()
-  }, [searchParams, router])
+  // Send magic link for authentication
+  async function handleSendMagicLink(e: React.FormEvent) {
+    e.preventDefault()
+    setSendingLink(true)
+    setAuthError(null)
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/invitations/accept?token=${token}`,
+      },
+    })
+
+    if (error) {
+      setAuthError(error.message)
+      setSendingLink(false)
+    } else {
+      setMagicLinkSent(true)
+      setSendingLink(false)
+    }
+  }
+
+  // Initial check + listen for auth state changes (e.g. after magic link clicked in same browser)
+  useEffect(() => {
+    tryAcceptInvitation()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        tryAcceptInvitation()
+      }
+    })
+
+    return () => subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
-        {status === "loading" && (
+        {(status === "loading" || status === "accepting") && (
           <>
             <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
             <h1 className="mb-2 text-lg font-semibold text-foreground">Processing Invitation...</h1>
-            <p className="text-sm text-muted-foreground">Please wait while we accept your invitation.</p>
+            <p className="text-sm text-muted-foreground">Please wait while we process your invitation.</p>
+          </>
+        )}
+
+        {status === "needs-auth" && (
+          <>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Mail className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="mb-2 text-lg font-semibold text-foreground">Accept Your Invitation</h1>
+            <p className="mb-6 text-sm text-muted-foreground">
+              {"Enter your email to sign in and join the company. If you don't have an account yet, one will be created for you."}
+            </p>
+
+            {magicLinkSent ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                <CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-primary" />
+                <p className="text-sm font-medium text-foreground">Check your email!</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {"We've sent a magic link to "}<strong>{email}</strong>{". Click it to sign in and accept the invitation."}
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSendMagicLink} className="space-y-4 text-left">
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={sendingLink}
+                    className="w-full"
+                  />
+                </div>
+                {authError && (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+                    <p className="text-xs text-destructive">{authError}</p>
+                  </div>
+                )}
+                <Button type="submit" disabled={sendingLink} className="w-full">
+                  {sendingLink ? "Sending..." : "Send Magic Link"}
+                </Button>
+              </form>
+            )}
           </>
         )}
 
