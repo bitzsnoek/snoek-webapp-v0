@@ -290,7 +290,14 @@ export function KeyResultCard({
   quarterId: string
   goalId: string
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const { currentUser, activeCompany } = useApp()
+
+  // Auto-expand key results assigned to the current user so they can see their weekly input fields
+  const currentMember = activeCompany.members?.find(
+    (m) => m.email === currentUser.email || m.name === currentUser.name
+  )
+  const isOwnedByCurrentUser = kr.owner && currentMember && kr.owner === currentMember.name
+  const [expanded, setExpanded] = useState(!!isOwnedByCurrentUser)
   const isInput = kr.type === "input"
   const progress = getProgressPercent(kr)
   const total = sumWeeklyValues(kr)
