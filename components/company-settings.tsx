@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Plus, Pencil, Trash2, UserPlus, Mail } from "lucide-react"
+import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
 
@@ -24,7 +24,6 @@ export function CompanySettings() {
     companies,
     currentUser,
     updateCompanyName,
-    addFounder,
     updateFounder,
     removeFounder,
     deleteCompany,
@@ -69,10 +68,6 @@ export function CompanySettings() {
     setNameEditing(false)
   }
 
-  function openAddFounder() {
-    setFounderDialog({ open: true, mode: "add", name: "", role: "" })
-  }
-
   function openEditFounder(founder: { id: string; name: string; role: string }) {
     setFounderDialog({
       open: true,
@@ -86,14 +81,10 @@ export function CompanySettings() {
   function handleSaveFounder() {
     const name = founderDialog.name.trim()
     const role = founderDialog.role.trim()
-    if (!name) return
+    if (!name || !founderDialog.founderId) return
 
-    if (founderDialog.mode === "add") {
-      addFounder(name, role)
-    } else if (founderDialog.founderId) {
-      updateFounder(founderDialog.founderId, name, role)
-    }
-    setFounderDialog({ open: false, mode: "add", name: "", role: "" })
+    updateFounder(founderDialog.founderId, name, role)
+    setFounderDialog({ open: false, mode: "edit", name: "", role: "" })
   }
 
   function handleDeleteFounder(id: string) {
@@ -184,29 +175,14 @@ export function CompanySettings() {
             </div>
             <h2 className="text-base font-semibold text-foreground">Founders</h2>
           </div>
-          {isCoach && (
-            <Button size="sm" variant="outline" className="gap-2" onClick={openAddFounder}>
-              <Plus className="h-3.5 w-3.5" />
-              Add founder
-            </Button>
-          )}
+
         </div>
 
         {activeCompany.founders.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
             <UserPlus className="mb-2 h-8 w-8 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">No founders added yet</p>
-            {isCoach && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-3 gap-2"
-                onClick={openAddFounder}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add first founder
-              </Button>
-            )}
+            <p className="mt-1 text-xs text-muted-foreground">Invite founders using the invitations section below</p>
           </div>
         ) : (
           <div className="flex flex-col gap-1">
@@ -359,13 +335,9 @@ export function CompanySettings() {
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>
-              {founderDialog.mode === "add" ? "Add Founder" : "Edit Founder"}
-            </DialogTitle>
+            <DialogTitle>Edit Founder</DialogTitle>
             <DialogDescription>
-              {founderDialog.mode === "add"
-                ? "Add a new founder to the company."
-                : "Update this founder's details."}
+              {"Update this founder's details."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -425,7 +397,7 @@ export function CompanySettings() {
               onClick={handleSaveFounder}
               disabled={!founderDialog.name.trim()}
             >
-              {founderDialog.mode === "add" ? "Add" : "Save"}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
