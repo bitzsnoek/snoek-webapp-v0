@@ -428,7 +428,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
-          ? { ...c, founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f) }
+          ? {
+              ...c,
+              founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f),
+              members: c.members.map((m) => m.id === founderId ? { ...m, name, roleTitle: role } : m),
+            }
           : c
       )
     )

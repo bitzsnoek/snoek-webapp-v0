@@ -184,15 +184,16 @@ export async function deleteKeyResult(keyResultId: string) {
 export async function addFounder(
   companyId: string,
   name: string,
-  role: string
+  roleTitle: string
 ) {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('company_founders')
+    .from('company_members')
     .insert({
       company_id: companyId,
       name,
-      role,
+      role: 'founder',
+      role_title: roleTitle,
     })
     .select()
     .single()
@@ -204,12 +205,12 @@ export async function addFounder(
 export async function updateFounder(
   founderId: string,
   name: string,
-  role: string
+  roleTitle: string
 ) {
   const supabase = createClient()
   const { error } = await supabase
-    .from('company_founders')
-    .update({ name, role })
+    .from('company_members')
+    .update({ name, role_title: roleTitle })
     .eq('id', founderId)
 
   if (error) throw error
@@ -218,7 +219,7 @@ export async function updateFounder(
 export async function removeFounder(founderId: string) {
   const supabase = createClient()
   const { error } = await supabase
-    .from('company_founders')
+    .from('company_members')
     .delete()
     .eq('id', founderId)
 
