@@ -19,10 +19,10 @@ interface AppState {
   addQuarter: (label: string, year: number) => string
   archiveTab: (type: "year" | "quarter", id: string) => void
   unarchiveTab: (type: "year" | "quarter", id: string) => void
-  addQuarterlyGoal: (quarterId: string, objective: string, yearlyGoalId: string) => string
+  addQuarterlyGoal: (quarterId: string, objective: string, yearlyGoalId: string) => Promise<string>
   updateQuarterlyGoal: (quarterId: string, goalId: string, objective: string, yearlyGoalId: string) => void
   deleteQuarterlyGoal: (quarterId: string, goalId: string) => void
-  addKeyResult: (quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) => void
+  addKeyResult: (quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) => Promise<void>
   updateKeyResult: (quarterId: string, goalId: string, krId: string, kr: Partial<KeyResult>) => void
   deleteKeyResult: (quarterId: string, goalId: string, krId: string) => void
   updateYearlyKRConfidence: (yearId: string, goalId: string, krId: string, confidence: Confidence) => void
@@ -246,16 +246,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  function addQuarterlyGoal(quarterId: string, objective: string, yearlyGoalId: string): string {
+  async function addQuarterlyGoal(quarterId: string, objective: string, yearlyGoalId: string): Promise<string> {
     const tempId = `qg-${Date.now()}`
     patchQuarters(quarterId, (goals) => [
       ...goals,
       { id: tempId, objective, yearlyGoalId, keyResults: [] },
     ])
     const { year, quarter } = parseQuarterKey(quarterId)
-    dbAddQuarterlyGoal(activeCompanyId, year, quarter, yearlyGoalId, objective).then(() => {
-      refreshCompany(activeCompanyId)
-    })
+    const realId = await dbAddQuarterlyGoal(activeCompanyId, year, quarter, yearlyGoalId, objective)
+    if (realId) {
+      // Replace temp ID with real DB ID in local state
+      patchQuarters(quarterId, (goals) =>
+        goals.map((g) => g.id === tempId ? { ...g, id: realId } : g)
+      )
+      return realId
+    }
     return tempId
   }
 
@@ -271,7 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dbDeleteQuarterlyGoal(goalId)
   }
 
-  function addKeyResult(quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) {
+  async function addKeyResult(quarterId: string, goalId: string, kr: Omit<KeyResult, "id">) {
     const tempId = `kr-${Date.now()}`
     patchQuarters(quarterId, (goals) =>
       goals.map((g) =>
@@ -279,9 +284,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
     )
     const ownerMemberId = getOwnerMemberId(kr.owner)
-    dbAddKeyResult(goalId, kr, ownerMemberId).then(() => {
-      refreshCompany(activeCompanyId)
-    })
+    await dbAddKeyResult(goalId, kr, ownerMemberId)
   }
 
   function updateKeyResult(quarterId: string, goalId: string, krId: string, kr: Partial<KeyResult>) {

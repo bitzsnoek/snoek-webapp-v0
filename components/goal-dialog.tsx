@@ -36,7 +36,7 @@ const emptyKr = (): Omit<KeyResult, "id"> => ({
 })
 
 export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps) {
-  const { activeCompany, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal } = useApp()
+  const { activeCompany, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal, refreshData } = useApp()
 
   const [objective, setObjective] = useState(goal?.objective ?? "")
   const [yearlyGoalId, setYearlyGoalId] = useState(goal?.yearlyGoalId ?? "")
@@ -61,7 +61,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
     return Object.keys(e).length === 0
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!validate()) return
     if (goal) {
       // Update existing goal objective + yearly goal link
@@ -76,19 +76,22 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
           keptIds.add(id)
         } else {
           const { id: _id, ...rest } = kr as KeyResult
-          addKeyResult(quarterId, goal.id, rest)
+          await addKeyResult(quarterId, goal.id, rest)
         }
       }
       for (const id of existingIds) {
         if (!keptIds.has(id)) deleteKeyResult(quarterId, goal.id, id)
       }
     } else {
-      const newGoalId = addQuarterlyGoal(quarterId, objective.trim(), yearlyGoalId)
+      // Await goal creation to get the real DB ID before adding key results
+      const newGoalId = await addQuarterlyGoal(quarterId, objective.trim(), yearlyGoalId)
       for (const kr of keyResults) {
         const { id: _id, ...rest } = kr as KeyResult
-        addKeyResult(quarterId, newGoalId, rest)
+        await addKeyResult(quarterId, newGoalId, rest)
       }
     }
+    // Refresh after all mutations are done
+    await refreshData()
     onClose()
   }
 
