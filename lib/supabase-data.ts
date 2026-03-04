@@ -51,7 +51,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   // Phase 1: Fetch core data in parallel
   const [companyRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
-    supabase.from("company_members").select("*").eq("company_id", companyId),
+    supabase.from("company_members_with_email").select("*").eq("company_id", companyId),
     supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
     supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
     supabase.from("metrics").select("*").eq("company_id", companyId),
@@ -112,6 +112,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     role: m.role ?? "founder",
     roleTitle: m.role_title ?? m.role ?? "",
     avatar: m.avatar_url ?? "",
+    email: m.email ?? "",
   }))
 
   // Build weekly values lookup: kr_id -> { W1: val, W2: val, ... }
