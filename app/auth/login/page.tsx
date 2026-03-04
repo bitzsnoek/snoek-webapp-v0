@@ -34,27 +34,32 @@ function LoginInner() {
     setLoading(true)
     setError(null)
 
-    // Preserve invite token through the auth callback
-    const callbackUrl = new URL(
-      process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-      `${window.location.origin}/auth/callback`
-    )
-    if (inviteToken) {
-      callbackUrl.searchParams.set('invite', inviteToken)
-    }
+    try {
+      // Preserve invite token through the auth callback
+      const callbackUrl = new URL(
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+        `${window.location.origin}/auth/callback`
+      )
+      if (inviteToken) {
+        callbackUrl.searchParams.set('invite', inviteToken)
+      }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: callbackUrl.toString(),
-      },
-    })
+      const res = await fetch('/api/send-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, redirectTo: callbackUrl.toString() }),
+      })
+      const result = await res.json()
 
-    if (error) {
-      setError(error.message)
+      if (!res.ok || result.error) {
+        setError(result.error || 'Failed to send magic link')
+      } else {
+        setSent(true)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send magic link. Please try again.')
+    } finally {
       setLoading(false)
-    } else {
-      setSent(true)
     }
   }
 
