@@ -34,6 +34,7 @@ function AcceptInvitationInner() {
   const [companyName, setCompanyName] = useState("")
   const [invitationEmail, setInvitationEmail] = useState("")
   const [email, setEmail] = useState("")
+  const [fullName, setFullName] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
@@ -110,6 +111,10 @@ function AcceptInvitationInner() {
     e.preventDefault()
     setFormError(null)
 
+    if (!fullName.trim()) {
+      setFormError("Please enter your name.")
+      return
+    }
     if (password.length < 8) {
       setFormError("Password must be at least 8 characters.")
       return
@@ -125,7 +130,7 @@ function AcceptInvitationInner() {
       const res = await fetch("/api/accept-invitation-with-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, email, password }),
+        body: JSON.stringify({ token, email, password, name: fullName.trim() }),
       })
       const result = await res.json()
 
@@ -198,6 +203,19 @@ function AcceptInvitationInner() {
                     {"This invitation was sent to this email address."}
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Your name</label>
+                <Input
+                  type="text"
+                  placeholder="Full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="w-full"
+                  autoFocus
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">Password</label>

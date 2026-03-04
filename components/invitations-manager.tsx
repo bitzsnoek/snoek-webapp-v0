@@ -26,7 +26,10 @@ import { dbGetUnconnectedFounders } from "@/lib/supabase-data"
 import { createClient } from "@/lib/supabase/client"
 
 export function InvitationsManager() {
-  const { inviteUser, getInvitations, cancelInvitation, activeCompanyId } = useApp()
+  const { inviteUser, getInvitations, cancelInvitation, activeCompanyId, currentUser } = useApp()
+
+  // Founders cannot manage invitations
+  if (currentUser.role === "founder") return null
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [unconnectedFounders, setUnconnectedFounders] = useState<UnconnectedFounder[]>([])
   const [loading, setLoading] = useState(false)
