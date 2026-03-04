@@ -6,7 +6,7 @@ import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarge
 import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -216,11 +216,7 @@ function OwnerPicker({
   goalId: string
 }) {
   const { activeCompany, assignKROwner } = useApp()
-  const founders = activeCompany.founders
-
-  const ownerInitials = kr.owner
-    ? kr.owner.split(" ").map((n) => n[0]).join("")
-    : null
+  const members = activeCompany.members ?? []
 
   return (
     <DropdownMenu>
@@ -232,21 +228,13 @@ function OwnerPicker({
               ? "ring-1 ring-border hover:ring-primary/50"
               : "border border-dashed border-muted-foreground/30 text-muted-foreground/40 hover:border-primary/50 hover:text-primary"
           )}
-          title={kr.owner ? `Assigned to ${kr.owner} — click to change` : "Assign to founder"}
+          title={kr.owner ? `Assigned to ${kr.owner} — click to change` : "Assign owner"}
         >
           {kr.owner ? (
             <Avatar className="h-6 w-6">
-              {(() => {
-                const founder = founders.find((f) => f.name === kr.owner)
-                return (
-                  <>
-                    {founder?.avatar && <AvatarImage src={founder.avatar} alt={kr.owner} />}
-                    <AvatarFallback className="bg-secondary text-[10px] text-foreground">
-                      {kr.owner.split(" ").map((n) => n[0]).join("")}
-                    </AvatarFallback>
-                  </>
-                )
-              })()}
+              <AvatarFallback className="bg-secondary text-[10px] text-foreground">
+                {kr.owner.split(" ").map((n) => n[0]).join("")}
+              </AvatarFallback>
             </Avatar>
           ) : (
             <UserPlus className="h-3 w-3" />
@@ -254,25 +242,24 @@ function OwnerPicker({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4}>
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Assign founder</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Assign owner</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {founders.map((founder) => (
+        {members.map((member) => (
           <DropdownMenuItem
-            key={founder.id}
-            onClick={() => assignKROwner(quarterId, goalId, kr.id, founder.name)}
+            key={member.id}
+            onClick={() => assignKROwner(quarterId, goalId, kr.id, member.name)}
             className="gap-2"
           >
             <Avatar className="h-5 w-5">
-              <AvatarImage src={founder.avatar} alt={founder.name} />
               <AvatarFallback className="bg-secondary text-[9px] text-foreground">
-                {founder.name.split(" ").map((n) => n[0]).join("")}
+                {member.name.split(" ").map((n) => n[0]).join("")}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <span className="text-sm">{founder.name}</span>
-              <span className="text-xs text-muted-foreground">{founder.role}</span>
+              <span className="text-sm">{member.name}</span>
+              <span className="text-xs text-muted-foreground capitalize">{member.roleTitle || member.role}</span>
             </div>
-            {kr.owner === founder.name && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
+            {kr.owner === member.name && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
           </DropdownMenuItem>
         ))}
         {kr.owner && (

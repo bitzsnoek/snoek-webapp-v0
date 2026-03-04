@@ -5,7 +5,7 @@ import { useApp } from "@/lib/store"
 import { getMonthlyPriorities } from "@/lib/mock-data"
 import { KeyResultCard } from "@/components/key-result-card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,16 +18,18 @@ import { Button } from "@/components/ui/button"
 import { Filter, Flame, X } from "lucide-react"
 
 export function MonthlyPriorities() {
-  const { activeCompany } = useApp()
+  const { activeCompany, currentUser } = useApp()
   const priorities = getMonthlyPriorities(activeCompany)
 
-  // Get unique founders from all priorities
-  const allFounders = Array.from(
+  // Get unique owners from all priorities
+  const allOwners = Array.from(
     new Set(priorities.map((p) => p.keyResult.owner).filter(Boolean))
   ).sort()
 
-  // Filter state — single selected founder (null = no filter)
-  const [selectedFounder, setSelectedFounder] = useState<string | null>(null)
+  // Auto-filter for founders: default to showing only their own priorities
+  const isFounder = currentUser.role === "founder"
+  const defaultFilter = isFounder ? currentUser.name : null
+  const [selectedFounder, setSelectedFounder] = useState<string | null>(defaultFilter)
 
   // Optionally filter by selected founder
   const filteredPriorities = selectedFounder
@@ -48,7 +50,7 @@ export function MonthlyPriorities() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Priorities</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Key results that founders are actively working on and reporting weekly
+            Key results being actively worked on and reported weekly
           </p>
         </div>
 
@@ -67,13 +69,13 @@ export function MonthlyPriorities() {
                     {selectedFounder}
                   </>
                 ) : (
-                  "All founders"
+                  "All members"
                 )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Filter by founder
+                Filter by owner
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {selectedFounder && (
@@ -83,27 +85,31 @@ export function MonthlyPriorities() {
                     className="gap-2"
                   >
                     <X className="h-4 w-4" />
-                    Show all founders
+                    Show all
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
               )}
-              {allFounders.map((founder) => {
-                const founderObj = activeCompany.founders.find((f) => f.name === founder)
-                const isSelected = selectedFounder === founder
+              {allOwners.map((owner) => {
+                const memberObj = activeCompany.members?.find((m) => m.name === owner)
+                const isSelected = selectedFounder === owner
                 return (
                   <DropdownMenuItem
-                    key={founder}
-                    onClick={() => setSelectedFounder(founder)}
+                    key={owner}
+                    onClick={() => setSelectedFounder(owner)}
                     className="gap-2"
                   >
                     <Avatar className="h-5 w-5">
-                      {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={founder} />}
                       <AvatarFallback className="bg-secondary text-[9px] text-foreground">
-                        {founder.split(" ").map((n) => n[0]).join("")}
+                        {owner.split(" ").map((n) => n[0]).join("")}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm">{founder}</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm">{owner}</span>
+                      {memberObj && (
+                        <span className="text-xs text-muted-foreground capitalize">{memberObj.roleTitle || memberObj.role}</span>
+                      )}
+                    </div>
                     {isSelected && (
                       <span className="ml-auto text-xs text-primary font-medium">✓</span>
                     )}
@@ -135,7 +141,7 @@ export function MonthlyPriorities() {
 
       {Object.entries(byOwner).length > 0 ? (
         Object.entries(byOwner).map(([owner, items]) => {
-          const founderObj = activeCompany.founders.find((f) => f.name === owner)
+          const memberObj = activeCompany.members?.find((m) => m.name === owner)
           const initials = owner.split(" ").map((n) => n[0]).join("")
 
           return (
@@ -148,8 +154,7 @@ export function MonthlyPriorities() {
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                     <Avatar className="h-8 w-8">
-                      {founderObj?.avatar && <AvatarImage src={founderObj.avatar} alt={owner} />}
-                      <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
+<AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -157,7 +162,7 @@ export function MonthlyPriorities() {
                   <div>
                     <h2 className="text-base font-semibold text-foreground">{owner}</h2>
                     <p className="text-xs text-muted-foreground">
-                      {founderObj?.role}
+                      {memberObj?.roleTitle || memberObj?.role}
                     </p>
                   </div>
                 </div>

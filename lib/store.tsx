@@ -53,6 +53,7 @@ const emptyCompany: Company = {
   id: "",
   name: "",
   founders: [],
+  members: [],
   years: [],
   quarters: [],
   metrics: [],
@@ -144,10 +145,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Helper to get owner member ID from name
+  // Helper to get owner member ID from name (checks all members, not just founders)
   function getOwnerMemberId(ownerName: string | null): string | null {
     if (!ownerName) return null
-    const member = activeCompany.founders.find((f) => f.name === ownerName)
+    const member = activeCompany.members?.find((m) => m.name === ownerName)
+      ?? activeCompany.founders.find((f) => f.name === ownerName)
     return member?.id ?? null
   }
 
