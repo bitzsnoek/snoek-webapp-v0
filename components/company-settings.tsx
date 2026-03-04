@@ -22,12 +22,15 @@ export function CompanySettings() {
   const {
     activeCompany,
     companies,
+    currentUser,
     updateCompanyName,
     addFounder,
     updateFounder,
     removeFounder,
     deleteCompany,
   } = useApp()
+
+  const isCoach = currentUser.role === "coach"
 
   const [companyName, setCompanyName] = useState(activeCompany.name)
   const [nameEditing, setNameEditing] = useState(false)
@@ -155,16 +158,18 @@ export function CompanySettings() {
               <p className="text-sm font-medium text-foreground">
                 {activeCompany.name}
               </p>
-              <button
-                onClick={() => {
-                  setCompanyName(activeCompany.name)
-                  setNameEditing(true)
-                }}
-                className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-secondary hover:text-foreground"
-                title="Edit company name"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+              {isCoach && (
+                <button
+                  onClick={() => {
+                    setCompanyName(activeCompany.name)
+                    setNameEditing(true)
+                  }}
+                  className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-secondary hover:text-foreground"
+                  title="Edit company name"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -179,25 +184,29 @@ export function CompanySettings() {
             </div>
             <h2 className="text-base font-semibold text-foreground">Founders</h2>
           </div>
-          <Button size="sm" variant="outline" className="gap-2" onClick={openAddFounder}>
-            <Plus className="h-3.5 w-3.5" />
-            Add founder
-          </Button>
+          {isCoach && (
+            <Button size="sm" variant="outline" className="gap-2" onClick={openAddFounder}>
+              <Plus className="h-3.5 w-3.5" />
+              Add founder
+            </Button>
+          )}
         </div>
 
         {activeCompany.founders.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
             <UserPlus className="mb-2 h-8 w-8 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">No founders added yet</p>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="mt-3 gap-2"
-              onClick={openAddFounder}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add first founder
-            </Button>
+            {isCoach && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-3 gap-2"
+                onClick={openAddFounder}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add first founder
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-1">
@@ -227,43 +236,45 @@ export function CompanySettings() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
-                    <button
-                      onClick={() => openEditFounder(founder)}
-                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                      title="Edit founder"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    {deleteConfirm === founder.id ? (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          className="h-7 text-xs"
-                          onClick={() => handleDeleteFounder(founder.id)}
-                        >
-                          Remove
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs"
-                          onClick={() => setDeleteConfirm(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
+                  {isCoach && (
+                    <div className="flex items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
                       <button
-                        onClick={() => setDeleteConfirm(founder.id)}
-                        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        title="Remove founder"
+                        onClick={() => openEditFounder(founder)}
+                        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                        title="Edit founder"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                  </div>
+                      {deleteConfirm === founder.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs"
+                            onClick={() => handleDeleteFounder(founder.id)}
+                          >
+                            Remove
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setDeleteConfirm(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirm(founder.id)}
+                          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          title="Remove founder"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -271,8 +282,8 @@ export function CompanySettings() {
         )}
       </section>
 
-      {/* Danger Zone */}
-      <section className="mt-10 rounded-xl border border-destructive/30 bg-card p-4 md:p-6">
+      {/* Danger Zone - coaches only */}
+      {isCoach && <section className="mt-10 rounded-xl border border-destructive/30 bg-card p-4 md:p-6">
         <div className="mb-4 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
             <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -295,7 +306,7 @@ export function CompanySettings() {
             Delete company
           </Button>
         </div>
-      </section>
+      </section>}
 
       {/* Invitations Manager */}
       <InvitationsManager />
