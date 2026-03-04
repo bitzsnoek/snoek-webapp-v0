@@ -315,7 +315,7 @@ export function AppShell() {
               {activeSection === "metrics"
                 ? "Monthly Metrics"
                 : activeSection === "settings"
-                ? "Settings"
+                ? "Company Settings"
                 : activeSection === "account"
                 ? "Account"
                 : "Archive"}

@@ -45,7 +45,7 @@ const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
   { id: "archive", label: "Archive", icon: Archive },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "settings", label: "Company Settings", icon: Settings },
 ]
 
 interface SidebarProps {
