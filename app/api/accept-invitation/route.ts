@@ -57,22 +57,13 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (!alreadyMember) {
-      // Check if an unconnected founder with matching name exists
-      const nameFromEmail = invitation.email.split("@")[0]
-      const { data: existingMember } = await adminSupabase
-        .from("company_members")
-        .select("id")
-        .eq("company_id", invitation.company_id)
-        .is("user_id", null)
-        .ilike("name", nameFromEmail)
-        .maybeSingle()
-
-      if (existingMember) {
-        // Link the auth user to the existing unconnected founder
+      if (invitation.member_id) {
+        // Invitation is linked to a specific member -- connect the user to that member
         const { error: linkError } = await adminSupabase
           .from("company_members")
           .update({ user_id: user.id })
-          .eq("id", existingMember.id)
+          .eq("id", invitation.member_id)
+          .is("user_id", null)
 
         if (linkError) {
           console.error("Accept invitation link error:", linkError)
@@ -82,7 +73,8 @@ export async function POST(request: NextRequest) {
           )
         }
       } else {
-        // Create a new company member
+        // No specific member linked -- create a new company member
+        const nameFromEmail = user.user_metadata?.full_name || invitation.email.split("@")[0]
         const { error: memberError } = await adminSupabase
           .from("company_members")
           .insert({

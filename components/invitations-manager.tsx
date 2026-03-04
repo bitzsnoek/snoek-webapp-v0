@@ -36,6 +36,7 @@ export function InvitationsManager() {
   const [inviting, setInviting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [activatingFounderId, setActivatingFounderId] = useState<string | null>(null)
+  const [activateEmails, setActivateEmails] = useState<Record<string, string>>({})
 
   useEffect(() => {
     loadInvitations()
@@ -73,10 +74,10 @@ export function InvitationsManager() {
     await loadInvitations()
   }
 
-  async function handleActivateFounder(founder: UnconnectedFounder) {
+  async function handleActivateFounder(founder: UnconnectedFounder, email: string) {
+    if (!email.trim()) return
     setActivatingFounderId(founder.id)
-    const suggestedEmail = `${founder.name.toLowerCase()}@company.com`
-    const result = await inviteUser(suggestedEmail, "founder")
+    const result = await inviteUser(email, "founder", founder.id)
     setActivatingFounderId(null)
     
     if (result) {
@@ -185,22 +186,35 @@ export function InvitationsManager() {
                   {unconnectedFounders.map((founder) => (
                     <div
                       key={founder.id}
-                      className="flex flex-col gap-2 rounded-lg border border-border/50 bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 rounded-lg border border-border/50 bg-background p-3"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">{founder.name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{founder.role} • No account yet</p>
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{founder.name}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{founder.role} - No account yet</p>
+                        </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleActivateFounder(founder)}
-                        disabled={activatingFounderId === founder.id}
-                        className="gap-1.5"
-                      >
-                        <Mail className="h-4 w-4" />
-                        {activatingFounderId === founder.id ? "Sending..." : "Send activation link"}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="email"
+                          placeholder={`Email for ${founder.name}`}
+                          value={activateEmails[founder.id] || ""}
+                          onChange={(e) => setActivateEmails((prev) => ({ ...prev, [founder.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && handleActivateFounder(founder, activateEmails[founder.id] || "")}
+                          className="h-8 text-sm flex-1"
+                          disabled={activatingFounderId === founder.id}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleActivateFounder(founder, activateEmails[founder.id] || "")}
+                          disabled={activatingFounderId === founder.id || !activateEmails[founder.id]?.trim()}
+                          className="gap-1.5 shrink-0"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          {activatingFounderId === founder.id ? "Sending..." : "Send invite"}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
