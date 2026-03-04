@@ -20,13 +20,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Determine the correct base URL for the invitation link
-    const forwardedHost = request.headers.get("x-forwarded-host")
-    const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
-    const host = forwardedHost || process.env.VERCEL_PROJECT_PRODUCTION_URL || request.nextUrl.host
-    const protocol = forwardedHost ? forwardedProto : request.nextUrl.protocol.replace(":", "")
-    const baseUrl = `${protocol}://${host}`
-    const acceptLink = `${baseUrl}/invitations/accept?token=${invitationToken}`
+    // Always use the production URL for invite links so they work for everyone
+    const productionHost = process.env.NEXT_PUBLIC_APP_URL
+      || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+      || `${request.nextUrl.protocol}//${request.headers.get("x-forwarded-host") || request.nextUrl.host}`
+    const acceptLink = `${productionHost}/invitations/accept?token=${invitationToken}`
 
     const emailContent = `
     <p>Hi ${founderName},</p>
