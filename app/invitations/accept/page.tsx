@@ -104,11 +104,9 @@ function AcceptInvitationInner() {
     setAuthError(null)
 
     try {
-      // Redirect through /auth/callback which handles the code exchange,
-      // then the callback redirects to the accept page via the invite param
-      const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
-      callbackUrl.searchParams.set("invite", token!)
-      const redirectTo = callbackUrl.toString()
+      // After verify-magic-link establishes the session, redirect directly
+      // back to this accept page to complete the invitation acceptance
+      const redirectTo = `${window.location.origin}/invitations/accept?token=${token}`
 
       const res = await fetch("/api/send-magic-link", {
         method: "POST",

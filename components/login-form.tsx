@@ -41,9 +41,10 @@ export function LoginForm() {
     setError(null)
 
     try {
+      // Redirect directly to dashboard -- verify-magic-link establishes the session
       const redirectTo =
         process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
-        `${window.location.origin}/auth/callback`
+        `${window.location.origin}/`
 
       const res = await fetch('/api/send-magic-link', {
         method: 'POST',
