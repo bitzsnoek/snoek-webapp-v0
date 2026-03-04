@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { AlertTriangle, Building2, Plus, Pencil, Trash2, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { InvitationsManager } from "./invitations-manager"
 
 export function CompanySettings() {
   const {
@@ -295,6 +296,9 @@ export function CompanySettings() {
           </Button>
         </div>
       </section>
+
+      {/* Invitations Manager */}
+      <InvitationsManager />
 
       {/* Delete Company Confirmation Dialog */}
       <Dialog open={deleteCompanyDialog} onOpenChange={(open) => { if (!open) { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") } }}>

@@ -438,6 +438,126 @@ export async function dbUpdateCompanyName(companyId: string, name: string) {
   await supabase.from("companies").update({ name }).eq("id", companyId)
 }
 
+// ============================================================
+// Invitations
+// ============================================================
+
+export interface Invitation {
+  id: string
+  company_id: string
+  email: string
+  role: "founder" | "coach"
+  token: string
+  invited_by: string
+  status: "pending" | "accepted"
+  accepted_at: string | null
+  expires_at: string
+  created_at: string
+}
+
+export async function dbInviteUser(
+  companyId: string,
+  email: string,
+  role: "founder" | "coach",
+  invitedBy: string
+): Promise<Invitation | null> {
+  const supabase = createClient()
+  const token = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data, error } = await supabase
+    .from("invitations")
+    .insert({
+      company_id: companyId,
+      email,
+      role,
+      token,
+      invited_by: invitedBy,
+      expires_at: expiresAt,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error("dbInviteUser error:", error)
+    return null
+  }
+  return data as Invitation
+}
+
+export async function dbGetInvitations(companyId: string): Promise<Invitation[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("invitations")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    console.error("dbGetInvitations error:", error)
+    return []
+  }
+  return (data ?? []) as Invitation[]
+}
+
+export async function dbCancelInvitation(invitationId: string) {
+  const supabase = createClient()
+  const { error } = await supabase.from("invitations").delete().eq("id", invitationId)
+  if (error) console.error("dbCancelInvitation error:", error)
+}
+
+export async function dbAcceptInvitation(
+  token: string,
+  userId: string
+): Promise<{ success: boolean; companyId?: string; error?: string }> {
+  const supabase = createClient()
+
+  // Get the invitation
+  const { data: invitation, error: getError } = await supabase
+    .from("invitations")
+    .select("*")
+    .eq("token", token)
+    .eq("status", "pending")
+    .single()
+
+  if (getError || !invitation) {
+    return { success: false, error: "Invitation not found or already used" }
+  }
+
+  const inv = invitation as Invitation
+
+  // Check expiry
+  if (new Date(inv.expires_at) < new Date()) {
+    return { success: false, error: "Invitation has expired" }
+  }
+
+  // Add user as company member
+  const { error: memberError } = await supabase.from("company_members").insert({
+    company_id: inv.company_id,
+    user_id: userId,
+    role: inv.role,
+    name: inv.email.split("@")[0],
+  })
+
+  if (memberError) {
+    console.error("dbAcceptInvitation member error:", memberError)
+    return { success: false, error: "Failed to add user to company" }
+  }
+
+  // Mark invitation as accepted
+  const { error: updateError } = await supabase
+    .from("invitations")
+    .update({ status: "accepted", accepted_at: new Date().toISOString() })
+    .eq("id", inv.id)
+
+  if (updateError) {
+    console.error("dbAcceptInvitation update error:", updateError)
+    return { success: false, error: "Failed to accept invitation" }
+  }
+
+  return { success: true, companyId: inv.company_id }
+}
+
 export async function dbAddFounder(companyId: string, name: string, roleTitle: string) {
   const supabase = createClient()
   const { data, error } = await supabase
