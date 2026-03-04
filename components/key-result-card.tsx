@@ -395,8 +395,11 @@ export function KeyResultCard({
 
       {/* Expanded weekly table */}
       {expanded && (
-        <div className="mt-4 overflow-x-auto -mx-4 px-4">
-          <table className="w-full min-w-[480px] text-xs">
+        <div
+          className="mt-4 -mx-4 px-4 overflow-x-auto pb-1"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}
+        >
+          <table className="w-full text-xs" style={{ minWidth: `${weeks.length * 52}px` }}>
             <thead>
               <tr>
                 {weeks.map((week) => {
