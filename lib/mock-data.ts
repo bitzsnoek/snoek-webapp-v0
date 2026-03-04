@@ -87,6 +87,14 @@ export interface Coach {
   clientIds: string[]
 }
 
+export interface CurrentUser {
+  id: string
+  name: string
+  email: string
+  avatar: string
+  role: "coach" | "founder"
+}
+
 
 
 // ============================================================
