@@ -26,13 +26,30 @@ export async function POST(request: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Determine the redirect URL
-    const productionHost =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_PROJECT_PRODUCTION_URL
-        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-        : null) ||
-      `${request.nextUrl.protocol}//${request.headers.get("x-forwarded-host") || request.nextUrl.host}`
+    // Determine the production host from the incoming request's origin
+    // The client sends redirectTo as a full URL (built from window.location.origin),
+    // so we can derive the host from that. Otherwise fall back to headers/env.
+    let productionHost: string
+    if (redirectTo) {
+      try {
+        const parsed = new URL(redirectTo)
+        productionHost = parsed.origin
+      } catch {
+        productionHost = ""
+      }
+    }
+    if (!productionHost) {
+      const forwardedHost = request.headers.get("x-forwarded-host")
+      const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
+      productionHost =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : null) ||
+        (forwardedHost ? `${forwardedProto}://${forwardedHost}` : null) ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+        `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    }
 
     const finalRedirectTo = redirectTo || `${productionHost}/auth/callback`
 
