@@ -10,14 +10,19 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('code') || ''
+      const inviteToken = url.searchParams.get('invite')
+
       // Exchange the code for a session
-      const { error } = await supabase.auth.exchangeCodeForSession(
-        new URL(window.location.href).searchParams.get('code') || ''
-      )
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
 
       if (error) {
         console.error('Auth error:', error)
         router.push('/auth/error')
+      } else if (inviteToken) {
+        // Redirect to invitation acceptance page
+        router.push(`/invitations/accept?token=${inviteToken}`)
       } else {
         // Redirect to dashboard
         router.push('/')
