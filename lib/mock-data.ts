@@ -18,8 +18,6 @@ export interface YearlyKeyResult {
   confidence: Confidence
 }
 
-export type TargetFrequency = "weekly" | "monthly" | "quarterly"
-
 export interface KeyResult {
   id: string
   title: string
@@ -27,7 +25,6 @@ export interface KeyResult {
   owner: string | null  // null = unassigned / inactive
   isMonthlyPriority: boolean
   target: number
-  targetFrequency: TargetFrequency
   weeklyValues: Record<string, number> // e.g. { "W1": 5, "W2": 10, ... }
 }
 
@@ -144,38 +141,10 @@ export function getMonthlyPriorities(company: Company): { quarter: Quarter; goal
   return priorities
 }
 
-/** Returns the weekly target equivalent based on frequency.
- *  weekly = target as-is, monthly = target / ~4.33, quarterly = target / 13 */
-export function getWeeklyTarget(kr: KeyResult): number {
-  const freq = kr.targetFrequency ?? "quarterly"
-  if (freq === "weekly") return kr.target
-  if (freq === "monthly") return kr.target / 4.33
-  return kr.target / 13 // quarterly
-}
-
-/** Returns the quarterly total target based on frequency.
- *  weekly = target * 13, monthly = target * 3, quarterly = target as-is */
-export function getQuarterlyTarget(kr: KeyResult): number {
-  const freq = kr.targetFrequency ?? "quarterly"
-  if (freq === "weekly") return kr.target * 13
-  if (freq === "monthly") return kr.target * 3
-  return kr.target // quarterly
-}
-
-/** Returns a human-readable label for the target, e.g. "50 / week" */
-export function getTargetLabel(kr: KeyResult): string {
-  const freq = kr.targetFrequency ?? "quarterly"
-  if (freq === "weekly") return `${kr.target} / week`
-  if (freq === "monthly") return `${kr.target} / month`
-  return `${kr.target} / quarter`
-}
-
-/** For input KRs: returns { met, total } for weeks that have a value entered.
- *  Compares each weekly value against the weekly equivalent target. */
+/** For input KRs: returns { met, total } for weeks that have a value entered. */
 export function getWeeksOnTarget(kr: KeyResult): { met: number; total: number } {
-  const weeklyTarget = getWeeklyTarget(kr)
   const entries = Object.values(kr.weeklyValues).filter((v) => v > 0)
-  const met = entries.filter((v) => v >= weeklyTarget).length
+  const met = entries.filter((v) => v >= kr.target).length
   return { met, total: entries.length }
 }
 
@@ -189,8 +158,7 @@ export function getProgressPercent(kr: KeyResult): number {
     return values.length > 0 ? Math.max(...values) : 0
   }
   const sum = sumWeeklyValues(kr)
-  const quarterlyTarget = getQuarterlyTarget(kr)
-  return quarterlyTarget > 0 ? Math.round((sum / quarterlyTarget) * 100) : 0
+  return kr.target > 0 ? Math.round((sum / kr.target) * 100) : 0
 }
 
 /** Returns the current week key (e.g. "W10") within the active quarter. */

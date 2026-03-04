@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 import type { KeyResult } from "@/lib/mock-data"
-import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarget, getWeeklyTarget, getQuarterlyTarget, getTargetLabel } from "@/lib/mock-data"
+import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarget } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -154,7 +154,7 @@ function InputCell({
           autoFocus
           className="h-7 w-12 rounded-md border border-ring bg-background text-center text-xs text-foreground outline-none ring-1 ring-ring/30 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-[10px] text-muted-foreground/50">target {Math.round(target * 10) / 10}</span>
+        <span className="text-[10px] text-muted-foreground/50">target {target}</span>
       </div>
     )
   }
@@ -334,11 +334,11 @@ export function KeyResultCard({
               </Badge>
               {isInput ? (
                 <span className="text-xs text-muted-foreground">
-                  {getTargetLabel(kr)}
+                  {kr.target} / week
                 </span>
               ) : (
                 <span className="text-xs text-muted-foreground">
-                  {kr.type === "project" ? `${progress}% complete` : `${total} / ${getQuarterlyTarget(kr)}`}
+                  {kr.type === "project" ? `${progress}% complete` : `${total} / ${kr.target}`}
                 </span>
               )}
             </div>
@@ -416,19 +416,16 @@ export function KeyResultCard({
                   )
                 })}
               </tr>
-              {/* Target row for input KRs — shows the weekly equivalent */}
+              {/* Target row for input KRs */}
               {isInput && (
                 <tr>
-                  {weeks.map((week) => {
-                    const wt = getWeeklyTarget(kr)
-                    return (
-                      <td key={week} className="pb-1 text-center">
-                        <span className="text-[10px] text-muted-foreground/40">
-                          {Math.round(wt * 10) / 10}
-                        </span>
-                      </td>
-                    )
-                  })}
+                  {weeks.map((week) => (
+                    <td key={week} className="pb-1 text-center">
+                      <span className="text-[10px] text-muted-foreground/40">
+                        {kr.target}
+                      </span>
+                    </td>
+                  ))}
                 </tr>
               )}
             </thead>
@@ -447,7 +444,7 @@ export function KeyResultCard({
                         <InputCell
                           week={week}
                           value={kr.weeklyValues[week] ?? 0}
-                          target={getWeeklyTarget(kr)}
+                          target={kr.target}
                           krId={kr.id}
                           isFuture={isFuture}
                         />

@@ -136,7 +136,6 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
       owner,
       isMonthlyPriority: kr.is_priority ?? false,
       target: kr.target ?? 0,
-      targetFrequency: (kr.target_frequency as "weekly" | "monthly" | "quarterly") ?? "quarterly",
       weeklyValues: weeklyMap.get(kr.id) ?? {},
     })
   }
@@ -363,7 +362,6 @@ export async function dbAddKeyResult(goalId: string, kr: Omit<KeyResult, "id">, 
       title: kr.title,
       type: mapKRTypeToDb(kr.type),
       target: kr.target,
-      target_frequency: kr.targetFrequency ?? "quarterly",
       owner_id: ownerMemberId,
       is_priority: kr.isMonthlyPriority,
     })
@@ -379,7 +377,6 @@ export async function dbUpdateKeyResult(krId: string, updates: Partial<KeyResult
   if (updates.title !== undefined) dbUpdates.title = updates.title
   if (updates.type !== undefined) dbUpdates.type = mapKRTypeToDb(updates.type)
   if (updates.target !== undefined) dbUpdates.target = updates.target
-  if (updates.targetFrequency !== undefined) dbUpdates.target_frequency = updates.targetFrequency
   if (updates.isMonthlyPriority !== undefined) dbUpdates.is_priority = updates.isMonthlyPriority
   if (ownerMemberId !== undefined) dbUpdates.owner_id = ownerMemberId
 
