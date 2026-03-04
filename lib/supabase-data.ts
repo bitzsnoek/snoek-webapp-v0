@@ -112,7 +112,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     role: m.role ?? "founder",
     roleTitle: m.role_title ?? m.role ?? "",
     avatar: m.avatar_url ?? "",
-    email: m.email ?? "",
+    email: m.user_email ?? "",
   }))
 
   // Build weekly values lookup: kr_id -> { W1: val, W2: val, ... }
@@ -483,7 +483,8 @@ export async function dbInviteUser(
   email: string,
   role: "founder" | "coach",
   invitedBy: string,
-  founderName?: string
+  founderName?: string,
+  memberId?: string
 ): Promise<Invitation | null> {
   const supabase = createClient()
   // Generate IDs client-side to avoid .select() RLS issues
@@ -492,17 +493,22 @@ export async function dbInviteUser(
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   const createdAt = new Date().toISOString()
 
+  const insertData: Record<string, unknown> = {
+    id,
+    company_id: companyId,
+    email,
+    role,
+    token,
+    invited_by: invitedBy,
+    expires_at: expiresAt,
+  }
+  if (memberId) {
+    insertData.member_id = memberId
+  }
+
   const { error } = await supabase
     .from("invitations")
-    .insert({
-      id,
-      company_id: companyId,
-      email,
-      role,
-      token,
-      invited_by: invitedBy,
-      expires_at: expiresAt,
-    })
+    .insert(insertData)
 
   if (error) {
     console.error("dbInviteUser error:", error)

@@ -97,24 +97,29 @@ function AcceptInvitationInner() {
     }
   }
 
-  // Send magic link for authentication
+  // Send magic link for authentication via Postmark
   async function handleSendMagicLink(e: React.FormEvent) {
     e.preventDefault()
     setSendingLink(true)
     setAuthError(null)
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/invitations/accept?token=${token}`,
-      },
-    })
+    try {
+      const redirectTo = `${window.location.origin}/invitations/accept?token=${token}`
+      const res = await fetch("/api/send-magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, redirectTo }),
+      })
+      const result = await res.json()
 
-    if (error) {
-      setAuthError(error.message)
-      setSendingLink(false)
-    } else {
-      setMagicLinkSent(true)
+      if (!res.ok || result.error) {
+        setAuthError(result.error || "Failed to send magic link")
+      } else {
+        setMagicLinkSent(true)
+      }
+    } catch {
+      setAuthError("Failed to send magic link. Please try again.")
+    } finally {
       setSendingLink(false)
     }
   }

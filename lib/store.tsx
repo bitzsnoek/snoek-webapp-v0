@@ -39,7 +39,7 @@ interface AppState {
   deleteMetric: (metricId: string) => void
   addCompany: (name: string) => Promise<void>
   deleteCompany: (companyId: string) => Promise<void>
-  inviteUser: (email: string, role: "founder" | "coach") => Promise<Invitation | null>
+  inviteUser: (email: string, role: "founder" | "coach", memberId?: string) => Promise<Invitation | null>
   getInvitations: () => Promise<Invitation[]>
   cancelInvitation: (invitationId: string) => Promise<void>
   acceptInvitation: (token: string) => Promise<{ success: boolean; companyId?: string; error?: string }>
@@ -428,7 +428,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
-          ? { ...c, founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f) }
+          ? {
+              ...c,
+              founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f),
+              members: c.members.map((m) => m.id === founderId ? { ...m, name, roleTitle: role } : m),
+            }
           : c
       )
     )
@@ -549,12 +553,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function inviteUser(email: string, role: "founder" | "coach"): Promise<Invitation | null> {
+  async function inviteUser(email: string, role: "founder" | "coach", memberId?: string): Promise<Invitation | null> {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return null
 
-    return await dbInviteUser(activeCompanyId, email, role, session.user.id)
+    return await dbInviteUser(activeCompanyId, email, role, session.user.id, undefined, memberId)
   }
 
   async function getInvitations(): Promise<Invitation[]> {
