@@ -451,7 +451,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const newCompany = await fetchCompanyData(newId)
     if (newCompany) {
-      setCompanies((prev) => [...prev, newCompany])
+      setCompanies((prev) => {
+        // Prevent duplicates if addCompany is called multiple times
+        if (prev.some((c) => c.id === newCompany.id)) return prev
+        return [...prev, newCompany]
+      })
       setActiveCompanyId(newId)
     }
   }
