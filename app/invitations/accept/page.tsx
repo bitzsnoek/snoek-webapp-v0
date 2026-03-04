@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { useApp } from "@/lib/store"
+import { dbAcceptInvitation } from "@/lib/supabase-data"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 
@@ -28,7 +28,6 @@ export default function AcceptInvitationPage() {
 function AcceptInvitationInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { acceptInvitation } = useApp()
   const [status, setStatus] = useState<"loading" | "success" | "error" | "expired">("loading")
   const [message, setMessage] = useState("")
   const [companyName, setCompanyName] = useState("")
@@ -53,7 +52,7 @@ function AcceptInvitationInner() {
         }
 
         // User is logged in - accept the invitation
-        const result = await acceptInvitation(token)
+        const result = await dbAcceptInvitation(token, session.user.id)
 
         if (result.success && result.companyId) {
           setStatus("success")
@@ -89,7 +88,7 @@ function AcceptInvitationInner() {
     }
 
     acceptToken()
-  }, [searchParams, acceptInvitation, router])
+  }, [searchParams, router])
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background p-4">
