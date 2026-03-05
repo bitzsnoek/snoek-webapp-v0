@@ -141,11 +141,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadData()
   }, [loadData])
 
-  // Helper to refresh a single company after mutations
+  // Helper to refresh a single company after mutations.
+  // Merges DB data with optimistic state to avoid losing locally-added items
+  // (e.g. a quarter tab added while a yearly goal save is in flight).
   async function refreshCompany(companyId: string) {
     const updated = await fetchCompanyData(companyId)
     if (updated) {
-      setCompanies((prev) => prev.map((c) => c.id === companyId ? updated : c))
+      setCompanies((prev) => prev.map((c) => {
+        if (c.id !== companyId) return c
+        // Merge years: keep any optimistic years not yet in DB
+        const dbYearIds = new Set(updated.years.map((y) => y.id))
+        const optimisticYears = c.years.filter((y) => !dbYearIds.has(y.id))
+        // Merge quarters: keep any optimistic quarters not yet in DB
+        const dbQuarterIds = new Set(updated.quarters.map((q) => q.id))
+        const optimisticQuarters = c.quarters.filter((q) => !dbQuarterIds.has(q.id))
+        return {
+          ...updated,
+          years: [...updated.years, ...optimisticYears],
+          quarters: [...updated.quarters, ...optimisticQuarters],
+        }
+      }))
     }
   }
 
