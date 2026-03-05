@@ -402,6 +402,14 @@ export async function dbAddCompany(name: string, userId: string): Promise<string
   // The INSERT succeeds but .select() is blocked because the user isn't a member yet.
   const companyId = crypto.randomUUID()
 
+  // Fetch the coach's actual name from their profile
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .single()
+  const coachName = profile?.full_name || "Coach"
+
   const { error } = await supabase
     .from("companies")
     .insert({ id: companyId, name, coach_id: userId })
@@ -410,7 +418,7 @@ export async function dbAddCompany(name: string, userId: string): Promise<string
   // Now add the user as a member so RLS grants full access
   const { error: memberError } = await supabase
     .from("company_members")
-    .insert({ company_id: companyId, user_id: userId, role: "coach", name: "Coach" })
+    .insert({ company_id: companyId, user_id: userId, role: "coach", name: coachName })
   if (memberError) { console.error("dbAddCompany member error:", memberError); return null }
 
   return companyId
