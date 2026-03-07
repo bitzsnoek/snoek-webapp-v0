@@ -40,7 +40,9 @@ export default function MeetingsList({ meetings }: MeetingsListProps) {
   )
 }
 
+// v3 - Fixed date validation
 function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () => void }) {
+  // Safely parse dates with validation
   const startTime = meeting.startTime ? new Date(meeting.startTime) : null
   const endTime = meeting.endTime ? new Date(meeting.endTime) : null
   const isValidDate = startTime && !isNaN(startTime.getTime()) && endTime && !isNaN(endTime.getTime())

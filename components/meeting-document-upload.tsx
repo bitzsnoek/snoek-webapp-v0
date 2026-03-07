@@ -72,6 +72,7 @@ export function MeetingDocumentUpload({ meetingId, onDocumentAdded }: MeetingDoc
       formData.append("title", title.trim())
       formData.append("documentType", documentType)
 
+      // v3 - Using new meeting-docs API route
       const res = await fetch(`/api/meeting-docs/${meetingId}`, {
         method: "POST",
         body: formData,
