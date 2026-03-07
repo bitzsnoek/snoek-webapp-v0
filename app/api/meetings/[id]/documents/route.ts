@@ -1,11 +1,9 @@
+// v2 - Force redeploy with Next.js 16 async params
 import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 
 // Placeholder function to generate embeddings
-// In production, you'd use OpenAI, Cohere, or another embedding service
 async function generateEmbedding(text: string): Promise<number[]> {
-  // For MVP, return a simple 384-dimensional embedding (all zeros)
-  // Replace with actual embedding service call
   const response = await fetch("https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2", {
     headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` },
     method: "POST",
@@ -23,10 +21,12 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  props: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { id: meetingId } = await params
+  const { id: meetingId } = await props.params
+
+  console.log("[v0] GET documents for meeting:", meetingId)
 
   try {
     const { data: documents, error } = await supabase
@@ -52,23 +52,16 @@ async function extractTextFromFile(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
   const text = new TextDecoder().decode(buffer)
   
-  // For PDF and complex formats, we'd need server-side libraries
-  // For now, handle text-based formats and return file info for binary formats
   if (file.type === "application/pdf") {
-    // PDF parsing would require a library like pdf-parse
-    // For MVP, store file metadata
     return `[PDF Document: ${file.name}]`
   }
   
   if (file.type === "application/msword" || 
       file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    // Word docs would require mammoth or similar
     return `[Word Document: ${file.name}]`
   }
   
   if (file.type === "application/rtf" || file.type === "text/rtf") {
-    // RTF can contain readable text, try to extract it
-    // Strip RTF control codes for basic text extraction
     const rtfText = text.replace(/\\[a-z]+\d* ?|\{|\}|\\'/g, "").trim()
     return rtfText || `[RTF Document: ${file.name}]`
   }
@@ -78,10 +71,12 @@ async function extractTextFromFile(file: File): Promise<string> {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  props: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { id: meetingId } = await params
+  const { id: meetingId } = await props.params
+
+  console.log("[v0] POST document for meeting:", meetingId)
 
   try {
     // Verify user has access to this meeting
@@ -92,6 +87,7 @@ export async function POST(
       .single()
 
     if (meetingError || !meeting) {
+      console.log("[v0] Meeting not found:", meetingId, meetingError)
       return NextResponse.json({ error: "Meeting not found" }, { status: 404 })
     }
 
@@ -99,6 +95,8 @@ export async function POST(
     const file = formData.get("file") as File | null
     const title = formData.get("title") as string
     const documentType = formData.get("documentType") as string || "other"
+
+    console.log("[v0] Uploading document:", { title, documentType, fileName: file?.name })
 
     if (!title || !file) {
       return NextResponse.json(
@@ -126,7 +124,10 @@ export async function POST(
       .select()
       .single()
 
-    if (insertError) throw insertError
+    if (insertError) {
+      console.error("[v0] Insert error:", insertError)
+      throw insertError
+    }
 
     // Update meeting to indicate it has documents
     await supabase
@@ -134,6 +135,7 @@ export async function POST(
       .update({ has_documents: true })
       .eq("id", meetingId)
 
+    console.log("[v0] Document uploaded successfully:", document?.id)
     return NextResponse.json({ document })
   } catch (error) {
     console.error("Document upload error:", error)
@@ -143,10 +145,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  props: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { id: meetingId } = await params
+  await props.params // Await params even if not using the id
   const url = new URL(request.url)
   const docId = url.searchParams.get("docId")
 
