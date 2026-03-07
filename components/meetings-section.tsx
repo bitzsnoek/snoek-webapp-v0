@@ -54,14 +54,8 @@ export default function MeetingsSection() {
     }
   }
 
-  async function handleConnectCalendar() {
-    const res = await fetch("/api/google-calendar/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId: activeCompanyId }),
-    })
-    const { authUrl } = await res.json()
-    window.location.href = authUrl
+  function handleConnectCalendar() {
+    window.location.href = `/api/google-calendar/connect?company_id=${activeCompanyId}`
   }
 
   if (isLoading) {

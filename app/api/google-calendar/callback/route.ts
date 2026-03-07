@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
       throw new Error("Failed to save connection")
     }
 
-    // Redirect back to company settings
-    return NextResponse.redirect(new URL(`/?company=${company_id}#settings`, request.nextUrl))
+    // Redirect back to the meetings section
+    return NextResponse.redirect(new URL(`/?section=meetings&company=${company_id}`, request.nextUrl.origin))
   } catch (error) {
     console.error("OAuth callback error:", error)
     return NextResponse.json({ error: "Failed to complete authorization" }, { status: 500 })
