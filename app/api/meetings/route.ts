@@ -2,14 +2,14 @@ import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const companyId = request.nextUrl.searchParams.get("companyId")
-
-  if (!companyId) {
-    return NextResponse.json({ error: "Missing companyId" }, { status: 400 })
-  }
-
   try {
+    const supabase = await createClient()
+    const companyId = request.nextUrl.searchParams.get("companyId")
+
+    if (!companyId) {
+      return NextResponse.json({ error: "Missing companyId" }, { status: 400 })
+    }
+
     // Check if calendar is connected and get calendar details
     const { data: connection } = await supabase
       .from("google_calendar_connections")
@@ -34,6 +34,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("Failed to fetch meetings:", error)
-    return NextResponse.json({ error: "Failed to fetch meetings" }, { status: 500 })
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
