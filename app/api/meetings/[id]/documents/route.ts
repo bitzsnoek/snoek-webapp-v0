@@ -47,6 +47,35 @@ export async function GET(
   }
 }
 
+// Extract text from uploaded files
+async function extractTextFromFile(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const text = new TextDecoder().decode(buffer)
+  
+  // For PDF and complex formats, we'd need server-side libraries
+  // For now, handle text-based formats and return file info for binary formats
+  if (file.type === "application/pdf") {
+    // PDF parsing would require a library like pdf-parse
+    // For MVP, store file metadata
+    return `[PDF Document: ${file.name}]`
+  }
+  
+  if (file.type === "application/msword" || 
+      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    // Word docs would require mammoth or similar
+    return `[Word Document: ${file.name}]`
+  }
+  
+  if (file.type === "application/rtf" || file.type === "text/rtf") {
+    // RTF can contain readable text, try to extract it
+    // Strip RTF control codes for basic text extraction
+    const rtfText = text.replace(/\\[a-z]+\d* ?|\{|\}|\\'/g, "").trim()
+    return rtfText || `[RTF Document: ${file.name}]`
+  }
+  
+  return text
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -66,14 +95,20 @@ export async function POST(
       return NextResponse.json({ error: "Meeting not found" }, { status: 404 })
     }
 
-    const { title, content, documentType } = await request.json()
+    const formData = await request.formData()
+    const file = formData.get("file") as File | null
+    const title = formData.get("title") as string
+    const documentType = formData.get("documentType") as string || "other"
 
-    if (!title || !content) {
+    if (!title || !file) {
       return NextResponse.json(
-        { error: "Title and content are required" },
+        { error: "Title and file are required" },
         { status: 400 }
       )
     }
+
+    // Extract text content from the file
+    const content = await extractTextFromFile(file)
 
     // Generate embedding for the document content
     const embedding = await generateEmbedding(content)
