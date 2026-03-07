@@ -17,7 +17,9 @@ import {
   Plus,
   X,
   LogOut,
+  Calendar,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,25 +27,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "archive" | "settings" | "account"
+export type MainSection = "goals" | "metrics" | "meetings" | "archive" | "settings" | "account"
 
 const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
+  { id: "meetings", label: "Meetings", icon: Calendar },
   { id: "archive", label: "Archive", icon: Archive },
   { id: "settings", label: "Company Settings", icon: Settings },
 ]
