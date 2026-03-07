@@ -37,11 +37,13 @@ export function CompanySettings() {
   // Founder dialog state
   const [founderDialog, setFounderDialog] = useState<{
     open: boolean
-    mode: "add" | "edit"
+    mode: "edit"
     founderId?: string
     name: string
     role: string
-  }>({ open: false, mode: "add", name: "", role: "" })
+    emails: string[]
+    emailInput: string
+  }>({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
 
   // Confirm delete founder state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -68,13 +70,15 @@ export function CompanySettings() {
     setNameEditing(false)
   }
 
-  function openEditFounder(founder: { id: string; name: string; role: string }) {
+  function openEditFounder(founder: { id: string; name: string; role: string; emails?: string[] }) {
     setFounderDialog({
       open: true,
       mode: "edit",
       founderId: founder.id,
       name: founder.name,
       role: founder.role,
+      emails: founder.emails || [],
+      emailInput: "",
     })
   }
 
@@ -83,8 +87,26 @@ export function CompanySettings() {
     const role = founderDialog.role.trim()
     if (!name || !founderDialog.founderId) return
 
-    updateFounder(founderDialog.founderId, name, role)
-    setFounderDialog({ open: false, mode: "edit", name: "", role: "" })
+    updateFounder(founderDialog.founderId, name, role, founderDialog.emails)
+    setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
+  }
+
+  function addEmail() {
+    const email = founderDialog.emailInput.trim()
+    if (email && !founderDialog.emails.includes(email)) {
+      setFounderDialog((prev) => ({
+        ...prev,
+        emails: [...prev.emails, email],
+        emailInput: "",
+      }))
+    }
+  }
+
+  function removeEmail(email: string) {
+    setFounderDialog((prev) => ({
+      ...prev,
+      emails: prev.emails.filter((e) => e !== email),
+    }))
   }
 
   function handleDeleteFounder(id: string) {
@@ -330,14 +352,14 @@ export function CompanySettings() {
       <Dialog
         open={founderDialog.open}
         onOpenChange={(open) =>
-          !open && setFounderDialog({ open: false, mode: "add", name: "", role: "" })
+          !open && setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
         }
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Edit Founder</DialogTitle>
             <DialogDescription>
-              {"Update this founder's details."}
+              {"Update this founder's details and email addresses for meeting sync."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -365,30 +387,68 @@ export function CompanySettings() {
                 onKeyDown={(e) => e.key === "Enter" && handleSaveFounder()}
               />
             </div>
-            {founderDialog.mode === "edit" && founderDialog.founderId && (() => {
-              const member = activeCompany.members?.find((m) => m.id === founderDialog.founderId)
-              const email = member?.email
-              return email ? (
-                <div className="flex flex-col gap-2">
-                  <Label className="text-muted-foreground">Email</Label>
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">{email}</span>
-                  </div>
+            
+            {/* Email addresses section */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="founder-email">Email addresses for meeting sync</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="founder-email"
+                  placeholder="name@example.com"
+                  value={founderDialog.emailInput}
+                  onChange={(e) =>
+                    setFounderDialog((prev) => ({ ...prev, emailInput: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      addEmail()
+                    }
+                  }}
+                  type="email"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={addEmail}
+                  disabled={!founderDialog.emailInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              
+              {/* List of added emails */}
+              {founderDialog.emails.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {founderDialog.emails.map((email) => (
+                    <div
+                      key={email}
+                      className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"
+                    >
+                      <span>{email}</span>
+                      <button
+                        onClick={() => removeEmail(email)}
+                        className="ml-1 font-semibold hover:text-primary/80"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <Label className="text-muted-foreground">Email</Label>
-                  <p className="text-xs text-muted-foreground/60 italic">No user account connected</p>
-                </div>
-              )
-            })()}
+              )}
+              
+              {founderDialog.emails.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">
+                  No emails added. Add email addresses to match meetings from Google Calendar.
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() =>
-                setFounderDialog({ open: false, mode: "add", name: "", role: "" })
+                setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
               }
             >
               Cancel

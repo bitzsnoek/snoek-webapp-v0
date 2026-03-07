@@ -103,6 +103,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
       name: m.name ?? "",
       role: m.role_title ?? "",
       avatar: "",
+      emails: m.emails ?? [],
     }))
 
   // Build all members (coaches + founders) for owner assignment
@@ -707,9 +708,11 @@ export async function dbAddFounder(companyId: string, name: string, roleTitle: s
   return data.id as string
 }
 
-export async function dbUpdateFounder(memberId: string, name: string, roleTitle: string) {
+export async function dbUpdateFounder(memberId: string, name: string, roleTitle: string, emails?: string[]) {
   const supabase = createClient()
-  await supabase.from("company_members").update({ name, role_title: roleTitle }).eq("id", memberId)
+  const updates: Record<string, any> = { name, role_title: roleTitle }
+  if (emails) updates.emails = emails
+  await supabase.from("company_members").update(updates).eq("id", memberId)
 }
 
 export async function dbRemoveFounder(memberId: string) {
