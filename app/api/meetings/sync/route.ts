@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", connection.id)
 
-    return NextResponse.json({ success: true, synced: events.length })
+    return NextResponse.json({ success: true, synced: filteredEvents.length })
   } catch (error) {
     console.error("Sync error:", error)
     return NextResponse.json({ error: "Sync failed" }, { status: 500 })
