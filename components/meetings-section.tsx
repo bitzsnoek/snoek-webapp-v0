@@ -25,7 +25,7 @@ export default function MeetingsSection() {
   async function loadMeetings() {
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/meetings?companyId=${activeCompanyId}`)
+      const res = await fetch(`/api/meetings-data?companyId=${activeCompanyId}`)
       if (res.ok) {
         const data = await res.json()
         setMeetings(data.meetings || [])

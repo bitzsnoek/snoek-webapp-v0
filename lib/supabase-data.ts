@@ -709,10 +709,17 @@ export async function dbAddFounder(companyId: string, name: string, roleTitle: s
 }
 
 export async function dbUpdateFounder(memberId: string, name: string, roleTitle: string, emails?: string[]) {
+  console.log("[v0] dbUpdateFounder called:", { memberId, name, roleTitle, emails })
   const supabase = createClient()
   const updates: Record<string, any> = { name, role_title: roleTitle }
-  if (emails) updates.emails = emails
-  await supabase.from("company_members").update(updates).eq("id", memberId)
+  if (emails !== undefined) updates.emails = emails
+  console.log("[v0] Updating company_members with:", updates)
+  const { error } = await supabase.from("company_members").update(updates).eq("id", memberId)
+  if (error) {
+    console.error("[v0] dbUpdateFounder error:", error)
+  } else {
+    console.log("[v0] dbUpdateFounder success")
+  }
 }
 
 export async function dbRemoveFounder(memberId: string) {

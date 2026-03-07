@@ -85,15 +85,19 @@ export function CompanySettings() {
   function handleSaveFounder() {
     const name = founderDialog.name.trim()
     const role = founderDialog.role.trim()
+    console.log("[v0] handleSaveFounder called:", { founderId: founderDialog.founderId, name, role, emails: founderDialog.emails })
     if (!name || !founderDialog.founderId) return
 
+    console.log("[v0] Calling updateFounder with emails:", founderDialog.emails)
     updateFounder(founderDialog.founderId, name, role, founderDialog.emails)
     setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
   }
 
   function addEmail() {
     const email = founderDialog.emailInput.trim()
+    console.log("[v0] addEmail called:", { email, currentEmails: founderDialog.emails })
     if (email && !founderDialog.emails.includes(email)) {
+      console.log("[v0] Adding email to list")
       setFounderDialog((prev) => ({
         ...prev,
         emails: [...prev.emails, email],
@@ -410,7 +414,10 @@ export function CompanySettings() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={addEmail}
+                  onClick={() => {
+                    console.log("[v0] Add button clicked, emailInput:", founderDialog.emailInput)
+                    addEmail()
+                  }}
                   disabled={!founderDialog.emailInput.trim()}
                 >
                   Add
@@ -454,7 +461,10 @@ export function CompanySettings() {
               Cancel
             </Button>
             <Button
-              onClick={handleSaveFounder}
+              onClick={() => {
+                console.log("[v0] Save button clicked, emails:", founderDialog.emails)
+                handleSaveFounder()
+              }}
               disabled={!founderDialog.name.trim()}
             >
               Save
