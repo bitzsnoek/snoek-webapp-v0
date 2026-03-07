@@ -121,15 +121,23 @@ export async function POST(request: NextRequest) {
 
     const founderEmails = new Set<string>()
     members?.forEach((member: any) => {
-      (member.emails || []).forEach((email: string) => founderEmails.add(email.toLowerCase()))
+      (member.emails || []).forEach((email: string) => {
+        founderEmails.add(email.toLowerCase())
+        console.log("[v0] Added founder email:", email)
+      })
     })
-    console.log("[v0] Found", founderEmails.size, "founder emails")
+    console.log("[v0] Found", founderEmails.size, "founder emails:", Array.from(founderEmails))
 
     // Filter events that include any founder email
     const filteredEvents = events.filter((event) => {
-      if (founderEmails.size === 0) return true // If no founder emails set, include all
+      if (founderEmails.size === 0) {
+        console.log("[v0] No founder emails configured, including event:", event.summary)
+        return true
+      }
       const attendeeEmails = (event.attendees?.map((a) => a.email.toLowerCase()) || [])
-      return attendeeEmails.some((email) => founderEmails.has(email))
+      const matches = attendeeEmails.some((email) => founderEmails.has(email))
+      console.log("[v0] Event:", event.summary, "attendees:", attendeeEmails, "matches:", matches)
+      return matches
     })
     console.log("[v0] Filtered to", filteredEvents.length, "events matching founders")
 
