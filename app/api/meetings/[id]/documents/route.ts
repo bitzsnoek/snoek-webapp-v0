@@ -25,7 +25,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const meetingId = params.id
 
   try {
@@ -51,7 +51,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const meetingId = params.id
 
   try {
@@ -110,7 +110,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const url = new URL(request.url)
   const docId = url.searchParams.get("docId")
 
