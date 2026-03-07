@@ -21,6 +21,10 @@ export interface Meeting {
   attendeeEmails: string[]
   founderIds: string[]
   hasDocuments: boolean
+  documentCount?: number
+  transcriptCount?: number
+  notesCount?: number
+  otherCount?: number
   status: "scheduled" | "deleted_in_calendar" | "rescheduled"
 }
 

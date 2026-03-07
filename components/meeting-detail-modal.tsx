@@ -1,5 +1,5 @@
 "use client"
-
+// REBUILD-2026-03-07-v4
 import { useState, useEffect } from "react"
 import type { Meeting, MeetingDocument } from "@/lib/mock-data"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -57,8 +57,9 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
 
   if (!meeting) return null
 
-  const startTime = new Date(meeting.startTime)
-  const endTime = new Date(meeting.endTime)
+  const startTime = meeting.startTime ? new Date(meeting.startTime) : null
+  const endTime = meeting.endTime ? new Date(meeting.endTime) : null
+  const isValidDate = startTime && !isNaN(startTime.getTime()) && endTime && !isNaN(endTime.getTime())
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,13 +72,15 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
         <div className="space-y-6">
           {/* Meeting details */}
           <div className="space-y-3 pb-6 border-b border-border">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>
-                {format(startTime, "MMMM d, yyyy")} • {format(startTime, "h:mm a")} -{" "}
-                {format(endTime, "h:mm a")}
-              </span>
-            </div>
+            {isValidDate && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>
+                  {format(startTime, "MMMM d, yyyy")} • {format(startTime, "h:mm a")} -{" "}
+                  {format(endTime, "h:mm a")}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>{meeting.attendeeEmails.join(", ")}</span>
@@ -124,12 +127,14 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
                       </h4>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                          {doc.documentType.charAt(0).toUpperCase() +
-                            doc.documentType.slice(1)}
+                          {(doc.documentType || "other").charAt(0).toUpperCase() +
+                            (doc.documentType || "other").slice(1)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(doc.createdAt), "MMM d")}
-                        </span>
+                        {doc.createdAt && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(doc.createdAt), "MMM d")}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                         {doc.content}
