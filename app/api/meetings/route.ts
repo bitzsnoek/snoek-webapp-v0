@@ -1,15 +1,17 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 
+// GET /api/meetings - Fetch meetings for a company
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const companyId = request.nextUrl.searchParams.get("companyId")
-
-  if (!companyId) {
-    return NextResponse.json({ error: "Missing companyId" }, { status: 400 })
-  }
-
   try {
+    // Create Supabase client (must be awaited)
+    const supabase = await createClient()
+    
+    const companyId = request.nextUrl.searchParams.get("companyId")
+    if (!companyId) {
+      return NextResponse.json({ error: "Missing companyId" }, { status: 400 })
+    }
+
     // Check if calendar is connected and get calendar details
     const { data: connection } = await supabase
       .from("google_calendar_connections")
@@ -17,14 +19,16 @@ export async function GET(request: NextRequest) {
       .eq("company_id", companyId)
       .single()
 
-    // Fetch meetings
+    // Fetch meetings for this company
     const { data: meetings, error } = await supabase
       .from("meetings")
       .select("*")
       .eq("company_id", companyId)
       .order("start_time", { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      throw error
+    }
 
     return NextResponse.json({
       meetings: meetings || [],
@@ -34,6 +38,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("Failed to fetch meetings:", error)
-    return NextResponse.json({ error: "Failed to fetch meetings" }, { status: 500 })
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
