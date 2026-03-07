@@ -41,9 +41,10 @@ export default function MeetingsList({ meetings }: MeetingsListProps) {
 }
 
 function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () => void }) {
-  const startTime = new Date(meeting.startTime)
-  const endTime = new Date(meeting.endTime)
-  const isPast = endTime < new Date()
+  const startTime = meeting.startTime ? new Date(meeting.startTime) : null
+  const endTime = meeting.endTime ? new Date(meeting.endTime) : null
+  const isValidDate = startTime && !isNaN(startTime.getTime()) && endTime && !isNaN(endTime.getTime())
+  const isPast = isValidDate ? endTime < new Date() : false
 
   return (
     <button
@@ -57,10 +58,10 @@ function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () =
       {/* Date column */}
       <div className="min-w-20 text-left">
         <div className="text-xs font-semibold text-muted-foreground uppercase">
-          {format(startTime, "MMM")}
+          {isValidDate ? format(startTime, "MMM") : "—"}
         </div>
         <div className="text-lg font-bold text-foreground">
-          {format(startTime, "d")}
+          {isValidDate ? format(startTime, "d") : "—"}
         </div>
       </div>
 
@@ -78,7 +79,7 @@ function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () =
         <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
-            <span>{format(startTime, "h:mm a")} - {format(endTime, "h:mm a")}</span>
+            <span>{isValidDate ? `${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}` : "Time unknown"}</span>
           </div>
           <span>•</span>
           <span>{meeting.attendeeEmails.length} attendees</span>
