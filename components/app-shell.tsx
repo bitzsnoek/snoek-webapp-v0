@@ -7,6 +7,7 @@ import { YearlyGoals } from "./yearly-goals"
 import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
+import MeetingsSection from "./meetings-section"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
@@ -313,8 +314,10 @@ export function AppShell() {
           {activeSection !== "goals" && (
             <h1 className="text-sm font-medium text-foreground">
               {activeSection === "metrics"
-                ? "Monthly Metrics"
-                : activeSection === "settings"
+                  ? "Monthly Metrics"
+                  : activeSection === "meetings"
+                  ? "Meetings"
+                  : activeSection === "settings"
                 ? "Company Settings"
                 : activeSection === "account"
                 ? "Account"
@@ -334,8 +337,9 @@ export function AppShell() {
           {activeSection === "goals" && activeQuarter && (
             <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />
           )}
-          {activeSection === "metrics" && <MonthlyMetrics />}
-          {activeSection === "archive" && <ArchiveView />}
+      {activeSection === "metrics" && <MonthlyMetrics />}
+      {activeSection === "meetings" && <MeetingsSection />}
+      {activeSection === "archive" && <ArchiveView />}
           {activeSection === "settings" && <CompanySettings />}
           {activeSection === "account" && <AccountSettings />}
         </main>

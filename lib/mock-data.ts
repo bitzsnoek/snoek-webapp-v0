@@ -12,6 +12,27 @@ export type Confidence =
   | "done"
   | "discontinued"
 
+export interface Meeting {
+  id: string
+  title: string
+  description?: string
+  startTime: Date
+  endTime: Date
+  attendeeEmails: string[]
+  founderIds: string[]
+  hasDocuments: boolean
+  status: "scheduled" | "deleted_in_calendar" | "rescheduled"
+}
+
+export interface MeetingDocument {
+  id: string
+  meetingId: string
+  title: string
+  content: string
+  documentType: "transcript" | "notes" | "other"
+  createdAt: Date
+}
+
 export interface YearlyKeyResult {
   id: string
   title: string
