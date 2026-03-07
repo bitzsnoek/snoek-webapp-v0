@@ -40,6 +40,29 @@ export default function MeetingsList({ meetings }: MeetingsListProps) {
   )
 }
 
+// Helper to format document types for display
+function formatDocumentTypes(meeting: Meeting): string {
+  const parts: string[] = []
+  
+  if (meeting.transcriptCount && meeting.transcriptCount > 0) {
+    parts.push("Transcript")
+  }
+  if (meeting.notesCount && meeting.notesCount > 0) {
+    parts.push("Notes")
+  }
+  if (meeting.otherCount && meeting.otherCount > 0) {
+    parts.push(meeting.otherCount === 1 ? "Doc" : `${meeting.otherCount} docs`)
+  }
+  
+  // Fallback if no specific types but has documents
+  if (parts.length === 0 && meeting.hasDocuments) {
+    const count = meeting.documentCount || 1
+    return count === 1 ? "Doc" : `${count} docs`
+  }
+  
+  return parts.join(", ")
+}
+
 // v3 - Fixed date validation
 function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () => void }) {
   // Safely parse dates with validation
@@ -92,7 +115,7 @@ function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () =
       {meeting.hasDocuments && (
         <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary">
           <FileText className="h-3.5 w-3.5" />
-          <span>{meeting.documentCount || 1} doc{(meeting.documentCount || 1) !== 1 ? "s" : ""}</span>
+          <span>{formatDocumentTypes(meeting)}</span>
         </div>
       )}
     </button>
