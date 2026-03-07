@@ -29,7 +29,7 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
     if (!meeting) return
     setIsLoadingDocs(true)
     try {
-      const res = await fetch(`/api/meetings/${meeting.id}/documents`)
+      const res = await fetch(`/api/meeting-docs/${meeting.id}`)
       if (res.ok) {
         const data = await res.json()
         setDocuments(data.documents || [])
@@ -44,7 +44,7 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
   async function handleDeleteDocument(docId: string) {
     if (!meeting) return
     try {
-      const res = await fetch(`/api/meetings/${meeting.id}/documents/${docId}`, {
+      const res = await fetch(`/api/meeting-docs/${meeting.id}?documentId=${docId}`, {
         method: "DELETE",
       })
       if (res.ok) {
