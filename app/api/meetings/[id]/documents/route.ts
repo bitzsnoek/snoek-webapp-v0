@@ -23,10 +23,10 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const meetingId = params.id
+  const { id: meetingId } = await params
 
   try {
     const { data: documents, error } = await supabase
@@ -78,10 +78,10 @@ async function extractTextFromFile(file: File): Promise<string> {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const meetingId = params.id
+  const { id: meetingId } = await params
 
   try {
     // Verify user has access to this meeting
@@ -143,9 +143,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const { id: meetingId } = await params
   const url = new URL(request.url)
   const docId = url.searchParams.get("docId")
 
