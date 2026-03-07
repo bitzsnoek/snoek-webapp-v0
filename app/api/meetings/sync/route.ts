@@ -59,7 +59,8 @@ async function fetchGoogleCalendarEvents(
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  const { company_id } = await request.json()
+  const body = await request.json()
+  const company_id = body.company_id || body.companyId
 
   console.log("[v0] Sync POST request for company:", company_id)
 
