@@ -32,7 +32,7 @@ interface AppState {
   deleteYearlyGoal: (yearId: string, goalId: string) => void
   updateCompanyName: (name: string) => void
   addFounder: (name: string, role: string) => void
-  updateFounder: (founderId: string, name: string, role: string) => void
+  updateFounder: (founderId: string, name: string, role: string, emails?: string[]) => void
   removeFounder: (founderId: string) => void
   updateMetricValue: (metricId: string, month: number, value: number) => void
   addMetric: (metric: Omit<Metric, "id">) => void
@@ -443,19 +443,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  function updateFounder(founderId: string, name: string, role: string) {
+  function updateFounder(founderId: string, name: string, role: string, emails?: string[]) {
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
           ? {
               ...c,
-              founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role } : f),
+              founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role, emails } : f),
               members: c.members.map((m) => m.id === founderId ? { ...m, name, roleTitle: role } : m),
             }
           : c
       )
     )
-    dbUpdateFounder(founderId, name, role)
+    dbUpdateFounder(founderId, name, role, emails)
   }
 
   function removeFounder(founderId: string) {

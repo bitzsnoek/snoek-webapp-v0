@@ -90,6 +90,7 @@ export interface Founder {
   name: string
   role: string
   avatar: string
+  emails?: string[]
 }
 
 export interface CompanyMember {

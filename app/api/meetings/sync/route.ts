@@ -105,8 +105,27 @@ export async function POST(request: NextRequest) {
       timeMax
     )
 
-    // Upsert meetings
-    const meetingData = events.map((event) => ({
+    // Get all founder emails from company_members
+    const { data: members } = await supabase
+      .from("company_members")
+      .select("emails")
+      .eq("company_id", company_id)
+      .eq("role", "founder")
+
+    const founderEmails = new Set<string>()
+    members?.forEach((member: any) => {
+      (member.emails || []).forEach((email: string) => founderEmails.add(email.toLowerCase()))
+    })
+
+    // Filter events that include any founder email
+    const filteredEvents = events.filter((event) => {
+      if (founderEmails.size === 0) return true // If no founder emails set, include all
+      const attendeeEmails = (event.attendees?.map((a) => a.email.toLowerCase()) || [])
+      return attendeeEmails.some((email) => founderEmails.has(email))
+    })
+
+    // Upsert meetings (only filtered ones)
+    const meetingData = filteredEvents.map((event) => ({
       company_id,
       google_event_id: event.id,
       title: event.summary,
