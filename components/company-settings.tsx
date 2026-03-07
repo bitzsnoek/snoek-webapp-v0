@@ -414,7 +414,10 @@ export function CompanySettings() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={addEmail}
+                  onClick={() => {
+                    console.log("[v0] Add button clicked, emailInput:", founderDialog.emailInput)
+                    addEmail()
+                  }}
                   disabled={!founderDialog.emailInput.trim()}
                 >
                   Add
@@ -458,7 +461,10 @@ export function CompanySettings() {
               Cancel
             </Button>
             <Button
-              onClick={handleSaveFounder}
+              onClick={() => {
+                console.log("[v0] Save button clicked, emails:", founderDialog.emails)
+                handleSaveFounder()
+              }}
               disabled={!founderDialog.name.trim()}
             >
               Save
