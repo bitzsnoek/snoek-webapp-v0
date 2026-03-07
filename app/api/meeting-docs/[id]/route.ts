@@ -90,15 +90,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const content = await extractTextFromFile(file)
     const embedding = await generateEmbedding(content)
 
+    // Build insert data - only include embedding if it's valid (non-empty)
+    const insertData: Record<string, any> = {
+      meeting_id: meetingId,
+      title,
+      content,
+      document_type: documentType,
+    }
+    
+    // Only add embedding if it has dimensions (AI Gateway may not be configured)
+    if (embedding && embedding.length > 0) {
+      insertData.embedding = embedding
+    }
+
     const { data: document, error: insertError } = await supabase
       .from("meeting_documents")
-      .insert({
-        meeting_id: meetingId,
-        title,
-        content,
-        document_type: documentType,
-        embedding,
-      })
+      .insert(insertData)
       .select()
       .single()
 
