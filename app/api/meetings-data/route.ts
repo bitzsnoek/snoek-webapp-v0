@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     // Fetch meetings
-    const { data: meetings, error } = await supabase
+    const { data: rawMeetings, error } = await supabase
       .from("meetings")
       .select("*")
       .eq("company_id", companyId)
@@ -27,8 +27,21 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
+    // Transform snake_case to camelCase for frontend
+    const meetings = (rawMeetings || []).map((m: any) => ({
+      id: m.id,
+      title: m.title || "Untitled Meeting",
+      description: m.description,
+      startTime: m.start_time,
+      endTime: m.end_time,
+      attendeeEmails: m.attendee_emails || [],
+      founderIds: [],
+      hasDocuments: false,
+      status: m.status || "scheduled",
+    }))
+
     return NextResponse.json({
-      meetings: meetings || [],
+      meetings,
       hasConnection: !!connection,
       connectedCalendar: connection?.google_calendar_id || null,
       lastSyncedAt: connection?.last_synced_at || null,

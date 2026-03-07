@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { Meeting, MeetingDocument } from "@/lib/mock-data"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { MeetingDocumentUpload } from "./meeting-document-upload"
 import { format } from "date-fns"
 import { Calendar, Users, FileText, Loader2, Trash2 } from "lucide-react"
@@ -65,6 +65,7 @@ export function MeetingDetailModal({ meeting, open, onOpenChange }: MeetingDetai
       <DialogContent className="sm:max-w-2xl max-h-96 overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{meeting.title}</DialogTitle>
+          <DialogDescription className="sr-only">Meeting details and documents</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
