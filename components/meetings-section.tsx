@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useApp } from "@/lib/store"
 import type { Meeting } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
-import { Calendar, Loader2 } from "lucide-react"
+import { Calendar, Loader2, RefreshCw, Check } from "lucide-react"
 import MeetingsHero from "./meetings-hero"
 import MeetingsList from "./meetings-list"
 
@@ -14,6 +14,8 @@ export default function MeetingsSection() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [hasCalendarConnection, setHasCalendarConnection] = useState(false)
+  const [connectedCalendar, setConnectedCalendar] = useState<string | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   // Fetch meetings on component mount
   useEffect(() => {
@@ -28,6 +30,8 @@ export default function MeetingsSection() {
         const data = await res.json()
         setMeetings(data.meetings || [])
         setHasCalendarConnection(data.hasConnection || false)
+        setConnectedCalendar(data.connectedCalendar || null)
+        setLastSyncedAt(data.lastSyncedAt || null)
       }
     } catch (error) {
       console.error("Failed to load meetings:", error)
@@ -77,11 +81,23 @@ export default function MeetingsSection() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Meetings</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {hasCalendarConnection
-              ? "Synced with your Google Calendar"
-              : "Connect your Google Calendar to sync meetings"}
-          </p>
+          {hasCalendarConnection && connectedCalendar ? (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 text-sm text-primary">
+                <Check className="h-3.5 w-3.5" />
+                <span className="font-medium">{connectedCalendar}</span>
+              </div>
+              {lastSyncedAt && (
+                <span className="text-xs text-muted-foreground">
+                  Last synced {new Date(lastSyncedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">
+              Connect your Google Calendar to sync meetings
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           {hasCalendarConnection && (
@@ -95,9 +111,9 @@ export default function MeetingsSection() {
               {isSyncing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Calendar className="h-4 w-4" />
+                <RefreshCw className="h-4 w-4" />
               )}
-              {isSyncing ? "Syncing..." : "Sync"}
+              {isSyncing ? "Syncing..." : "Sync Now"}
             </Button>
           )}
           {!hasCalendarConnection && (

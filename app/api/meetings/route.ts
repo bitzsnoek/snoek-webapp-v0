@@ -10,10 +10,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Check if calendar is connected
+    // Check if calendar is connected and get calendar details
     const { data: connection } = await supabase
       .from("google_calendar_connections")
-      .select("id")
+      .select("id, google_calendar_id, last_synced_at")
       .eq("company_id", companyId)
       .single()
 
@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       meetings: meetings || [],
       hasConnection: !!connection,
+      connectedCalendar: connection?.google_calendar_id || null,
+      lastSyncedAt: connection?.last_synced_at || null,
     })
   } catch (error) {
     console.error("Failed to fetch meetings:", error)

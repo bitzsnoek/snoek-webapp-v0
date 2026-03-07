@@ -27,10 +27,14 @@ export async function GET(request: NextRequest) {
     })
 
     if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error("Token exchange failed:", errorText)
       throw new Error("Failed to exchange code for tokens")
     }
 
-    const { access_token, refresh_token, expires_in } = await tokenResponse.json()
+    const tokenData = await tokenResponse.json()
+    const { access_token, refresh_token } = tokenData
+    console.log("[v0] Token exchange successful, got access_token:", !!access_token, "refresh_token:", !!refresh_token)
 
     // Get user's calendar ID (email)
     const calendarResponse = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList/primary", {
@@ -43,25 +47,33 @@ export async function GET(request: NextRequest) {
 
     const { id: calendar_id } = await calendarResponse.json()
 
-    // Save to database
-    const { error: dbError } = await supabase
+    console.log("[v0] Saving calendar connection for company:", company_id, "user:", user_id, "calendar:", calendar_id)
+
+    // Save to database - first try to delete existing, then insert fresh
+    // This avoids issues with upsert and RLS policies
+    await supabase
       .from("google_calendar_connections")
-      .upsert(
-        {
-          company_id,
-          user_id,
-          google_access_token: access_token,
-          google_refresh_token: refresh_token,
-          google_calendar_id: calendar_id,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "company_id,user_id" }
-      )
+      .delete()
+      .eq("company_id", company_id)
+
+    const { data: insertData, error: dbError } = await supabase
+      .from("google_calendar_connections")
+      .insert({
+        company_id,
+        user_id,
+        google_access_token: access_token,
+        google_refresh_token: refresh_token || access_token, // Some flows don't return refresh_token
+        google_calendar_id: calendar_id,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+
+    console.log("[v0] Insert result:", insertData, "error:", dbError)
 
     if (dbError) {
       console.error("DB error saving calendar connection:", dbError)
-      throw new Error("Failed to save connection")
+      throw new Error(`Failed to save connection: ${dbError.message}`)
     }
 
     // Redirect back to the meetings section

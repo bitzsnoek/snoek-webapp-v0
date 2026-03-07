@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { company_id } = await request.json()
 
+  console.log("[v0] Sync POST request for company:", company_id)
+
   if (!company_id) {
     return NextResponse.json({ error: "Missing company_id" }, { status: 400 })
   }
@@ -73,6 +75,8 @@ export async function POST(request: NextRequest) {
       .eq("company_id", company_id)
       .single()
 
+    console.log("[v0] Calendar connection found:", !!connection)
+
     if (!connection) {
       return NextResponse.json({ error: "No calendar connected" }, { status: 404 })
     }
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
     let accessToken = connection.google_access_token
     const tokenResponse = await fetch("https://oauth2.googleapis.com/tokeninfo?access_token=" + accessToken)
     if (!tokenResponse.ok) {
+      console.log("[v0] Token expired, refreshing...")
       const newToken = await refreshAccessToken(connection.google_refresh_token)
       if (!newToken) {
         return NextResponse.json({ error: "Failed to refresh token" }, { status: 401 })
@@ -97,6 +102,7 @@ export async function POST(request: NextRequest) {
     const now = new Date()
     const timeMin = new Date(now.getTime() - 3 * 30 * 24 * 60 * 60 * 1000).toISOString() // 3 months ago
     const timeMax = new Date(now.getTime() + 3 * 30 * 24 * 60 * 60 * 1000).toISOString() // 3 months ahead
+    console.log("[v0] Fetching events from", timeMin, "to", timeMax)
 
     const events = await fetchGoogleCalendarEvents(
       accessToken,
@@ -104,6 +110,7 @@ export async function POST(request: NextRequest) {
       timeMin,
       timeMax
     )
+    console.log("[v0] Fetched", events.length, "events from Google Calendar")
 
     // Get all founder emails from company_members
     const { data: members } = await supabase
@@ -116,6 +123,7 @@ export async function POST(request: NextRequest) {
     members?.forEach((member: any) => {
       (member.emails || []).forEach((email: string) => founderEmails.add(email.toLowerCase()))
     })
+    console.log("[v0] Found", founderEmails.size, "founder emails")
 
     // Filter events that include any founder email
     const filteredEvents = events.filter((event) => {
@@ -123,6 +131,7 @@ export async function POST(request: NextRequest) {
       const attendeeEmails = (event.attendees?.map((a) => a.email.toLowerCase()) || [])
       return attendeeEmails.some((email) => founderEmails.has(email))
     })
+    console.log("[v0] Filtered to", filteredEvents.length, "events matching founders")
 
     // Upsert meetings (only filtered ones)
     const meetingData = filteredEvents.map((event) => ({
@@ -137,25 +146,29 @@ export async function POST(request: NextRequest) {
     }))
 
     if (meetingData.length > 0) {
+      console.log("[v0] Upserting", meetingData.length, "meetings")
       const { error: upsertError } = await supabase.from("meetings").upsert(meetingData, {
         onConflict: "company_id,google_event_id",
       })
 
       if (upsertError) {
-        console.error("Upsert error:", upsertError)
+        console.error("[v0] Upsert error:", upsertError)
         throw new Error("Failed to save meetings")
       }
+      console.log("[v0] Upsert successful")
     }
 
     // Update last sync time
+    const syncTime = new Date().toISOString()
     await supabase
       .from("google_calendar_connections")
-      .update({ last_synced_at: new Date().toISOString() })
+      .update({ last_synced_at: syncTime })
       .eq("id", connection.id)
-
-    return NextResponse.json({ success: true, synced: events.length })
+    
+    console.log("[v0] Sync completed successfully, synced:", filteredEvents.length, "meetings")
+    return NextResponse.json({ success: true, synced: filteredEvents.length })
   } catch (error) {
-    console.error("Sync error:", error)
-    return NextResponse.json({ error: "Sync failed" }, { status: 500 })
+    console.error("[v0] Sync error:", error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
