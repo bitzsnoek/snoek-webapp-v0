@@ -85,15 +85,19 @@ export function CompanySettings() {
   function handleSaveFounder() {
     const name = founderDialog.name.trim()
     const role = founderDialog.role.trim()
+    console.log("[v0] handleSaveFounder called:", { founderId: founderDialog.founderId, name, role, emails: founderDialog.emails })
     if (!name || !founderDialog.founderId) return
 
+    console.log("[v0] Calling updateFounder with emails:", founderDialog.emails)
     updateFounder(founderDialog.founderId, name, role, founderDialog.emails)
     setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
   }
 
   function addEmail() {
     const email = founderDialog.emailInput.trim()
+    console.log("[v0] addEmail called:", { email, currentEmails: founderDialog.emails })
     if (email && !founderDialog.emails.includes(email)) {
+      console.log("[v0] Adding email to list")
       setFounderDialog((prev) => ({
         ...prev,
         emails: [...prev.emails, email],
