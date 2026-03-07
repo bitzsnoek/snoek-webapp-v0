@@ -92,7 +92,7 @@ function MeetingListItem({ meeting, onClick }: { meeting: Meeting; onClick: () =
       {meeting.hasDocuments && (
         <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary">
           <FileText className="h-3.5 w-3.5" />
-          <span>Docs</span>
+          <span>{meeting.documentCount || 1} doc{(meeting.documentCount || 1) !== 1 ? "s" : ""}</span>
         </div>
       )}
     </button>

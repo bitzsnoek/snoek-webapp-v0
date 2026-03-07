@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
       .eq("company_id", companyId)
       .single()
 
-    // Fetch meetings
+    // Fetch meetings with document count
     const { data: rawMeetings, error } = await supabase
       .from("meetings")
-      .select("*")
+      .select("*, meeting_documents(id)")
       .eq("company_id", companyId)
       .order("start_time", { ascending: false })
 
@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
       endTime: m.end_time,
       attendeeEmails: m.attendee_emails || [],
       founderIds: [],
-      hasDocuments: false,
+      hasDocuments: (m.meeting_documents?.length || 0) > 0,
+      documentCount: m.meeting_documents?.length || 0,
       status: m.status || "scheduled",
     }))
 
