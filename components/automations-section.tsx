@@ -330,10 +330,15 @@ export function AutomationsSection() {
 
   // Save automation
   const saveAutomation = async () => {
-    if (!formData.message_content.trim() || !selectedType) return
+    console.log("[v0] saveAutomation called, formData:", formData, "selectedType:", selectedType)
+    if (!formData.message_content.trim() || !selectedType) {
+      console.log("[v0] Early return - missing message or type")
+      return
+    }
 
     const supabase = createClient()
     setSaving(true)
+    console.log("[v0] Starting save...")
 
     try {
       const autoName = formData.name.trim() || generateDefaultName()
@@ -451,12 +456,14 @@ export function AutomationsSection() {
         }
       }
 
+      console.log("[v0] Save successful, closing editor")
       setEditorOpen(false)
       resetForm()
       fetchAutomations()
     } catch (err) {
-      console.error("Error saving automation:", err)
+      console.error("[v0] Error saving automation:", err)
     } finally {
+      console.log("[v0] Save finally block, setSaving(false)")
       setSaving(false)
     }
   }
