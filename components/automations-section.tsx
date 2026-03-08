@@ -330,7 +330,10 @@ export function AutomationsSection() {
 
   // Save automation
   const saveAutomation = async () => {
-    console.log("[v0] saveAutomation called, formData:", formData, "selectedType:", selectedType)
+    console.log("[v0] saveAutomation TRIGGERED")
+    console.log("[v0] formData:", formData)
+    console.log("[v0] selectedType:", selectedType)
+    console.log("[v0] message_content:", formData.message_content)
     if (!formData.message_content.trim() || !selectedType) {
       console.log("[v0] Early return - missing message or type")
       return
@@ -941,7 +944,10 @@ export function AutomationsSection() {
               Cancel
             </Button>
             <Button 
-              onClick={saveAutomation} 
+              onClick={() => {
+                console.log("[v0] Create/Save button clicked")
+                saveAutomation()
+              }} 
               disabled={
                 !formData.message_content.trim() || 
                 saving || 
