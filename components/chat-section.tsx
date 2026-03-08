@@ -382,9 +382,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden">
-      {/* Chat Area */}
-          {/* Messages */}
-          <ScrollArea className="flex-1 p-4">
+      {/* Messages */}
+      <ScrollArea className="min-h-0 flex-1 p-4">
             <div className="flex flex-col gap-3">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
@@ -461,70 +460,73 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
             </div>
           </ScrollArea>
 
-          {/* Selected Goals Preview */}
-          {selectedKeyResults.length > 0 && (
-            <div className="border-t border-border bg-secondary/30 px-4 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {selectedKeyResults.map((kr) => (
-                  <div
-                    key={kr.id}
-                    className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"
+          {/* Bottom section - selected goals + input */}
+      <div className="shrink-0">
+        {/* Selected Goals Preview */}
+        {selectedKeyResults.length > 0 && (
+          <div className="border-t border-border bg-secondary/30 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedKeyResults.map((kr) => (
+                <div
+                  key={kr.id}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"
+                >
+                  <Target className="h-3 w-3 text-primary" />
+                  <span className="max-w-[150px] truncate text-xs text-foreground">
+                    {kr.title}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setSelectedKeyResults((prev) =>
+                        prev.filter((k) => k.id !== kr.id)
+                      )
+                    }
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
                   >
-                    <Target className="h-3 w-3 text-primary" />
-                    <span className="max-w-[150px] truncate text-xs text-foreground">
-                      {kr.title}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setSelectedKeyResults((prev) =>
-                          prev.filter((k) => k.id !== kr.id)
-                        )
-                      }
-                      className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
-                    >
-                      <X className="h-3 w-3 text-muted-foreground" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div className="border-t border-border">
-            <div className="flex items-center gap-2 p-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0 rounded-full"
-                onClick={() => setGoalPickerOpen(true)}
-                title="Attach a goal"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-              <Input
-                ref={inputRef}
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault()
-                    sendMessage()
-                  }
-                }}
-                placeholder="Message"
-                className="flex-1 rounded-full border-border bg-secondary/50"
-              />
-              <Button
-                size="icon"
-                className="h-10 w-10 shrink-0 rounded-full"
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending}
-              >
-                <Send className="h-5 w-5" />
-              </Button>
+                    <X className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
+        )}
+
+        {/* Input Area */}
+        <div className="border-t border-border">
+          <div className="flex items-center gap-2 p-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full"
+              onClick={() => setGoalPickerOpen(true)}
+              title="Attach a goal"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+            <Input
+              ref={inputRef}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              placeholder="Message"
+              className="flex-1 rounded-full border-border bg-secondary/50"
+            />
+            <Button
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full"
+              onClick={sendMessage}
+              disabled={!newMessage.trim() || sending}
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Goal Picker Dialog */}
       <Dialog open={goalPickerOpen} onOpenChange={setGoalPickerOpen}>
