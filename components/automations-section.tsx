@@ -203,7 +203,14 @@ export function AutomationsSection() {
             .select("*")
             .eq("automation_id", auto.id)
             .single()
-          meeting_config = mc || undefined
+          // Map trigger_timing from DB to trigger_type for UI
+          if (mc) {
+            meeting_config = {
+              trigger_type: mc.trigger_timing as "before" | "after",
+              hours_offset: mc.hours_offset,
+              meeting_type: mc.meeting_type,
+            }
+          }
         }
 
         // Fetch key results
@@ -223,12 +230,10 @@ export function AutomationsSection() {
 
         // Fetch founders
         let founders: { member_id: string; name: string }[] = []
-        const { data: afs, error: afsError } = await supabase
+        const { data: afs } = await supabase
           .from("automation_founders")
           .select("company_member_id")
           .eq("automation_id", auto.id)
-
-        console.log("[v0] Automation founders for", auto.id, ":", afs, "error:", afsError)
 
         if (afs && afs.length > 0) {
           const memberIds = afs.map((af) => af.company_member_id)
@@ -236,7 +241,6 @@ export function AutomationsSection() {
             .from("company_members")
             .select("id, name")
             .in("id", memberIds)
-          console.log("[v0] Found members:", members)
           founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
         }
 
@@ -330,18 +334,10 @@ export function AutomationsSection() {
 
   // Save automation
   const saveAutomation = async () => {
-    console.log("[v0] saveAutomation TRIGGERED")
-    console.log("[v0] formData:", formData)
-    console.log("[v0] selectedType:", selectedType)
-    console.log("[v0] message_content:", formData.message_content)
-    if (!formData.message_content.trim() || !selectedType) {
-      console.log("[v0] Early return - missing message or type")
-      return
-    }
+    if (!formData.message_content.trim() || !selectedType) return
 
     const supabase = createClient()
     setSaving(true)
-    console.log("[v0] Starting save...")
 
     try {
       const autoName = formData.name.trim() || generateDefaultName()
@@ -380,7 +376,7 @@ export function AutomationsSection() {
             .from("automation_meeting_config")
             .insert({
               automation_id: newAuto.id,
-              trigger_type: formData.trigger_type,
+              trigger_timing: formData.trigger_type,
               hours_offset: formData.hours_offset,
               meeting_type: formData.meeting_type || null,
             })
@@ -431,7 +427,7 @@ export function AutomationsSection() {
           await supabase
             .from("automation_meeting_config")
             .update({
-              trigger_type: formData.trigger_type,
+              trigger_timing: formData.trigger_type,
               hours_offset: formData.hours_offset,
               meeting_type: formData.meeting_type || null,
             })
@@ -459,14 +455,12 @@ export function AutomationsSection() {
         }
       }
 
-      console.log("[v0] Save successful, closing editor")
       setEditorOpen(false)
       resetForm()
       fetchAutomations()
     } catch (err) {
-      console.error("[v0] Error saving automation:", err)
+      console.error("Error saving automation:", err)
     } finally {
-      console.log("[v0] Save finally block, setSaving(false)")
       setSaving(false)
     }
   }
@@ -944,10 +938,7 @@ export function AutomationsSection() {
               Cancel
             </Button>
             <Button 
-              onClick={() => {
-                console.log("[v0] Create/Save button clicked")
-                saveAutomation()
-              }} 
+              onClick={saveAutomation} 
               disabled={
                 !formData.message_content.trim() || 
                 saving || 
