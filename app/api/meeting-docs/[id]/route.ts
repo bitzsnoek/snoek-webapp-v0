@@ -103,13 +103,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       insertData.embedding = embedding
     }
 
+    console.log("[v0] insertData:", JSON.stringify(insertData, null, 2))
+    
     const { data: document, error: insertError } = await supabase
       .from("meeting_documents")
       .insert(insertData)
       .select()
       .single()
 
-    if (insertError) throw insertError
+    if (insertError) {
+      console.error("[v0] Insert error:", insertError)
+      return NextResponse.json({ error: `Database error: ${insertError.message}` }, { status: 500 })
+    }
 
     await supabase
       .from("meetings")
@@ -118,8 +123,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ document })
   } catch (error) {
-    console.error("Document upload error:", error)
-    return NextResponse.json({ error: "Failed to upload document" }, { status: 500 })
+    console.error("[v0] Document upload error:", error)
+    const message = error instanceof Error ? error.message : "Failed to upload document"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
