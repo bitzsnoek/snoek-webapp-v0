@@ -412,8 +412,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           )}
 
           {/* Input Area */}
-          <div className="border-t border-border p-3">
-            <div className="flex items-center gap-2">
+          <div className="border-t border-border">
+            <div className="flex items-center gap-2 p-3">
               <Button
                 variant="ghost"
                 size="icon"

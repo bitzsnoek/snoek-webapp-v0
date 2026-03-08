@@ -97,6 +97,11 @@ export function AppShell() {
         )
       }
 
+      console.log("[v0] fetchChatTabs - relevantMembers:", relevantMembers.map(m => ({ name: m.name, id: m.id })))
+      console.log("[v0] fetchChatTabs - conversations:", convos)
+      console.log("[v0] fetchChatTabs - profileMap:", profileMap)
+      console.log("[v0] fetchChatTabs - currentUser.role:", currentUser.role)
+
       // Build tabs from relevant members
       const tabs: ChatTab[] = relevantMembers.map((member) => {
         // Find conversation where the member's name matches either founder or coach name
@@ -463,7 +468,10 @@ export function AppShell() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className={cn(
+          "flex-1 overflow-y-auto",
+          activeSection === "chat" ? "" : "p-4 md:p-6"
+        )}>
           {activeSection === "goals" && activeTabId === "priorities" && (
             <MonthlyPriorities />
           )}
@@ -473,10 +481,10 @@ export function AppShell() {
           {activeSection === "goals" && activeQuarter && (
             <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />
           )}
-      {activeSection === "metrics" && <MonthlyMetrics />}
-      {activeSection === "meetings" && <MeetingsSection />}
-      {activeSection === "chat" && <ChatSection selectedTab={selectedChatTab} />}
-      {activeSection === "archive" && <ArchiveView />}
+          {activeSection === "metrics" && <MonthlyMetrics />}
+          {activeSection === "meetings" && <MeetingsSection />}
+          {activeSection === "chat" && <ChatSection selectedTab={selectedChatTab} />}
+          {activeSection === "archive" && <ArchiveView />}
           {activeSection === "settings" && <CompanySettings />}
           {activeSection === "account" && <AccountSettings />}
         </main>
