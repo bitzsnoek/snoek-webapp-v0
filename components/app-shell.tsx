@@ -8,6 +8,7 @@ import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import MeetingsSection from "./meetings-section"
+import { ChatSection } from "./chat-section"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
@@ -317,6 +318,8 @@ export function AppShell() {
                   ? "Monthly Metrics"
                   : activeSection === "meetings"
                   ? "Meetings"
+                  : activeSection === "chat"
+                  ? "Chat"
                   : activeSection === "settings"
                 ? "Company Settings"
                 : activeSection === "account"
@@ -339,6 +342,7 @@ export function AppShell() {
           )}
       {activeSection === "metrics" && <MonthlyMetrics />}
       {activeSection === "meetings" && <MeetingsSection />}
+      {activeSection === "chat" && <ChatSection />}
       {activeSection === "archive" && <ArchiveView />}
           {activeSection === "settings" && <CompanySettings />}
           {activeSection === "account" && <AccountSettings />}
