@@ -25,20 +25,23 @@ import {
 } from "lucide-react"
 
 // Types
+interface KeyResultDisplay {
+  id: string
+  title: string
+  type: "input" | "output" | "project"
+  target: number
+}
+
 interface Message {
   id: string
   conversation_id: string
   sender_id: string
   content: string
-  key_result_id: string | null
+  key_result_id: string | null // Legacy single key result
   created_at: string
   sender_name?: string
-  key_result?: {
-    id: string
-    title: string
-    type: "input" | "output" | "project"
-    target: number
-  } | null
+  key_result?: KeyResultDisplay | null // Legacy single key result
+  key_results?: KeyResultDisplay[] // Multiple key results from junction table
 }
 
 interface Conversation {
@@ -101,7 +104,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
-  const [selectedKeyResult, setSelectedKeyResult] = useState<KeyResultOption | null>(null)
+  const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -146,31 +149,76 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         )
       }
 
-      // Fetch key results for messages that have them
-      const krIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
-      let krMap: Record<string, { id: string; title: string; type: string; target: number }> = {}
+      // Fetch key results from the junction table (message_key_results)
+      const messageIds = (msgs ?? []).map((m) => m.id)
+      let messageKeyResultsMap: Record<string, KeyResultDisplay[]> = {}
       
-      if (krIds.length > 0) {
-        const { data: krs } = await supabase
-          .from("quarterly_key_results")
-          .select("id, title, type, target")
-          .in("id", krIds)
+      if (messageIds.length > 0) {
+        const { data: mkrs } = await supabase
+          .from("message_key_results")
+          .select("message_id, quarterly_key_result_id")
+          .in("message_id", messageIds)
 
-        krMap = Object.fromEntries(
-          (krs ?? []).map((kr) => [kr.id, kr])
-        )
+        // Get unique key result IDs
+        const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id))]
+        
+        // Also include legacy key_result_id values
+        const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
+        const allKrIds = [...new Set([...krIds, ...legacyKrIds])]
+        
+        let krMap: Record<string, { id: string; title: string; type: string; target: number }> = {}
+        
+        if (allKrIds.length > 0) {
+          const { data: krs } = await supabase
+            .from("quarterly_key_results")
+            .select("id, title, type, target")
+            .in("id", allKrIds)
+
+          krMap = Object.fromEntries(
+            (krs ?? []).map((kr) => [kr.id, kr])
+          )
+        }
+
+        // Group key results by message_id
+        for (const mkr of (mkrs ?? [])) {
+          const kr = krMap[mkr.quarterly_key_result_id]
+          if (kr) {
+            if (!messageKeyResultsMap[mkr.message_id]) {
+              messageKeyResultsMap[mkr.message_id] = []
+            }
+            messageKeyResultsMap[mkr.message_id].push({
+              id: kr.id,
+              title: kr.title,
+              type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
+              target: kr.target,
+            })
+          }
+        }
+
+        // Also handle legacy key_result_id
+        for (const msg of (msgs ?? [])) {
+          if (msg.key_result_id && krMap[msg.key_result_id]) {
+            const kr = krMap[msg.key_result_id]
+            const legacyKr: KeyResultDisplay = {
+              id: kr.id,
+              title: kr.title,
+              type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
+              target: kr.target,
+            }
+            // Add to list if not already present from junction table
+            if (!messageKeyResultsMap[msg.id]) {
+              messageKeyResultsMap[msg.id] = [legacyKr]
+            } else if (!messageKeyResultsMap[msg.id].some((k) => k.id === legacyKr.id)) {
+              messageKeyResultsMap[msg.id].push(legacyKr)
+            }
+          }
+        }
       }
 
       const enrichedMessages: Message[] = (msgs ?? []).map((m) => ({
         ...m,
         sender_name: profileMap[m.sender_id] || "Unknown",
-        key_result: m.key_result_id ? {
-          id: krMap[m.key_result_id]?.id,
-          title: krMap[m.key_result_id]?.title || "Goal",
-          type: (krMap[m.key_result_id]?.type === "input" ? "input" : 
-                 krMap[m.key_result_id]?.type === "project" ? "project" : "output") as "input" | "output" | "project",
-          target: krMap[m.key_result_id]?.target || 0,
-        } : null,
+        key_results: messageKeyResultsMap[m.id] || [],
       }))
 
       setMessages(enrichedMessages)
@@ -188,17 +236,34 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     const messageContent = newMessage.trim()
 
     try {
-      const { error } = await supabase.from("messages").insert({
+      // Insert the message (keep key_result_id null for new messages, use junction table instead)
+      const { data: newMsg, error } = await supabase.from("messages").insert({
         conversation_id: selectedTab.conversationId,
         sender_id: currentUser.id,
         content: messageContent,
-        key_result_id: selectedKeyResult?.id || null,
-      })
+        key_result_id: null,
+      }).select("id").single()
 
       if (error) throw error
 
+      // Insert key results into junction table
+      if (selectedKeyResults.length > 0 && newMsg) {
+        const keyResultInserts = selectedKeyResults.map((kr) => ({
+          message_id: newMsg.id,
+          quarterly_key_result_id: kr.id,
+        }))
+        
+        const { error: krError } = await supabase
+          .from("message_key_results")
+          .insert(keyResultInserts)
+        
+        if (krError) {
+          console.error("Error inserting key results:", krError)
+        }
+      }
+
       setNewMessage("")
-      setSelectedKeyResult(null)
+      setSelectedKeyResults([])
       
       // Refresh messages
       await fetchMessages(selectedTab.conversationId)
@@ -349,34 +414,39 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                       >
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         
-                        {/* Attached Key Result */}
-                        {message.key_result && (
-                          <div
-                            className={cn(
-                              "mt-2 rounded-lg border p-3",
-                              isOwnMessage
-                                ? "border-primary-foreground/20 bg-primary-foreground/10"
-                                : "border-border bg-background/50"
-                            )}
-                          >
-                            <p
-                              className={cn(
-                                "text-sm font-medium",
-                                isOwnMessage ? "text-primary-foreground" : "text-foreground"
-                              )}
-                            >
-                              {message.key_result.title}
-                            </p>
-                            <p
-                              className={cn(
-                                "mt-0.5 text-xs",
-                                isOwnMessage
-                                  ? "text-primary-foreground/70"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {typeConfig[message.key_result.type].label} · Target {message.key_result.target}
-                            </p>
+                        {/* Attached Key Results */}
+                        {message.key_results && message.key_results.length > 0 && (
+                          <div className="mt-2 flex flex-col gap-2">
+                            {message.key_results.map((kr) => (
+                              <div
+                                key={kr.id}
+                                className={cn(
+                                  "rounded-lg border p-3",
+                                  isOwnMessage
+                                    ? "border-primary-foreground/20 bg-primary-foreground/10"
+                                    : "border-border bg-background/50"
+                                )}
+                              >
+                                <p
+                                  className={cn(
+                                    "text-sm font-medium",
+                                    isOwnMessage ? "text-primary-foreground" : "text-foreground"
+                                  )}
+                                >
+                                  {kr.title}
+                                </p>
+                                <p
+                                  className={cn(
+                                    "mt-0.5 text-xs",
+                                    isOwnMessage
+                                      ? "text-primary-foreground/70"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  {typeConfig[kr.type].label} · Target {kr.target}
+                                </p>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -391,22 +461,31 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
             </div>
           </ScrollArea>
 
-          {/* Selected Goal Preview */}
-          {selectedKeyResult && (
+          {/* Selected Goals Preview */}
+          {selectedKeyResults.length > 0 && (
             <div className="border-t border-border bg-secondary/30 px-4 py-2">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" />
-                <span className="flex-1 truncate text-xs text-foreground">
-                  {selectedKeyResult.title}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => setSelectedKeyResult(null)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedKeyResults.map((kr) => (
+                  <div
+                    key={kr.id}
+                    className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"
+                  >
+                    <Target className="h-3 w-3 text-primary" />
+                    <span className="max-w-[150px] truncate text-xs text-foreground">
+                      {kr.title}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setSelectedKeyResults((prev) =>
+                          prev.filter((k) => k.id !== kr.id)
+                        )
+                      }
+                      className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -451,7 +530,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       <Dialog open={goalPickerOpen} onOpenChange={setGoalPickerOpen}>
         <DialogContent className="max-h-[80vh] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Attach a Goal</DialogTitle>
+            <DialogTitle>Attach Goals</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="flex flex-col gap-2 pr-4">
@@ -463,17 +542,22 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                 allKeyResults.map((kr) => {
                   const config = typeConfig[kr.type]
                   const TypeIcon = config.icon
+                  const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
                   return (
                     <button
                       key={kr.id}
                       onClick={() => {
-                        setSelectedKeyResult(kr)
-                        setGoalPickerOpen(false)
-                        inputRef.current?.focus()
+                        if (isSelected) {
+                          setSelectedKeyResults((prev) =>
+                            prev.filter((k) => k.id !== kr.id)
+                          )
+                        } else {
+                          setSelectedKeyResults((prev) => [...prev, kr])
+                        }
                       }}
                       className={cn(
                         "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
-                        selectedKeyResult?.id === kr.id
+                        isSelected
                           ? "border-primary bg-primary/5"
                           : "border-border"
                       )}
@@ -491,6 +575,13 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                             {kr.goalObjective}
                           </p>
                         </div>
+                        {isSelected && (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                            <span className="text-xs font-medium text-primary-foreground">
+                              {selectedKeyResults.findIndex((k) => k.id === kr.id) + 1}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </button>
                   )
@@ -498,6 +589,16 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               )}
             </div>
           </ScrollArea>
+          {selectedKeyResults.length > 0 && (
+            <div className="flex justify-end border-t pt-4">
+              <Button onClick={() => {
+                setGoalPickerOpen(false)
+                inputRef.current?.focus()
+              }}>
+                Done ({selectedKeyResults.length} selected)
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
