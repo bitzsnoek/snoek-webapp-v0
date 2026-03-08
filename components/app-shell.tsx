@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useApp } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
 import { Sidebar, type MainSection } from "./sidebar"
 import { YearlyGoals } from "./yearly-goals"
 import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
 import { MonthlyMetrics } from "./monthly-metrics"
 import MeetingsSection from "./meetings-section"
-import { ChatSection } from "./chat-section"
+import { ChatSection, type ChatTab } from "./chat-section"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
@@ -40,13 +41,109 @@ type GoalTabId = `year-${string}` | `quarter-${string}` | "priorities"
 type AddDialogType = "year" | "quarter" | null
 
 export function AppShell() {
-  const { activeCompany, companies, addYear, addQuarter, archiveTab, addCompany, isLoading } = useApp()
+  const { activeCompany, companies, addYear, addQuarter, archiveTab, addCompany, isLoading, currentUser } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Active tab id: "year-{yearId}", "quarter-{quarterId}", or "priorities"
   const [activeTabId, setActiveTabId] = useState<GoalTabId>("priorities")
+
+  // Chat state
+  const [chatTabs, setChatTabs] = useState<ChatTab[]>([])
+  const [selectedChatTab, setSelectedChatTab] = useState<ChatTab | null>(null)
+  const [chatLoading, setChatLoading] = useState(false)
+
+  // Fetch chat tabs when chat section is active
+  const fetchChatTabs = useCallback(async () => {
+    if (!activeCompany.id || !currentUser.id) return
+    
+    setChatLoading(true)
+    const supabase = createClient()
+
+    try {
+      // Get all members of the company (founders if coach, coaches if founder)
+      const members = activeCompany.members || []
+      const relevantMembers = members.filter((m) => {
+        if (currentUser.role === "coach") {
+          return m.role === "founder"
+        }
+        return m.role === "coach"
+      })
+
+      // Fetch conversations for this company
+      const { data: convos, error: convosError } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("company_id", activeCompany.id)
+
+      if (convosError) throw convosError
+
+      // Get profile mappings to match conversations to members by name
+      const allUserIds = [...new Set([
+        ...(convos ?? []).map((c) => c.founder_id),
+        ...(convos ?? []).map((c) => c.coach_id)
+      ])]
+
+      let profileMap: Record<string, string> = {}
+      if (allUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", allUserIds)
+
+        profileMap = Object.fromEntries(
+          (profiles ?? []).map((p) => [p.id, p.full_name])
+        )
+      }
+
+      // Build tabs from relevant members
+      const tabs: ChatTab[] = relevantMembers.map((member) => {
+        // Find conversation where the member's name matches either founder or coach name
+        const convo = (convos ?? []).find((c) => {
+          const founderName = profileMap[c.founder_id]
+          const coachName = profileMap[c.coach_id]
+          
+          if (currentUser.role === "coach") {
+            return founderName === member.name
+          }
+          return coachName === member.name
+        })
+
+        return {
+          odooUserId: member.userId || "",
+          odooMemberId: member.id,
+          name: member.name,
+          conversationId: convo?.id,
+          supabaseUserId: convo ? (currentUser.role === "coach" ? convo.founder_id : convo.coach_id) : undefined,
+        }
+      })
+
+      setChatTabs(tabs)
+      
+      // Select first tab by default if none selected
+      if (tabs.length > 0 && !selectedChatTab) {
+        setSelectedChatTab(tabs[0])
+      }
+    } catch (err) {
+      console.error("Error fetching chat tabs:", err)
+    } finally {
+      setChatLoading(false)
+    }
+  }, [activeCompany.id, activeCompany.members, currentUser.id, currentUser.role, selectedChatTab])
+
+  // Fetch chat tabs when switching to chat section or company changes
+  useEffect(() => {
+    if (activeSection === "chat") {
+      fetchChatTabs()
+    }
+  }, [activeSection, activeCompany.id, fetchChatTabs])
+
+  // Reset selected chat tab when company changes
+  useEffect(() => {
+    setSelectedChatTab(null)
+    setChatTabs([])
+  }, [activeCompany.id])
 
   // "Add tab" dialog state
   const [addDialog, setAddDialog] = useState<AddDialogType>(null)
@@ -311,15 +408,51 @@ export function AppShell() {
             </div>
           )}
 
-          {/* Section title for non-Goals sections */}
-          {activeSection !== "goals" && (
+          {/* Chat tabs */}
+          {activeSection === "chat" && (
+            <div className="flex h-full min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto scrollbar-none">
+              {chatLoading ? (
+                <div className="flex items-center px-3">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              ) : chatTabs.length === 0 ? (
+                <span className="flex items-center px-3 text-sm text-muted-foreground">
+                  No {currentUser.role === "coach" ? "founders" : "coaches"} in this company
+                </span>
+              ) : (
+                chatTabs.map((tab) => {
+                  const isActive = selectedChatTab?.odooMemberId === tab.odooMemberId
+                  return (
+                    <button
+                      key={tab.odooMemberId}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setSelectedChatTab(tab)}
+                      className={cn(
+                        "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
+                        isActive
+                          ? "font-medium text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab.name}
+                      {isActive && (
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          )}
+
+          {/* Section title for non-Goals/non-Chat sections */}
+          {activeSection !== "goals" && activeSection !== "chat" && (
             <h1 className="text-sm font-medium text-foreground">
               {activeSection === "metrics"
                   ? "Monthly Metrics"
                   : activeSection === "meetings"
                   ? "Meetings"
-                  : activeSection === "chat"
-                  ? "Chat"
                   : activeSection === "settings"
                 ? "Company Settings"
                 : activeSection === "account"
@@ -342,7 +475,7 @@ export function AppShell() {
           )}
       {activeSection === "metrics" && <MonthlyMetrics />}
       {activeSection === "meetings" && <MeetingsSection />}
-      {activeSection === "chat" && <ChatSection />}
+      {activeSection === "chat" && <ChatSection selectedTab={selectedChatTab} />}
       {activeSection === "archive" && <ArchiveView />}
           {activeSection === "settings" && <CompanySettings />}
           {activeSection === "account" && <AccountSettings />}
