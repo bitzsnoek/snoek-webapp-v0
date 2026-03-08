@@ -316,10 +316,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
   }
 
   return (
-    <div className="mx-auto h-[calc(100dvh-8rem)] max-w-3xl">
-      <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Chat Area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden">
+      {/* Chat Area */}
           {/* Messages */}
           <ScrollArea className="flex-1 p-4">
             <div className="flex flex-col gap-3">
@@ -448,7 +446,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               </Button>
             </div>
           </div>
-        </div>
       </div>
 
       {/* Goal Picker Dialog */}
