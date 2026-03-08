@@ -18,6 +18,7 @@ import {
   X,
   LogOut,
   Calendar,
+  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,12 +41,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "meetings" | "archive" | "settings" | "account"
+export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "archive" | "settings" | "account"
 
 const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
   { id: "meetings", label: "Meetings", icon: Calendar },
+  { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "archive", label: "Archive", icon: Archive },
   { id: "settings", label: "Company Settings", icon: Settings },
 ]
