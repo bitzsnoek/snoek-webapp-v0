@@ -446,7 +446,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               </Button>
             </div>
           </div>
-      </div>
 
       {/* Goal Picker Dialog */}
       <Dialog open={goalPickerOpen} onOpenChange={setGoalPickerOpen}>
