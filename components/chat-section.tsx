@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
@@ -19,7 +18,6 @@ import {
   MessageCircle,
   Send,
   Plus,
-  ArrowLeft,
   ArrowUpRight,
   ArrowDownRight,
   FolderKanban,
@@ -52,8 +50,6 @@ interface Conversation {
   created_at: string
   founder_name?: string
   coach_name?: string
-  last_message?: string
-  last_message_at?: string
 }
 
 interface KeyResultOption {
@@ -62,6 +58,12 @@ interface KeyResultOption {
   type: "input" | "output" | "project"
   target: number
   goalObjective: string
+}
+
+interface FounderTab {
+  id: string
+  name: string
+  conversationId?: string
 }
 
 const typeConfig = {
@@ -91,7 +93,8 @@ const typeConfig = {
 export function ChatSection() {
   const { activeCompany, currentUser } = useApp()
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [founderTabs, setFounderTabs] = useState<FounderTab[]>([])
+  const [selectedFounderId, setSelectedFounderId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
@@ -114,6 +117,48 @@ export function ChatSection() {
     )
   )
 
+  // Get the current conversation based on selected founder
+  const currentConversation = conversations.find(
+    (c) => c.founder_id === selectedFounderId || c.coach_id === selectedFounderId
+  )
+
+  // Build founder tabs from company members
+  const buildFounderTabs = useCallback((convos: Conversation[]) => {
+    const members = activeCompany.members || []
+    
+    // If current user is a coach, show tabs for all founders
+    // If current user is a founder, show tabs for all coaches
+    const relevantMembers = members.filter((m) => {
+      if (currentUser.role === "coach") {
+        return m.role === "founder"
+      }
+      return m.role === "coach"
+    })
+
+    const tabs: FounderTab[] = relevantMembers.map((member) => {
+      // Find conversation with this member
+      const convo = convos.find((c) => {
+        if (currentUser.role === "coach") {
+          return c.founder_name === member.name
+        }
+        return c.coach_name === member.name
+      })
+
+      return {
+        id: member.id,
+        name: member.name,
+        conversationId: convo?.id,
+      }
+    })
+
+    setFounderTabs(tabs)
+
+    // Select first tab by default
+    if (tabs.length > 0 && !selectedFounderId) {
+      setSelectedFounderId(tabs[0].id)
+    }
+  }, [activeCompany.members, currentUser.role, selectedFounderId])
+
   // Fetch conversations for the active company
   const fetchConversations = useCallback(async () => {
     const supabase = createClient()
@@ -124,7 +169,6 @@ export function ChatSection() {
         .from("conversations")
         .select("*")
         .eq("company_id", activeCompany.id)
-        .order("created_at", { ascending: false })
 
       if (error) throw error
 
@@ -145,52 +189,22 @@ export function ChatSection() {
         )
       }
 
-      // Fetch last message for each conversation
-      const convoIds = (convos ?? []).map((c) => c.id)
-      let lastMessages: Record<string, { content: string; created_at: string }> = {}
-      
-      if (convoIds.length > 0) {
-        const { data: msgs } = await supabase
-          .from("messages")
-          .select("conversation_id, content, created_at")
-          .in("conversation_id", convoIds)
-          .order("created_at", { ascending: false })
-
-        // Group by conversation and get the latest
-        for (const msg of msgs ?? []) {
-          if (!lastMessages[msg.conversation_id]) {
-            lastMessages[msg.conversation_id] = {
-              content: msg.content,
-              created_at: msg.created_at,
-            }
-          }
-        }
-      }
-
       const enrichedConvos: Conversation[] = (convos ?? []).map((c) => ({
         ...c,
         founder_name: profileMap[c.founder_id] || "Founder",
         coach_name: profileMap[c.coach_id] || "Coach",
-        last_message: lastMessages[c.id]?.content,
-        last_message_at: lastMessages[c.id]?.created_at,
       }))
 
-      // Sort by last message time
-      enrichedConvos.sort((a, b) => {
-        const aTime = a.last_message_at || a.created_at
-        const bTime = b.last_message_at || b.created_at
-        return new Date(bTime).getTime() - new Date(aTime).getTime()
-      })
-
       setConversations(enrichedConvos)
+      buildFounderTabs(enrichedConvos)
     } catch (err) {
       console.error("Error fetching conversations:", err)
     } finally {
       setLoading(false)
     }
-  }, [activeCompany.id])
+  }, [activeCompany.id, buildFounderTabs])
 
-  // Fetch messages for selected conversation
+  // Fetch messages for current conversation
   const fetchMessages = useCallback(async (conversationId: string) => {
     const supabase = createClient()
 
@@ -251,9 +265,45 @@ export function ChatSection() {
     }
   }, [])
 
+  // Create or get conversation with selected founder/coach
+  const getOrCreateConversation = useCallback(async (memberId: string): Promise<string | null> => {
+    const supabase = createClient()
+    
+    // Determine coach and founder IDs based on current user role
+    let coachId: string
+    let founderId: string
+    
+    if (currentUser.role === "coach") {
+      coachId = currentUser.id
+      founderId = memberId // memberId is the founder's member id, we need to find their user id
+    } else {
+      founderId = currentUser.id
+      coachId = memberId
+    }
+
+    // Check if conversation already exists by matching names
+    const member = activeCompany.members?.find((m) => m.id === memberId)
+    if (!member) return null
+
+    const existing = conversations.find((c) => {
+      if (currentUser.role === "coach") {
+        return c.founder_name === member.name
+      }
+      return c.coach_name === member.name
+    })
+
+    if (existing) {
+      return existing.id
+    }
+
+    // For creating new conversations, we need the actual user IDs from profiles
+    // This would require a lookup - for now, return null and let the mobile app create conversations
+    return null
+  }, [activeCompany.members, conversations, currentUser.id, currentUser.role])
+
   // Send a message
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || sending) return
+    if (!newMessage.trim() || !currentConversation || sending) return
 
     const supabase = createClient()
     setSending(true)
@@ -261,7 +311,7 @@ export function ChatSection() {
 
     try {
       const { error } = await supabase.from("messages").insert({
-        conversation_id: selectedConversation.id,
+        conversation_id: currentConversation.id,
         sender_id: currentUser.id,
         content: messageContent,
         key_result_id: selectedKeyResult?.id || null,
@@ -273,10 +323,7 @@ export function ChatSection() {
       setSelectedKeyResult(null)
       
       // Refresh messages
-      await fetchMessages(selectedConversation.id)
-      
-      // Update conversation list to show new last message
-      fetchConversations()
+      await fetchMessages(currentConversation.id)
 
       // Send push notification to the other participant
       try {
@@ -284,68 +331,18 @@ export function ChatSection() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            conversationId: selectedConversation.id,
+            conversationId: currentConversation.id,
             senderId: currentUser.id,
             content: messageContent,
           }),
         })
       } catch (notifErr) {
-        // Don't fail the message send if notification fails
         console.error("Failed to send push notification:", notifErr)
       }
     } catch (err) {
       console.error("Error sending message:", err)
     } finally {
       setSending(false)
-    }
-  }
-
-  // Create or get conversation with a founder
-  const getOrCreateConversation = async (founderId: string) => {
-    const supabase = createClient()
-    const coachId = activeCompany.members?.find((m) => m.role === "coach")?.id || currentUser.id
-
-    // Check if conversation already exists
-    const existing = conversations.find(
-      (c) => c.founder_id === founderId && c.coach_id === coachId
-    )
-
-    if (existing) {
-      setSelectedConversation(existing)
-      return
-    }
-
-    // Create new conversation
-    try {
-      const { data, error } = await supabase
-        .from("conversations")
-        .insert({
-          company_id: activeCompany.id,
-          coach_id: coachId,
-          founder_id: founderId,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // Fetch the profile name
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", founderId)
-        .single()
-
-      const newConvo: Conversation = {
-        ...data,
-        founder_name: profile?.full_name || "Founder",
-        coach_name: currentUser.name,
-      }
-
-      setConversations((prev) => [newConvo, ...prev])
-      setSelectedConversation(newConvo)
-    } catch (err) {
-      console.error("Error creating conversation:", err)
     }
   }
 
@@ -359,30 +356,32 @@ export function ChatSection() {
     fetchConversations()
   }, [fetchConversations])
 
-  // Fetch messages when conversation is selected
+  // Fetch messages when conversation changes
   useEffect(() => {
-    if (selectedConversation) {
-      fetchMessages(selectedConversation.id)
+    if (currentConversation) {
+      fetchMessages(currentConversation.id)
+    } else {
+      setMessages([])
     }
-  }, [selectedConversation, fetchMessages])
+  }, [currentConversation, fetchMessages])
 
   // Set up real-time subscription for new messages
   useEffect(() => {
-    if (!selectedConversation) return
+    if (!currentConversation) return
 
     const supabase = createClient()
     const channel = supabase
-      .channel(`messages:${selectedConversation.id}`)
+      .channel(`messages:${currentConversation.id}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `conversation_id=eq.${selectedConversation.id}`,
+          filter: `conversation_id=eq.${currentConversation.id}`,
         },
         () => {
-          fetchMessages(selectedConversation.id)
+          fetchMessages(currentConversation.id)
         }
       )
       .subscribe()
@@ -390,7 +389,7 @@ export function ChatSection() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [selectedConversation, fetchMessages])
+  }, [currentConversation, fetchMessages])
 
   // Format timestamp
   const formatTime = (dateStr: string) => {
@@ -409,226 +408,126 @@ export function ChatSection() {
     }
   }
 
-  // Get founders who don't have a conversation yet
-  const foundersWithoutConversation = activeCompany.members
-    ?.filter((m) => m.role === "founder")
-    .filter((f) => {
-      // Check if there's a conversation with this founder
-      // For coaches: check if they have a conversation with this founder
-      // For founders: they can only see their own conversation
-      if (currentUser.role === "founder") {
-        return false // Founders don't start new conversations
-      }
-      
-      // Find the founder's user_id from company_members
-      const founderMember = activeCompany.members?.find((m) => m.id === f.id)
-      if (!founderMember) return true
-      
-      // Check if a conversation exists with this founder's user
-      return !conversations.some((c) => {
-        // Match by name since we might not have user_id
-        return c.founder_name === f.name
-      })
-    }) || []
-
   // Determine if current user is the sender
   const isSender = (senderId: string) => senderId === currentUser.id
 
-  // Get the other participant's name for the conversation
-  const getOtherParticipantName = (convo: Conversation) => {
-    if (currentUser.role === "coach") {
-      return convo.founder_name
-    }
-    return convo.coach_name
-  }
-
-  const getOtherParticipantInitials = (convo: Conversation) => {
-    const name = getOtherParticipantName(convo)
-    return name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "?"
-  }
+  // Get selected tab name
+  const selectedTabName = founderTabs.find((t) => t.id === selectedFounderId)?.name || ""
 
   return (
-    <div className="mx-auto h-[calc(100dvh-8rem)] max-w-5xl">
+    <div className="mx-auto h-[calc(100dvh-8rem)] max-w-3xl">
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Header */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-          {selectedConversation ? (
-            <>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 md:hidden"
-                  onClick={() => setSelectedConversation(null)}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
-                    {getOtherParticipantInitials(selectedConversation)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {getOtherParticipantName(selectedConversation)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{activeCompany.name}</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <h2 className="text-sm font-semibold text-foreground">Chat</h2>
+        {/* Tabs Header */}
+        <div className="shrink-0 border-b border-border">
+          {loading ? (
+            <div className="flex h-12 items-center justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
+          ) : founderTabs.length === 0 ? (
+            <div className="flex h-12 items-center justify-center px-4">
+              <p className="text-sm text-muted-foreground">
+                No {currentUser.role === "coach" ? "founders" : "coaches"} in this company
+              </p>
+            </div>
+          ) : (
+            <ScrollArea className="w-full" orientation="horizontal">
+              <div className="flex">
+                {founderTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedFounderId(tab.id)}
+                    className={cn(
+                      "relative shrink-0 px-6 py-3 text-sm font-medium transition-colors",
+                      selectedFounderId === tab.id
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.name}
+                    {selectedFounderId === tab.id && (
+                      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
           )}
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* Conversation List - Hidden on mobile when conversation is selected */}
-          <div
-            className={cn(
-              "flex w-full flex-col border-r border-border md:w-80",
-              selectedConversation && "hidden md:flex"
-            )}
-          >
-            {/* New Chat Button for Coaches */}
-            {currentUser.role === "coach" && foundersWithoutConversation.length > 0 && (
-              <div className="border-b border-border p-3">
-                <Dialog>
-                  <Button variant="outline" size="sm" className="w-full gap-2">
-                    <Plus className="h-4 w-4" />
-                    New Chat
-                  </Button>
-                </Dialog>
-              </div>
-            )}
-
-            {/* Conversations */}
-            <ScrollArea className="flex-1">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <MessageCircle className="mb-3 h-10 w-10 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground text-center">No conversations yet</p>
-                  {currentUser.role === "coach" && (
-                    <p className="mt-1 text-xs text-muted-foreground/70 text-center">
-                      Conversations are created when founders message you from the mobile app
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  {conversations.map((convo) => (
-                    <button
-                      key={convo.id}
-                      onClick={() => setSelectedConversation(convo)}
-                      className={cn(
-                        "flex items-start gap-3 border-b border-border/50 p-4 text-left transition-colors hover:bg-secondary/50",
-                        selectedConversation?.id === convo.id && "bg-secondary"
-                      )}
-                    >
-                      <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-                          {getOtherParticipantInitials(convo)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {getOtherParticipantName(convo)}
-                          </p>
-                          {convo.last_message_at && (
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {formatTime(convo.last_message_at)}
-                            </span>
-                          )}
-                        </div>
-                        {convo.last_message && (
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {convo.last_message}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </div>
-
-          {/* Message Area */}
-          <div
-            className={cn(
-              "flex flex-1 flex-col",
-              !selectedConversation && "hidden md:flex"
-            )}
-          >
-            {selectedConversation ? (
+        {/* Chat Area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {selectedFounderId ? (
+            currentConversation ? (
               <>
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4">
                   <div className="flex flex-col gap-3">
-                    {messages.map((message) => {
-                      const isOwnMessage = isSender(message.sender_id)
-                      return (
-                        <div
-                          key={message.id}
-                          className={cn(
-                            "flex flex-col max-w-[85%]",
-                            isOwnMessage ? "ml-auto items-end" : "mr-auto items-start"
-                          )}
-                        >
+                    {messages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <MessageCircle className="mb-3 h-10 w-10 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">
+                          No messages yet. Start the conversation!
+                        </p>
+                      </div>
+                    ) : (
+                      messages.map((message) => {
+                        const isOwnMessage = isSender(message.sender_id)
+                        return (
                           <div
+                            key={message.id}
                             className={cn(
-                              "rounded-2xl px-4 py-2.5",
-                              isOwnMessage
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary text-secondary-foreground"
+                              "flex flex-col max-w-[85%]",
+                              isOwnMessage ? "ml-auto items-end" : "mr-auto items-start"
                             )}
                           >
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                            
-                            {/* Attached Key Result */}
-                            {message.key_result && (
-                              <div
-                                className={cn(
-                                  "mt-2 rounded-lg border p-3",
-                                  isOwnMessage
-                                    ? "border-primary-foreground/20 bg-primary-foreground/10"
-                                    : "border-border bg-background/50"
-                                )}
-                              >
-                                <p
+                            <div
+                              className={cn(
+                                "rounded-2xl px-4 py-2.5",
+                                isOwnMessage
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-secondary text-secondary-foreground"
+                              )}
+                            >
+                              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                              
+                              {/* Attached Key Result */}
+                              {message.key_result && (
+                                <div
                                   className={cn(
-                                    "text-sm font-medium",
-                                    isOwnMessage ? "text-primary-foreground" : "text-foreground"
-                                  )}
-                                >
-                                  {message.key_result.title}
-                                </p>
-                                <p
-                                  className={cn(
-                                    "mt-0.5 text-xs",
+                                    "mt-2 rounded-lg border p-3",
                                     isOwnMessage
-                                      ? "text-primary-foreground/70"
-                                      : "text-muted-foreground"
+                                      ? "border-primary-foreground/20 bg-primary-foreground/10"
+                                      : "border-border bg-background/50"
                                   )}
                                 >
-                                  {typeConfig[message.key_result.type].label} · Target {message.key_result.target}
-                                </p>
-                              </div>
-                            )}
+                                  <p
+                                    className={cn(
+                                      "text-sm font-medium",
+                                      isOwnMessage ? "text-primary-foreground" : "text-foreground"
+                                    )}
+                                  >
+                                    {message.key_result.title}
+                                  </p>
+                                  <p
+                                    className={cn(
+                                      "mt-0.5 text-xs",
+                                      isOwnMessage
+                                        ? "text-primary-foreground/70"
+                                        : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {typeConfig[message.key_result.type].label} · Target {message.key_result.target}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <span className="mt-1 px-2 text-[10px] text-muted-foreground">
+                              {formatTime(message.created_at)}
+                            </span>
                           </div>
-                          <span className="mt-1 px-2 text-[10px] text-muted-foreground">
-                            {formatTime(message.created_at)}
-                          </span>
-                        </div>
-                      )
-                    })}
+                        )
+                      })
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
@@ -690,14 +589,25 @@ export function ChatSection() {
                 </div>
               </>
             ) : (
+              // No conversation exists yet
               <div className="flex flex-1 flex-col items-center justify-center px-4">
                 <MessageCircle className="mb-4 h-12 w-12 text-muted-foreground/20" />
-                <p className="text-sm text-muted-foreground">
-                  Select a conversation to start chatting
+                <p className="text-sm text-muted-foreground text-center">
+                  No conversation with {selectedTabName} yet
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/70 text-center">
+                  Conversations are created when founders start chatting from the mobile app
                 </p>
               </div>
-            )}
-          </div>
+            )
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center px-4">
+              <MessageCircle className="mb-4 h-12 w-12 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">
+                Select a {currentUser.role === "coach" ? "founder" : "coach"} to start chatting
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
