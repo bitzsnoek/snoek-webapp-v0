@@ -110,6 +110,7 @@ export interface CompanyMember {
 export interface Company {
   id: string
   name: string
+  timezone?: string
   founders: Founder[]
   members: CompanyMember[]
   years: Year[]

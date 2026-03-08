@@ -220,6 +220,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   return {
     id: company.id,
     name: company.name,
+    timezone: company.timezone || "UTC",
     founders,
     members: allMembers,
     years: Array.from(yearMap.values()),

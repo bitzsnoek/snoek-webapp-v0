@@ -19,6 +19,7 @@ import {
   LogOut,
   Calendar,
   MessageCircle,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,13 +42,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "archive" | "settings" | "account"
+export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "automations" | "archive" | "settings" | "account"
 
-const mainNavItems: { id: MainSection; label: string; icon: typeof Target }[] = [
+const mainNavItems: { id: MainSection; label: string; icon: typeof Target; coachOnly?: boolean }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
   { id: "meetings", label: "Meetings", icon: Calendar },
   { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "automations", label: "Automations", icon: Zap, coachOnly: true },
 ]
 
 const bottomNavItems: { id: MainSection; label: string; icon: typeof Target }[] = [
@@ -177,7 +179,9 @@ export function Sidebar({
       {!collapsed && (
         <nav className="flex flex-1 flex-col overflow-y-auto p-3">
           <div className="flex flex-col gap-0.5">
-            {mainNavItems.map((item) => {
+            {mainNavItems
+              .filter((item) => !item.coachOnly || currentUser.role === "coach")
+              .map((item) => {
               const Icon = item.icon
               const isActive = activeSection === item.id
               return (
@@ -225,7 +229,9 @@ export function Sidebar({
       {/* Collapsed nav icons */}
       {collapsed && (
         <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
-          {mainNavItems.map((item) => {
+          {mainNavItems
+            .filter((item) => !item.coachOnly || currentUser.role === "coach")
+            .map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
             return (

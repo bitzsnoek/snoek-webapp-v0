@@ -14,9 +14,44 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail } from "lucide-react"
+import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
+import { createClient } from "@/lib/supabase/client"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+// Common timezones for scheduling
+const TIMEZONES = [
+  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Anchorage", label: "Alaska Time" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
+  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
+  { value: "Europe/Amsterdam", label: "Amsterdam (CET/CEST)" },
+  { value: "Europe/Madrid", label: "Madrid (CET/CEST)" },
+  { value: "Europe/Rome", label: "Rome (CET/CEST)" },
+  { value: "Europe/Stockholm", label: "Stockholm (CET/CEST)" },
+  { value: "Europe/Zurich", label: "Zurich (CET/CEST)" },
+  { value: "Asia/Dubai", label: "Dubai (GST)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong (HKT)" },
+  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
+  { value: "Asia/Shanghai", label: "Shanghai (CST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+  { value: "Australia/Melbourne", label: "Melbourne (AEST/AEDT)" },
+  { value: "Pacific/Auckland", label: "Auckland (NZST/NZDT)" },
+]
 
 export function CompanySettings() {
   const {
@@ -33,6 +68,8 @@ export function CompanySettings() {
 
   const [companyName, setCompanyName] = useState(activeCompany.name)
   const [nameEditing, setNameEditing] = useState(false)
+  const [timezone, setTimezone] = useState(activeCompany.timezone || "UTC")
+  const [savingTimezone, setSavingTimezone] = useState(false)
 
   // Founder dialog state
   const [founderDialog, setFounderDialog] = useState<{
@@ -69,6 +106,25 @@ export function CompanySettings() {
       updateCompanyName(trimmed)
     }
     setNameEditing(false)
+  }
+
+  async function handleTimezoneChange(newTimezone: string) {
+    setTimezone(newTimezone)
+    setSavingTimezone(true)
+    
+    try {
+      const supabase = createClient()
+      await supabase
+        .from("companies")
+        .update({ timezone: newTimezone })
+        .eq("id", activeCompany.id)
+    } catch (err) {
+      console.error("Error saving timezone:", err)
+      // Revert on error
+      setTimezone(activeCompany.timezone || "UTC")
+    } finally {
+      setSavingTimezone(false)
+    }
   }
 
   function openEditFounder(founder: { id: string; name: string; role: string; emails?: string[]; userEmail?: string }) {
@@ -197,6 +253,42 @@ export function CompanySettings() {
               )}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Timezone */}
+      <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
+        <div className="mb-4 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
+            <Globe className="h-4 w-4 text-foreground" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground">Timezone</h2>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="company-timezone" className="text-sm text-muted-foreground">
+            Timezone for automations and scheduled messages
+          </Label>
+          <div className="flex items-center gap-3">
+            <Select value={timezone} onValueChange={handleTimezoneChange} disabled={savingTimezone}>
+              <SelectTrigger id="company-timezone" className="w-full max-w-sm">
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {savingTimezone && (
+              <span className="text-xs text-muted-foreground">Saving...</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This timezone is used for scheduling automated messages and recurring tasks.
+          </p>
         </div>
       </section>
 
