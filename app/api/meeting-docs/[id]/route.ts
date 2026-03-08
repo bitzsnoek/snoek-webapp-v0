@@ -1,4 +1,4 @@
-// Meeting documents API - v3
+// Meeting documents API - REBUILD-2026-03-07-v4
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { embed } from "ai"
@@ -62,8 +62,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  console.log("[v0] meeting-docs POST called - v4")
   const supabase = await createClient()
   const { id: meetingId } = await context.params
+  console.log("[v0] meetingId:", meetingId)
 
   try {
     const { data: meeting, error: meetingError } = await supabase
@@ -88,15 +90,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const content = await extractTextFromFile(file)
     const embedding = await generateEmbedding(content)
 
+    // Build insert data - only include embedding if it's valid (non-empty)
+    const insertData: Record<string, any> = {
+      meeting_id: meetingId,
+      title,
+      content,
+      document_type: documentType,
+    }
+    
+    // Only add embedding if it has dimensions (AI Gateway may not be configured)
+    if (embedding && embedding.length > 0) {
+      insertData.embedding = embedding
+    }
+
     const { data: document, error: insertError } = await supabase
       .from("meeting_documents")
-      .insert({
-        meeting_id: meetingId,
-        title,
-        content,
-        document_type: documentType,
-        embedding,
-      })
+      .insert(insertData)
       .select()
       .single()
 

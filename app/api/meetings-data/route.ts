@@ -18,27 +18,38 @@ export async function GET(request: NextRequest) {
       .eq("company_id", companyId)
       .single()
 
-    // Fetch meetings
+    // Fetch meetings with document types
     const { data: rawMeetings, error } = await supabase
       .from("meetings")
-      .select("*")
+      .select("*, meeting_documents(id, document_type)")
       .eq("company_id", companyId)
       .order("start_time", { ascending: false })
 
     if (error) throw error
 
     // Transform snake_case to camelCase for frontend
-    const meetings = (rawMeetings || []).map((m: any) => ({
-      id: m.id,
-      title: m.title || "Untitled Meeting",
-      description: m.description,
-      startTime: m.start_time,
-      endTime: m.end_time,
-      attendeeEmails: m.attendee_emails || [],
-      founderIds: [],
-      hasDocuments: false,
-      status: m.status || "scheduled",
-    }))
+    const meetings = (rawMeetings || []).map((m: any) => {
+      const docs = m.meeting_documents || []
+      const transcriptCount = docs.filter((d: any) => d.document_type === "transcript").length
+      const notesCount = docs.filter((d: any) => d.document_type === "notes").length
+      const otherCount = docs.filter((d: any) => d.document_type === "other" || !d.document_type).length
+      
+      return {
+        id: m.id,
+        title: m.title || "Untitled Meeting",
+        description: m.description,
+        startTime: m.start_time,
+        endTime: m.end_time,
+        attendeeEmails: m.attendee_emails || [],
+        founderIds: [],
+        hasDocuments: docs.length > 0,
+        documentCount: docs.length,
+        transcriptCount,
+        notesCount,
+        otherCount,
+        status: m.status || "scheduled",
+      }
+    })
 
     return NextResponse.json({
       meetings,
