@@ -43,7 +43,8 @@ export function CompanySettings() {
     role: string
     emails: string[]
     emailInput: string
-  }>({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
+    userEmail?: string
+  }>({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
 
   // Confirm delete founder state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -70,7 +71,7 @@ export function CompanySettings() {
     setNameEditing(false)
   }
 
-  function openEditFounder(founder: { id: string; name: string; role: string; emails?: string[] }) {
+  function openEditFounder(founder: { id: string; name: string; role: string; emails?: string[]; userEmail?: string }) {
     setFounderDialog({
       open: true,
       mode: "edit",
@@ -79,6 +80,7 @@ export function CompanySettings() {
       role: founder.role,
       emails: founder.emails || [],
       emailInput: "",
+      userEmail: founder.userEmail,
     })
   }
 
@@ -96,7 +98,7 @@ export function CompanySettings() {
 
     console.log("[v0] Saving founder with emails:", emailsToSave)
     updateFounder(founderDialog.founderId, name, role, emailsToSave)
-    setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
+    setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
   }
 
   function addEmail() {
@@ -362,7 +364,7 @@ export function CompanySettings() {
       <Dialog
         open={founderDialog.open}
         onOpenChange={(open) =>
-          !open && setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
+          !open && setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
         }
       >
         <DialogContent className="sm:max-w-sm">
@@ -373,6 +375,17 @@ export function CompanySettings() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
+            {/* Connected user email */}
+            {founderDialog.userEmail && (
+              <div className="flex flex-col gap-2">
+                <Label className="text-muted-foreground">Connected account</Label>
+                <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2 text-sm text-foreground">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span>{founderDialog.userEmail}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex flex-col gap-2">
               <Label htmlFor="founder-name">Name</Label>
               <Input
@@ -461,7 +474,7 @@ export function CompanySettings() {
             <Button
               variant="outline"
               onClick={() =>
-                setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "" })
+                setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
               }
             >
               Cancel
