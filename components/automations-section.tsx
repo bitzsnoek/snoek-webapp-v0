@@ -36,6 +36,8 @@ import {
   FolderKanban,
   Trash2,
   Pencil,
+  Users,
+  User,
 } from "lucide-react"
 
 // Types
@@ -60,6 +62,12 @@ interface Automation {
     meeting_type?: string
   }
   key_results?: { id: string; title: string; type: string; target: number }[]
+  founders?: { member_id: string; name: string }[]
+}
+
+interface FounderOption {
+  id: string // company_member id
+  name: string
 }
 
 interface KeyResultOption {
@@ -137,6 +145,7 @@ export function AutomationsSection() {
     meeting_type: "",
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
+  const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
 
   // Get all key results from the active company
   const allKeyResults: KeyResultOption[] = activeCompany.quarters.flatMap((quarter) =>
@@ -150,6 +159,11 @@ export function AutomationsSection() {
       }))
     )
   )
+
+  // Get all founders from the active company
+  const allFounders: FounderOption[] = (activeCompany.members || [])
+    .filter((m) => m.role === "founder")
+    .map((m) => ({ id: m.id, name: m.name }))
 
   // Fetch automations
   const fetchAutomations = useCallback(async () => {
@@ -207,11 +221,28 @@ export function AutomationsSection() {
           key_results = krs || []
         }
 
+        // Fetch founders
+        let founders: { member_id: string; name: string }[] = []
+        const { data: afs } = await supabase
+          .from("automation_founders")
+          .select("company_member_id")
+          .eq("automation_id", auto.id)
+
+        if (afs && afs.length > 0) {
+          const memberIds = afs.map((af) => af.company_member_id)
+          const { data: members } = await supabase
+            .from("company_members")
+            .select("id, name")
+            .in("id", memberIds)
+          founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
+        }
+
         enrichedAutomations.push({
           ...auto,
           recurring_config,
           meeting_config,
           key_results,
+          founders,
         })
       }
 
@@ -241,6 +272,7 @@ export function AutomationsSection() {
       meeting_type: "",
     })
     setSelectedKeyResults([])
+    setSelectedFounders([])
     setEditingId(null)
   }
 
@@ -282,6 +314,13 @@ export function AutomationsSection() {
       return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "" }
     })
     setSelectedKeyResults(krs as KeyResultOption[])
+
+    // Map founders
+    const fndrs = (automation.founders || []).map((f) => ({
+      id: f.member_id,
+      name: f.name,
+    }))
+    setSelectedFounders(fndrs)
 
     setEditorOpen(true)
   }
@@ -345,6 +384,15 @@ export function AutomationsSection() {
           }))
           await supabase.from("automation_key_results").insert(inserts)
         }
+
+        // Create founder associations
+        if (selectedFounders.length > 0) {
+          const founderInserts = selectedFounders.map((f) => ({
+            automation_id: newAuto.id,
+            company_member_id: f.id,
+          }))
+          await supabase.from("automation_founders").insert(founderInserts)
+        }
       } else {
         // Update automation
         const { error: autoError } = await supabase
@@ -387,6 +435,16 @@ export function AutomationsSection() {
             quarterly_key_result_id: kr.id,
           }))
           await supabase.from("automation_key_results").insert(inserts)
+        }
+
+        // Update founders - delete and re-insert
+        await supabase.from("automation_founders").delete().eq("automation_id", editingId)
+        if (selectedFounders.length > 0) {
+          const founderInserts = selectedFounders.map((f) => ({
+            automation_id: editingId,
+            company_member_id: f.id,
+          }))
+          await supabase.from("automation_founders").insert(founderInserts)
         }
       }
 
@@ -528,6 +586,14 @@ export function AutomationsSection() {
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {formatSchedule(auto)}
                   </p>
+                  {auto.founders && auto.founders.length > 0 && (
+                    <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      <span>
+                        To: {auto.founders.map((f) => f.name).join(", ")}
+                      </span>
+                    </div>
+                  )}
                   <p className="mt-2 line-clamp-2 text-sm text-foreground/80">
                     {auto.message_content}
                   </p>
@@ -721,6 +787,46 @@ export function AutomationsSection() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <span className="text-muted-foreground">to</span>
+                </div>
+
+                {/* Founder Selection */}
+                <div className="mt-3 flex flex-col gap-2">
+                  <Label className="text-xs text-muted-foreground">Send to founders:</Label>
+                  {allFounders.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No founders in this company</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {allFounders.map((founder) => {
+                        const isSelected = selectedFounders.some((f) => f.id === founder.id)
+                        return (
+                          <button
+                            key={founder.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedFounders((prev) => prev.filter((f) => f.id !== founder.id))
+                              } else {
+                                setSelectedFounders((prev) => [...prev, founder])
+                              }
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary text-foreground hover:bg-secondary/80"
+                            )}
+                          >
+                            <User className="h-3 w-3" />
+                            {founder.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {selectedFounders.length === 0 && allFounders.length > 0 && (
+                    <p className="text-xs text-amber-500">Please select at least one founder</p>
+                  )}
                 </div>
               </div>
             )}
@@ -824,7 +930,14 @@ export function AutomationsSection() {
             <Button variant="outline" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveAutomation} disabled={!formData.message_content.trim() || saving}>
+            <Button 
+              onClick={saveAutomation} 
+              disabled={
+                !formData.message_content.trim() || 
+                saving || 
+                (selectedType === "recurring" && selectedFounders.length === 0)
+              }
+            >
               {saving ? "Saving..." : editorMode === "create" ? "Create" : "Save"}
             </Button>
           </DialogFooter>
