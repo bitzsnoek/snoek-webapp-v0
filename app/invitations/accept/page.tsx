@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CheckCircle2, AlertCircle, Loader2, Lock } from "lucide-react"
+import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import Image from "next/image"
 
 export default function AcceptInvitationPage() {
   return (
@@ -179,8 +180,14 @@ function AcceptInvitationInner() {
 
         {status === "signup" && (
           <>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Lock className="h-6 w-6 text-primary" />
+            <div className="mx-auto mb-4">
+              <Image
+                src="/images/snoek-logo.png"
+                alt="Snoek"
+                width={48}
+                height={48}
+                className="rounded-full"
+              />
             </div>
             <h1 className="mb-2 text-lg font-semibold text-foreground">
               {companyName ? `Join ${companyName}` : "Accept Your Invitation"}
