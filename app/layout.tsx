@@ -45,7 +45,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} bg-background`} suppressHydrationWarning>
-      <body className="min-h-screen font-sans antialiased">
+      <body className={`min-h-screen antialiased ${plusJakartaSans.className}`}>
         {children}
       </body>
     </html>
