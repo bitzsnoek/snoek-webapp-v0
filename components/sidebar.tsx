@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation"
 import {
   Building2,
   ChevronDown,
-  Compass,
   Target,
   BarChart3,
   Archive,
@@ -19,6 +18,7 @@ import {
   LogOut,
   Calendar,
 } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -99,9 +99,13 @@ export function Sidebar({
       {/* Logo */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
-            <Compass className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <Image
+            src="/images/snoek-logo.png"
+            alt="Snoek"
+            width={32}
+            height={32}
+            className="shrink-0 rounded-full"
+          />
           {!collapsed && (
             <span className="text-sm font-semibold text-foreground">
               Snoek
