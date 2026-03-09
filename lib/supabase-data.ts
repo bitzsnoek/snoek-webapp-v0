@@ -104,6 +104,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
       role: m.role_title ?? "",
       avatar: "",
       emails: m.emails ?? [],
+      userEmail: m.user_email ?? undefined,
     }))
 
   // Build all members (coaches + founders) for owner assignment
@@ -219,6 +220,7 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   return {
     id: company.id,
     name: company.name,
+    timezone: company.timezone || "UTC",
     founders,
     members: allMembers,
     years: Array.from(yearMap.values()),

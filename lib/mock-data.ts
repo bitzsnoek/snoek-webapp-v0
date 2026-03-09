@@ -95,6 +95,7 @@ export interface Founder {
   role: string
   avatar: string
   emails?: string[]
+  userEmail?: string // Primary email from connected Supabase user
 }
 
 export interface CompanyMember {
@@ -109,6 +110,7 @@ export interface CompanyMember {
 export interface Company {
   id: string
   name: string
+  timezone?: string
   founders: Founder[]
   members: CompanyMember[]
   years: Year[]

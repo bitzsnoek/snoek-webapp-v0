@@ -19,6 +19,7 @@ import {
   LogOut,
   Calendar,
   MessageCircle,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,13 +42,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "archive" | "settings" | "account"
+export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "automations" | "archive" | "settings" | "account"
 
-const navItems: { id: MainSection; label: string; icon: typeof Target }[] = [
+const mainNavItems: { id: MainSection; label: string; icon: typeof Target; coachOnly?: boolean }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
   { id: "meetings", label: "Meetings", icon: Calendar },
   { id: "chat", label: "Chat", icon: MessageCircle },
+  { id: "automations", label: "Automations", icon: Zap, coachOnly: true },
+]
+
+const bottomNavItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "archive", label: "Archive", icon: Archive },
   { id: "settings", label: "Company Settings", icon: Settings },
 ]
@@ -172,9 +177,33 @@ export function Sidebar({
 
       {/* Navigation */}
       {!collapsed && (
-        <nav className="flex-1 overflow-y-auto p-3">
+        <nav className="flex flex-1 flex-col overflow-y-auto p-3">
           <div className="flex flex-col gap-0.5">
-            {navItems.map((item) => {
+            {mainNavItems
+              .filter((item) => !item.coachOnly || currentUser.role === "coach")
+              .map((item) => {
+              const Icon = item.icon
+              const isActive = activeSection === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 md:py-2 text-left text-sm transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          {/* Bottom nav items */}
+          <div className="mt-auto flex flex-col gap-0.5 pt-3">
+            {bottomNavItems.map((item) => {
               const Icon = item.icon
               const isActive = activeSection === item.id
               return (
@@ -200,7 +229,9 @@ export function Sidebar({
       {/* Collapsed nav icons */}
       {collapsed && (
         <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
-          {navItems.map((item) => {
+          {mainNavItems
+            .filter((item) => !item.coachOnly || currentUser.role === "coach")
+            .map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
             return (
@@ -219,6 +250,28 @@ export function Sidebar({
               </button>
             )
           })}
+          {/* Bottom nav items */}
+          <div className="mt-auto flex flex-col items-center gap-1">
+            {bottomNavItems.map((item) => {
+              const Icon = item.icon
+              const isActive = activeSection === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  title={item.label}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              )
+            })}
+          </div>
         </nav>
       )}
 
