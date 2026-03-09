@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Lock, Mail } from 'lucide-react'
+import Image from 'next/image'
 
 type AuthMode = 'password' | 'magic-link'
 
@@ -70,13 +70,13 @@ export function LoginForm() {
       <div className="w-full max-w-md px-4">
         <div className="rounded-lg border border-border bg-card p-8">
           <div className="mb-6 flex justify-center">
-            <div className="rounded-full bg-primary/10 p-3">
-              {mode === 'password' ? (
-                <Lock className="h-6 w-6 text-primary" />
-              ) : (
-                <Mail className="h-6 w-6 text-primary" />
-              )}
-            </div>
+            <Image
+              src="/images/snoek-logo.png"
+              alt="Snoek"
+              width={64}
+              height={64}
+              className="rounded-full"
+            />
           </div>
 
           <h1 className="text-center text-2xl font-bold text-foreground mb-2">
