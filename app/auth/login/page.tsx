@@ -6,7 +6,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Mail, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   return (
@@ -68,9 +68,11 @@ function LoginInner() {
       <div className="w-full max-w-md px-4">
         <div className="rounded-lg border border-border bg-card p-8">
           <div className="mb-6 flex justify-center">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Mail className="h-6 w-6 text-primary" />
-            </div>
+            <img 
+              src="/images/snoek-logo.png" 
+              alt="Snoek" 
+              className="h-16 w-16 rounded-full"
+            />
           </div>
 
           <h1 className="text-center text-2xl font-bold text-foreground mb-2">
