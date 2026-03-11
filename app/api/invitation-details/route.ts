@@ -9,20 +9,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 })
     }
 
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    console.log("[v0] Supabase URL exists:", !!supabaseUrl)
+    console.log("[v0] Service Role Key exists:", !!serviceRoleKey)
+    console.log("[v0] Service Role Key starts with:", serviceRoleKey?.substring(0, 20))
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("[v0] Missing Supabase credentials")
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      )
+    }
+    
+    const adminSupabase = createClient(supabaseUrl, serviceRoleKey)
 
+    console.log("[v0] Looking up invitation with token:", token)
+    
     const { data: invitation, error } = await adminSupabase
       .from("invitations")
       .select("email, company_id, status, expires_at")
       .eq("token", token)
       .single()
 
+    console.log("[v0] Invitation lookup result:", JSON.stringify({ invitation, error }, null, 2))
+
     if (error || !invitation) {
+      console.log("[v0] Error code:", error?.code)
+      console.log("[v0] Error message:", error?.message)
+      console.log("[v0] Error details:", error?.details)
+      console.log("[v0] Error hint:", error?.hint)
+      
       return NextResponse.json(
-        { error: "Invitation not found" },
+        { error: "Invitation not found", debug: { errorCode: error?.code, errorMessage: error?.message } },
         { status: 404 }
       )
     }
