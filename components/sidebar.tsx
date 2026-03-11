@@ -112,8 +112,8 @@ export function Sidebar({
           />
           {!collapsed && (
             <span 
-              className="text-base font-semibold tracking-tight text-foreground"
-              style={{ fontFamily: "var(--font-space-grotesk), 'Space Grotesk', sans-serif" }}
+              className="text-xl font-semibold text-foreground"
+              style={{ fontFamily: "var(--font-noto-serif), 'Noto Serif', serif" }}
             >
               Snoek
             </span>
