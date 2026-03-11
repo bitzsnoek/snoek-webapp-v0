@@ -111,7 +111,7 @@ export function Sidebar({
             className="h-8 w-8 shrink-0 rounded-full"
           />
           {!collapsed && (
-            <span className="text-2xl font-bold text-foreground font-logo">
+            <span className="text-[22px] font-bold text-foreground font-logo">
               Snoek
             </span>
           )}
