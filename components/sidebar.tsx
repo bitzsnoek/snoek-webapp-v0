@@ -108,7 +108,7 @@ export function Sidebar({
           <img 
             src="/images/snoek-logo.png" 
             alt="Snoek" 
-            className="h-8 w-8 shrink-0 rounded-full"
+            className="h-7 w-7 shrink-0"
           />
           {!collapsed && (
             <span className="text-[22px] font-bold text-foreground font-logo">
