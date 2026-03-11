@@ -48,7 +48,7 @@ interface Particle {
   life: number
 }
 
-const COLORS = ["#e980ff", "#00c2ff", "#ffd51f", "#00bf63", "#ff7a00", "#ff4c0a"]
+const COLORS = ["#38bdf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#fb923c"]
 
 function ConfettiBurst({ origin }: { origin: { x: number; y: number } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
