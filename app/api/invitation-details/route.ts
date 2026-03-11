@@ -14,13 +14,24 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    console.log("[v0] Looking up invitation with token:", token)
+    
     const { data: invitation, error } = await adminSupabase
       .from("invitations")
       .select("email, company_id, status, expires_at")
       .eq("token", token)
       .single()
 
+    console.log("[v0] Invitation lookup result:", { invitation, error })
+
     if (error || !invitation) {
+      // Also try to find any invitation with similar token to debug
+      const { data: allInvitations } = await adminSupabase
+        .from("invitations")
+        .select("id, token, email, status")
+        .eq("email", "stef+31@bitzsnoek.nl")
+      console.log("[v0] Invitations for stef+31@bitzsnoek.nl:", allInvitations)
+      
       return NextResponse.json(
         { error: "Invitation not found" },
         { status: 404 }
