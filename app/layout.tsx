@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Plus_Jakarta_Sans, JetBrains_Mono, Space_Grotesk } from 'next/font/google'
+import { Plus_Jakarta_Sans, JetBrains_Mono, Noto_Serif } from 'next/font/google'
 import './globals.css'
 
 const plusJakartaSans = Plus_Jakarta_Sans({ 
@@ -9,9 +9,9 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 })
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" })
-const spaceGrotesk = Space_Grotesk({ 
+const notoSerif = Noto_Serif({ 
   subsets: ["latin"], 
-  variable: "--font-space-grotesk",
+  variable: "--font-noto-serif",
   weight: ["500", "600", "700"],
   display: "swap",
 })
@@ -51,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} bg-background`} suppressHydrationWarning>
+    <html lang="en" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${notoSerif.variable} bg-background`} suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
         {children}
       </body>
