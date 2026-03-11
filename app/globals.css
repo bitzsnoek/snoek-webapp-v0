@@ -1,11 +1,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* Cascadia Mono for logo */
+/* N27 Bold for logo */
 @font-face {
-  font-family: 'Cascadia Mono';
-  src: url('https://cdn.jsdelivr.net/gh/AdarshAddee/Fonts@main/CascadiaMono.woff2') format('woff2');
-  font-weight: 400 700;
+  font-family: 'N27';
+  src: url('/fonts/n27-bold-webfont.woff') format('woff');
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -55,7 +55,7 @@
 @theme inline {
   --font-sans: var(--font-plus-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono', monospace;
-  --font-logo: var(--font-space-grotesk), 'Space Grotesk', system-ui, sans-serif;
+  --font-logo: 'N27', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
