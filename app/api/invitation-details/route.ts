@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    const adminSupabase = createClient(supabaseUrl, serviceRoleKey)
+    const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
 
     console.log("[v0] Looking up invitation with token:", token)
     
