@@ -114,18 +114,63 @@ export async function POST(request: NextRequest) {
     if (!alreadyMember) {
       if (invitation.member_id) {
         // Link to the specific member row and update name
-        const { error: linkError } = await adminSupabase
+        // First check if the member exists and its current state
+        const { data: existingMember, error: fetchMemberError } = await adminSupabase
           .from("company_members")
-          .update({ user_id: userId, name: displayName })
+          .select("id, user_id, name")
           .eq("id", invitation.member_id)
-          .is("user_id", null)
+          .single()
 
-        if (linkError) {
-          console.error("Link member error:", linkError)
+        console.log("[v0] Existing member:", existingMember, "Error:", fetchMemberError)
+
+        if (existingMember?.user_id && existingMember.user_id !== userId) {
+          // Member already linked to a different user
+          console.log("[v0] Member already linked to different user:", existingMember.user_id, "vs", userId)
           return NextResponse.json(
-            { success: false, error: "Failed to link you to the company" },
-            { status: 500 }
+            { success: false, error: "This invitation has already been used by another account" },
+            { status: 400 }
           )
+        }
+
+        if (existingMember && !existingMember.user_id) {
+          // Member exists but not linked, proceed with linking
+          const { error: linkError, count } = await adminSupabase
+            .from("company_members")
+            .update({ user_id: userId, name: displayName })
+            .eq("id", invitation.member_id)
+            .is("user_id", null)
+
+          console.log("[v0] Link result - error:", linkError, "count:", count)
+
+          if (linkError) {
+            console.error("Link member error:", linkError)
+            return NextResponse.json(
+              { success: false, error: "Failed to link you to the company" },
+              { status: 500 }
+            )
+          }
+        } else if (existingMember?.user_id === userId) {
+          // Already linked to this user, nothing to do
+          console.log("[v0] Member already linked to this user")
+        } else if (!existingMember) {
+          // Member doesn't exist, create new one
+          console.log("[v0] Member not found, creating new one")
+          const { error: memberError } = await adminSupabase
+            .from("company_members")
+            .insert({
+              company_id: invitation.company_id,
+              user_id: userId,
+              role: invitation.role,
+              name: displayName,
+            })
+
+          if (memberError) {
+            console.error("Create member error:", memberError)
+            return NextResponse.json(
+              { success: false, error: "Failed to add you to the company" },
+              { status: 500 }
+            )
+          }
         }
       } else {
         // Create a new company member
