@@ -104,11 +104,11 @@ export function Sidebar({
     <>
       {/* Logo */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <img 
             src="/images/snoek-logo.png" 
             alt="Snoek" 
-            className="h-5 w-5 shrink-0"
+            className="h-6 w-6 shrink-0"
           />
           {!collapsed && (
             <span className="text-[22px] font-bold text-foreground font-logo">
