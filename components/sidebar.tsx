@@ -111,10 +111,7 @@ export function Sidebar({
             className="h-8 w-8 shrink-0 rounded-full"
           />
           {!collapsed && (
-            <span 
-              className="text-xl font-semibold text-foreground"
-              style={{ fontFamily: "var(--font-noto-serif), 'Noto Serif', serif" }}
-            >
+            <span className="text-[22px] font-bold text-foreground font-logo">
               Snoek
             </span>
           )}
