@@ -56,59 +56,68 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Create or get the user
-    // First check if user already exists
-    console.log("[v0] Checking for existing user with email:", email)
-    const { data: existingUsers, error: listError } = await adminSupabase.auth.admin.listUsers()
-    
-    if (listError) {
-      console.error("[v0] Error listing users:", listError)
+    // Try to create the user first, handle "already exists" case
+    let userId: string
+
+    const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: name.trim() },
+    })
+
+    if (createError) {
+      // Check if the error is because user already exists
+      if (createError.message?.includes("already been registered") || 
+          createError.message?.includes("already exists") ||
+          createError.code === "email_exists") {
+        // User already exists, try to get them by email and update password
+        const { data: userData } = await adminSupabase
+          .from("profiles")
+          .select("id")
+          .eq("id", (await adminSupabase.auth.admin.listUsers({ 
+            page: 1, 
+            perPage: 1 
+          })).data?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())?.id || "")
+          .single()
+
+        // Alternative: sign in with the existing credentials won't work, 
+        // so we need to use signUp which will return the existing user ID
+        const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
+          email,
+          password,
+        })
+
+        if (signUpError && !signUpError.message?.includes("already registered")) {
+          console.error("SignUp error:", signUpError)
+          return NextResponse.json(
+            { success: false, error: "This email is already registered. Please log in instead." },
+            { status: 400 }
+          )
+        }
+
+        // If user exists, they should log in instead
+        return NextResponse.json(
+          { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
+          { status: 400 }
+        )
+      }
+
+      console.error("Create user error:", createError)
       return NextResponse.json(
-        { success: false, error: "Failed to check existing users. Please try again." },
+        { success: false, error: `Failed to create account: ${createError.message}` },
         { status: 500 }
       )
     }
-    
-    const existingUser = existingUsers?.users?.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    )
-    console.log("[v0] Existing user found:", !!existingUser)
 
-    let userId: string
-
-    if (existingUser) {
-      // User exists -- update their password and confirm email
-      console.log("[v0] Updating existing user:", existingUser.id)
-      const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
-        existingUser.id,
-        { password, email_confirm: true, user_metadata: { full_name: name.trim() } }
+    if (!newUser.user) {
+      return NextResponse.json(
+        { success: false, error: "Failed to create account. Please try again." },
+        { status: 500 }
       )
-      if (updateError) {
-        console.error("[v0] Update user error:", updateError)
-        return NextResponse.json(
-          { success: false, error: `Failed to update account: ${updateError.message}` },
-          { status: 500 }
-        )
-      }
-      userId = existingUser.id
-    } else {
-      // Create new user with confirmed email
-      console.log("[v0] Creating new user with email:", email)
-      const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: name.trim() },
-      })
-      if (createError || !newUser.user) {
-        console.error("[v0] Create user error:", createError)
-        return NextResponse.json(
-          { success: false, error: `Failed to create account: ${createError?.message || 'Unknown error'}` },
-          { status: 500 }
-        )
-      }
-      console.log("[v0] User created successfully:", newUser.user.id)
-      userId = newUser.user.id
     }
+
+    userId = newUser.user.id
 
     // 3. Ensure profile exists
     const displayName = name.trim()
