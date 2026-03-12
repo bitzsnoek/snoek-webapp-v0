@@ -384,6 +384,9 @@ export function CompanySettings() {
         )}
       </section>
 
+      {/* Invitations Manager */}
+      <InvitationsManager />
+
       {/* Danger Zone - coaches only */}
       {isCoach && <section className="mt-10 rounded-xl border border-destructive/30 bg-card p-4 md:p-6">
         <div className="mb-4 flex items-center gap-2.5">
@@ -409,9 +412,6 @@ export function CompanySettings() {
           </Button>
         </div>
       </section>}
-
-      {/* Invitations Manager */}
-      <InvitationsManager />
 
       {/* Delete Company Confirmation Dialog */}
       <Dialog open={deleteCompanyDialog} onOpenChange={(open) => { if (!open) { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") } }}>
