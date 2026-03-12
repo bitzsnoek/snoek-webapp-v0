@@ -19,11 +19,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verify environment variables
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("Missing Supabase environment variables")
+      return NextResponse.json(
+        { success: false, error: "Server configuration error. Please contact support." },
+        { status: 500 }
+      )
+    }
+
+    // Check if it looks like a service role key (should contain 'service_role' or be different from anon key)
+    const isLikelyServiceKey = serviceRoleKey.length > 100 && serviceRoleKey !== process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!isLikelyServiceKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY appears to be invalid or same as anon key")
+    }
+
     // Use service role client to bypass RLS
     const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      supabaseUrl,
+      serviceRoleKey,
+      { 
+        auth: { 
+          autoRefreshToken: false, 
+          persistSession: false 
+        },
+        global: {
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`
+          }
+        }
+      }
     )
 
     // 1. Validate the invitation
@@ -82,33 +110,16 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check for service role key issues
+      // Check for service role key issues - if admin API fails, the service role key may be wrong
       if (errorMsg?.includes("Bearer token") || errorMsg?.includes("invalid JWT") || errorMsg?.includes("not authorized")) {
-        console.error("Service role key issue - attempting signUp fallback")
-        // Fallback to signUp if admin API fails due to permissions
-        const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: name.trim() },
-          },
-        })
-
-        if (signUpError) {
-          return NextResponse.json(
-            { success: false, error: `Failed to create account: ${signUpError.message || 'Unknown error'}` },
-            { status: 500 }
-          )
-        }
-
-        if (!signUpData.user || (signUpData.user.identities && signUpData.user.identities.length === 0)) {
-          return NextResponse.json(
-            { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
-            { status: 400 }
-          )
-        }
-
-        userId = signUpData.user.id
+        console.error("Service role key issue detected. The SUPABASE_SERVICE_ROLE_KEY may be incorrect.")
+        console.error("Key starts with:", serviceRoleKey.substring(0, 30))
+        
+        // Return a clear error - don't use signUp fallback as it will timeout
+        return NextResponse.json(
+          { success: false, error: "Server configuration error: Invalid service key. Please contact support." },
+          { status: 500 }
+        )
       } else {
         return NextResponse.json(
           { success: false, error: `Failed to create account: ${errorMsg}` },
