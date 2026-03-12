@@ -72,7 +72,7 @@ export function AppShell() {
         return m.role === "coach"
       })
 
-      // Fetch conversations for this company
+      // Fetch conversations for this company (including group chat)
       const { data: convos, error: convosError } = await supabase
         .from("conversations")
         .select("*")
@@ -80,35 +80,77 @@ export function AppShell() {
 
       if (convosError) throw convosError
 
+      // Find or create group conversation
+      let groupConvo = (convos ?? []).find((c) => c.is_group === true)
+      
+      // If no group conversation exists, create one
+      if (!groupConvo) {
+        const { data: newGroupConvo, error: createError } = await supabase
+          .from("conversations")
+          .insert({
+            company_id: activeCompany.id,
+            coach_id: currentUser.id, // Creator becomes initial coach_id
+            is_group: true,
+            name: activeCompany.name
+          })
+          .select()
+          .single()
+        
+        if (!createError && newGroupConvo) {
+          groupConvo = newGroupConvo
+        }
+      }
+
       // Get profile mappings to match conversations to members by name
       const allUserIds = [...new Set([
-        ...(convos ?? []).map((c) => c.founder_id),
-        ...(convos ?? []).map((c) => c.coach_id)
+        ...(convos ?? []).map((c) => c.founder_id).filter(Boolean),
+        ...(convos ?? []).map((c) => c.coach_id).filter(Boolean)
       ])]
+
+      console.log("[v0] allUserIds for profile lookup:", allUserIds)
 
       let profileMap: Record<string, string> = {}
       if (allUserIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", allUserIds)
+
+        console.log("[v0] profiles query result:", profiles, "error:", profilesError)
 
         profileMap = Object.fromEntries(
           (profiles ?? []).map((p) => [p.id, p.full_name])
         )
       }
 
-      console.log("[v0] fetchChatTabs - relevantMembers:", relevantMembers.map(m => ({ name: m.name, id: m.id })))
-      console.log("[v0] fetchChatTabs - conversations:", convos)
-      console.log("[v0] fetchChatTabs - profileMap:", profileMap)
-      console.log("[v0] fetchChatTabs - currentUser.role:", currentUser.role)
+      // Build tabs - start with group chat tab
+      const tabs: ChatTab[] = []
+      
+      // Add group chat tab first (company name)
+      if (groupConvo) {
+        tabs.push({
+          odooUserId: "",
+          odooMemberId: "",
+          name: activeCompany.name,
+          conversationId: groupConvo.id,
+          isGroup: true
+        })
+      }
 
-      // Build tabs from relevant members
-      const tabs: ChatTab[] = relevantMembers.map((member) => {
+      console.log("[v0] relevantMembers:", relevantMembers.map(m => m.name))
+      console.log("[v0] convos:", convos)
+      console.log("[v0] profileMap:", profileMap)
+      
+      // Add individual member tabs
+      relevantMembers.forEach((member) => {
         // Find conversation where the member's name matches either founder or coach name
+        // Only consider non-group conversations
         const convo = (convos ?? []).find((c) => {
+          if (c.is_group) return false
           const founderName = profileMap[c.founder_id]
           const coachName = profileMap[c.coach_id]
+          
+          console.log("[v0] Checking convo:", c.id, "founderName:", founderName, "coachName:", coachName, "member.name:", member.name)
           
           if (currentUser.role === "coach") {
             return founderName === member.name
@@ -116,14 +158,19 @@ export function AppShell() {
           return coachName === member.name
         })
 
-        return {
+        console.log("[v0] Member:", member.name, "found convo:", convo?.id)
+
+        tabs.push({
           odooUserId: member.userId || "",
           odooMemberId: member.id,
           name: member.name,
           conversationId: convo?.id,
           supabaseUserId: convo ? (currentUser.role === "coach" ? convo.founder_id : convo.coach_id) : undefined,
-        }
+          isGroup: false
+        })
       })
+      
+      console.log("[v0] Final tabs:", tabs)
 
       setChatTabs(tabs)
       
