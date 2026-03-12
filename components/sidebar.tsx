@@ -104,11 +104,11 @@ export function Sidebar({
     <>
       {/* Logo */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <img 
             src="/images/snoek-logo.png" 
             alt="Snoek" 
-            className="h-8 w-8 shrink-0 rounded-full"
+            className="h-8 w-8 shrink-0"
           />
           {!collapsed && (
             <span className="text-[22px] font-bold text-foreground font-logo">
@@ -192,7 +192,7 @@ export function Sidebar({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 md:py-2 text-left text-sm transition-colors",
                     isActive
-                      ? "bg-primary/10 text-primary font-medium"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
                 >
@@ -214,7 +214,7 @@ export function Sidebar({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 md:py-2 text-left text-sm transition-colors",
                     isActive
-                      ? "bg-primary/10 text-primary font-medium"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
                 >
@@ -240,12 +240,12 @@ export function Sidebar({
                 key={item.id}
                 onClick={() => handleNavClick(item.id)}
                 title={item.label}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                )}
+className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 md:py-2 text-left text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  )}
               >
                 <Icon className="h-4 w-4" />
               </button>
@@ -264,7 +264,7 @@ export function Sidebar({
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
                     isActive
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   )}
                 >
@@ -291,7 +291,7 @@ export function Sidebar({
             <Avatar className="h-8 w-8">
               <AvatarFallback className={cn(
                 "text-xs",
-                activeSection === "account" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                activeSection === "account" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "bg-muted text-muted-foreground"
               )}>
                 {currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>

@@ -121,11 +121,8 @@ export async function POST(request: NextRequest) {
           .eq("id", invitation.member_id)
           .single()
 
-        console.log("[v0] Existing member:", existingMember, "Error:", fetchMemberError)
-
         if (existingMember?.user_id && existingMember.user_id !== userId) {
           // Member already linked to a different user
-          console.log("[v0] Member already linked to different user:", existingMember.user_id, "vs", userId)
           return NextResponse.json(
             { success: false, error: "This invitation has already been used by another account" },
             { status: 400 }
@@ -140,8 +137,6 @@ export async function POST(request: NextRequest) {
             .eq("id", invitation.member_id)
             .is("user_id", null)
 
-          console.log("[v0] Link result - error:", linkError, "count:", count)
-
           if (linkError) {
             console.error("Link member error:", linkError)
             return NextResponse.json(
@@ -151,10 +146,8 @@ export async function POST(request: NextRequest) {
           }
         } else if (existingMember?.user_id === userId) {
           // Already linked to this user, nothing to do
-          console.log("[v0] Member already linked to this user")
         } else if (!existingMember) {
           // Member doesn't exist, create new one
-          console.log("[v0] Member not found, creating new one")
           const { error: memberError } = await adminSupabase
             .from("company_members")
             .insert({
