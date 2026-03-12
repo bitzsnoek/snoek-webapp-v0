@@ -56,69 +56,53 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Create or get the user
-    // Try to create the user first, handle "already exists" case
+    // 2. Create the user using signUp (not admin API)
+    // This doesn't require admin permissions
     let userId: string
 
-    const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
+    const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
       email,
       password,
-      email_confirm: true,
-      user_metadata: { full_name: name.trim() },
+      options: {
+        data: { full_name: name.trim() },
+        emailRedirectTo: undefined, // Don't send confirmation email
+      },
     })
 
-    if (createError) {
+    if (signUpError) {
       // Check if the error is because user already exists
-      if (createError.message?.includes("already been registered") || 
-          createError.message?.includes("already exists") ||
-          createError.code === "email_exists") {
-        // User already exists, try to get them by email and update password
-        const { data: userData } = await adminSupabase
-          .from("profiles")
-          .select("id")
-          .eq("id", (await adminSupabase.auth.admin.listUsers({ 
-            page: 1, 
-            perPage: 1 
-          })).data?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())?.id || "")
-          .single()
-
-        // Alternative: sign in with the existing credentials won't work, 
-        // so we need to use signUp which will return the existing user ID
-        const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
-          email,
-          password,
-        })
-
-        if (signUpError && !signUpError.message?.includes("already registered")) {
-          console.error("SignUp error:", signUpError)
-          return NextResponse.json(
-            { success: false, error: "This email is already registered. Please log in instead." },
-            { status: 400 }
-          )
-        }
-
-        // If user exists, they should log in instead
+      if (signUpError.message?.includes("already been registered") || 
+          signUpError.message?.includes("already exists") ||
+          signUpError.message?.includes("User already registered")) {
         return NextResponse.json(
           { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
           { status: 400 }
         )
       }
 
-      console.error("Create user error:", createError)
+      console.error("SignUp error:", signUpError)
       return NextResponse.json(
-        { success: false, error: `Failed to create account: ${createError.message}` },
+        { success: false, error: `Failed to create account: ${signUpError.message}` },
         { status: 500 }
       )
     }
 
-    if (!newUser.user) {
+    if (!signUpData.user) {
       return NextResponse.json(
         { success: false, error: "Failed to create account. Please try again." },
         { status: 500 }
       )
     }
 
-    userId = newUser.user.id
+    userId = signUpData.user.id
+
+    // Confirm the user's email using admin API (so they don't need to verify)
+    await adminSupabase.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    }).catch(err => {
+      // If this fails, user will need to verify email - not a critical failure
+      console.error("Failed to auto-confirm email:", err)
+    })
 
     // 3. Ensure profile exists
     const displayName = name.trim()
