@@ -109,6 +109,36 @@
     font-family: 'N27', system-ui, sans-serif;
     font-weight: 700;
   }
+  
+  /* Dark theme scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.30 0.005 270) transparent;
+  }
+  
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.30 0.005 270);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.40 0.005 270);
+  }
+  
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @utility scrollbar-none {
