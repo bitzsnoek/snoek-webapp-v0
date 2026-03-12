@@ -42,12 +42,12 @@
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.68 0.19 155);
   --sidebar-primary-foreground: oklch(0.15 0.04 155);
-  --sidebar-accent: oklch(0.22 0.06 160);
-  --sidebar-accent-foreground: oklch(0.65 0.19 160);
+  --sidebar-accent: oklch(0.20 0.04 163);
+  --sidebar-accent-foreground: oklch(0.77 0.15 163);
   --sidebar-border: oklch(0.26 0.005 270);
-  --sidebar-ring: oklch(0.68 0.19 155);
-  --success: oklch(0.68 0.19 155);
-  --success-foreground: oklch(0.15 0.02 155);
+  --sidebar-ring: oklch(0.77 0.15 163);
+  --success: oklch(0.77 0.15 163);
+  --success-foreground: oklch(0.15 0.02 163);
   --warning: oklch(0.72 0.20 50);
   --warning-foreground: oklch(0.15 0.02 50);
 }
