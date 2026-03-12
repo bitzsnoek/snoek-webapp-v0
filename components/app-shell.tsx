@@ -437,13 +437,13 @@ export function AppShell() {
                       className={cn(
                         "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
                         isActive
-                          ? "font-medium text-primary"
+                          ? "font-medium text-success"
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {tab.name}
                       {isActive && (
-                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
                       )}
                     </button>
                   )
@@ -560,14 +560,14 @@ function GoalTab({
         className={cn(
           "relative flex items-center gap-1 px-3 text-sm whitespace-nowrap transition-colors",
           isActive
-            ? "font-medium text-primary"
+            ? "font-medium text-success"
             : "text-muted-foreground hover:text-foreground",
           onArchive && "pr-2"
         )}
       >
         {label}
         {isActive && (
-          <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary" />
+          <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
         )}
       </button>
 
