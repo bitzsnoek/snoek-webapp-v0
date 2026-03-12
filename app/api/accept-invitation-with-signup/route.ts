@@ -70,27 +70,31 @@ export async function POST(request: NextRequest) {
     })
 
     if (signUpError) {
+      const errorMsg = signUpError.message || signUpError.name || JSON.stringify(signUpError)
+      console.error("[v0] SignUp error:", signUpError)
+      console.error("[v0] SignUp error message:", errorMsg)
+      
       // Check if the error is because user already exists
-      if (signUpError.message?.includes("already been registered") || 
-          signUpError.message?.includes("already exists") ||
-          signUpError.message?.includes("User already registered")) {
+      if (errorMsg?.includes("already been registered") || 
+          errorMsg?.includes("already exists") ||
+          errorMsg?.includes("User already registered")) {
         return NextResponse.json(
           { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
           { status: 400 }
         )
       }
 
-      console.error("SignUp error:", signUpError)
       return NextResponse.json(
-        { success: false, error: `Failed to create account: ${signUpError.message}` },
+        { success: false, error: `Failed to create account: ${errorMsg}` },
         { status: 500 }
       )
     }
 
-    if (!signUpData.user) {
+    // Check if signUp returned a user but with identities empty (means user already exists)
+    if (!signUpData.user || (signUpData.user.identities && signUpData.user.identities.length === 0)) {
       return NextResponse.json(
-        { success: false, error: "Failed to create account. Please try again." },
-        { status: 500 }
+        { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
+        { status: 400 }
       )
     }
 
