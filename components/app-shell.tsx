@@ -83,20 +83,29 @@ export function AppShell() {
       // Find or create group conversation
       let groupConvo = (convos ?? []).find((c) => c.is_group === true)
       
-      // If no group conversation exists, create one
+      // If no group conversation exists, create one (with conflict handling)
       if (!groupConvo) {
         const { data: newGroupConvo, error: createError } = await supabase
           .from("conversations")
           .insert({
             company_id: activeCompany.id,
-            coach_id: currentUser.id, // Creator becomes initial coach_id
+            coach_id: currentUser.id,
             is_group: true,
             name: activeCompany.name
           })
           .select()
           .single()
         
-        if (!createError && newGroupConvo) {
+        if (createError) {
+          // If unique constraint violation, re-fetch to get existing group chat
+          const { data: existingGroup } = await supabase
+            .from("conversations")
+            .select("*")
+            .eq("company_id", activeCompany.id)
+            .eq("is_group", true)
+            .single()
+          groupConvo = existingGroup
+        } else {
           groupConvo = newGroupConvo
         }
       }
@@ -107,16 +116,12 @@ export function AppShell() {
         ...(convos ?? []).map((c) => c.coach_id).filter(Boolean)
       ])]
 
-      console.log("[v0] allUserIds for profile lookup:", allUserIds)
-
       let profileMap: Record<string, string> = {}
       if (allUserIds.length > 0) {
-        const { data: profiles, error: profilesError } = await supabase
+        const { data: profiles } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", allUserIds)
-
-        console.log("[v0] profiles query result:", profiles, "error:", profilesError)
 
         profileMap = Object.fromEntries(
           (profiles ?? []).map((p) => [p.id, p.full_name])
@@ -137,10 +142,6 @@ export function AppShell() {
         })
       }
 
-      console.log("[v0] relevantMembers:", relevantMembers.map(m => m.name))
-      console.log("[v0] convos:", convos)
-      console.log("[v0] profileMap:", profileMap)
-      
       // Add individual member tabs
       relevantMembers.forEach((member) => {
         // Find conversation where the member's name matches either founder or coach name
@@ -150,15 +151,11 @@ export function AppShell() {
           const founderName = profileMap[c.founder_id]
           const coachName = profileMap[c.coach_id]
           
-          console.log("[v0] Checking convo:", c.id, "founderName:", founderName, "coachName:", coachName, "member.name:", member.name)
-          
           if (currentUser.role === "coach") {
             return founderName === member.name
           }
           return coachName === member.name
         })
-
-        console.log("[v0] Member:", member.name, "found convo:", convo?.id)
 
         tabs.push({
           odooUserId: member.userId || "",
@@ -169,8 +166,6 @@ export function AppShell() {
           isGroup: false
         })
       })
-      
-      console.log("[v0] Final tabs:", tabs)
 
       setChatTabs(tabs)
       
