@@ -56,57 +56,73 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Create the user using signUp (not admin API)
-    // This doesn't require admin permissions
+    // 2. Create the user using admin API (no confirmation email sent)
     let userId: string
 
-    const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
+    const { data: createData, error: createError } = await adminSupabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: { full_name: name.trim() },
-        emailRedirectTo: undefined, // Don't send confirmation email
-      },
+      email_confirm: true, // Mark email as confirmed immediately
+      user_metadata: { full_name: name.trim() },
     })
 
-    if (signUpError) {
-      const errorMsg = signUpError.message || signUpError.name || JSON.stringify(signUpError)
-      console.error("[v0] SignUp error:", signUpError)
-      console.error("[v0] SignUp error message:", errorMsg)
+    if (createError) {
+      const errorMsg = createError.message || createError.name || JSON.stringify(createError)
+      console.error("Create user error:", createError)
       
       // Check if the error is because user already exists
       if (errorMsg?.includes("already been registered") || 
           errorMsg?.includes("already exists") ||
-          errorMsg?.includes("User already registered")) {
+          errorMsg?.includes("User already registered") ||
+          errorMsg?.includes("duplicate key") ||
+          errorMsg?.includes("unique constraint")) {
         return NextResponse.json(
           { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
           { status: 400 }
         )
       }
 
+      // Check for service role key issues
+      if (errorMsg?.includes("Bearer token") || errorMsg?.includes("invalid JWT") || errorMsg?.includes("not authorized")) {
+        console.error("Service role key issue - attempting signUp fallback")
+        // Fallback to signUp if admin API fails due to permissions
+        const { data: signUpData, error: signUpError } = await adminSupabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: name.trim() },
+          },
+        })
+
+        if (signUpError) {
+          return NextResponse.json(
+            { success: false, error: `Failed to create account: ${signUpError.message || 'Unknown error'}` },
+            { status: 500 }
+          )
+        }
+
+        if (!signUpData.user || (signUpData.user.identities && signUpData.user.identities.length === 0)) {
+          return NextResponse.json(
+            { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
+            { status: 400 }
+          )
+        }
+
+        userId = signUpData.user.id
+      } else {
+        return NextResponse.json(
+          { success: false, error: `Failed to create account: ${errorMsg}` },
+          { status: 500 }
+        )
+      }
+    } else if (!createData?.user) {
       return NextResponse.json(
-        { success: false, error: `Failed to create account: ${errorMsg}` },
+        { success: false, error: "Failed to create account. Please try again." },
         { status: 500 }
       )
+    } else {
+      userId = createData.user.id
     }
-
-    // Check if signUp returned a user but with identities empty (means user already exists)
-    if (!signUpData.user || (signUpData.user.identities && signUpData.user.identities.length === 0)) {
-      return NextResponse.json(
-        { success: false, error: "This email is already registered. Please log in and accept the invitation from your dashboard." },
-        { status: 400 }
-      )
-    }
-
-    userId = signUpData.user.id
-
-    // Confirm the user's email using admin API (so they don't need to verify)
-    await adminSupabase.auth.admin.updateUserById(userId, {
-      email_confirm: true,
-    }).catch(err => {
-      // If this fails, user will need to verify email - not a critical failure
-      console.error("Failed to auto-confirm email:", err)
-    })
 
     // 3. Ensure profile exists
     const displayName = name.trim()
