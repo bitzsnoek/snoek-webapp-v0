@@ -103,16 +103,20 @@ export function AppShell() {
 
       // Get profile mappings to match conversations to members by name
       const allUserIds = [...new Set([
-        ...(convos ?? []).map((c) => c.founder_id),
-        ...(convos ?? []).map((c) => c.coach_id)
+        ...(convos ?? []).map((c) => c.founder_id).filter(Boolean),
+        ...(convos ?? []).map((c) => c.coach_id).filter(Boolean)
       ])]
+
+      console.log("[v0] allUserIds for profile lookup:", allUserIds)
 
       let profileMap: Record<string, string> = {}
       if (allUserIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from("profiles")
           .select("id, full_name")
           .in("id", allUserIds)
+
+        console.log("[v0] profiles query result:", profiles, "error:", profilesError)
 
         profileMap = Object.fromEntries(
           (profiles ?? []).map((p) => [p.id, p.full_name])
