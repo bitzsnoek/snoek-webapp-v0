@@ -68,6 +68,7 @@ export interface ChatTab {
   name: string
   conversationId?: string
   supabaseUserId?: string
+  isGroup?: boolean
 }
 
 const typeConfig = {
@@ -356,15 +357,15 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         <div className="text-center">
           <MessageCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            Select a {currentUser.role === "coach" ? "founder" : "coach"} to start chatting
+            Select a conversation to start chatting
           </p>
         </div>
       </div>
     )
   }
 
-  // No conversation exists yet
-  if (!selectedTab.conversationId) {
+  // No conversation exists yet (only for 1-on-1 chats, group chats always exist)
+  if (!selectedTab.conversationId && !selectedTab.isGroup) {
     return (
       <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl items-center justify-center">
         <div className="text-center">
@@ -403,6 +404,12 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                         isOwnMessage ? "ml-auto items-end" : "mr-auto items-start"
                       )}
                     >
+                      {/* Show sender name for group chats (only for other people's messages) */}
+                      {selectedTab?.isGroup && !isOwnMessage && message.sender_name && (
+                        <span className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+                          {message.sender_name}
+                        </span>
+                      )}
                       <div
                         className={cn(
                           "rounded-2xl px-4 py-2.5",

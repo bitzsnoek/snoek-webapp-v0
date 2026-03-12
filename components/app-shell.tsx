@@ -72,13 +72,34 @@ export function AppShell() {
         return m.role === "coach"
       })
 
-      // Fetch conversations for this company
+      // Fetch conversations for this company (including group chat)
       const { data: convos, error: convosError } = await supabase
         .from("conversations")
         .select("*")
         .eq("company_id", activeCompany.id)
 
       if (convosError) throw convosError
+
+      // Find or create group conversation
+      let groupConvo = (convos ?? []).find((c) => c.is_group === true)
+      
+      // If no group conversation exists, create one
+      if (!groupConvo) {
+        const { data: newGroupConvo, error: createError } = await supabase
+          .from("conversations")
+          .insert({
+            company_id: activeCompany.id,
+            coach_id: currentUser.id, // Creator becomes initial coach_id
+            is_group: true,
+            name: activeCompany.name
+          })
+          .select()
+          .single()
+        
+        if (!createError && newGroupConvo) {
+          groupConvo = newGroupConvo
+        }
+      }
 
       // Get profile mappings to match conversations to members by name
       const allUserIds = [...new Set([
@@ -98,15 +119,26 @@ export function AppShell() {
         )
       }
 
-      console.log("[v0] fetchChatTabs - relevantMembers:", relevantMembers.map(m => ({ name: m.name, id: m.id })))
-      console.log("[v0] fetchChatTabs - conversations:", convos)
-      console.log("[v0] fetchChatTabs - profileMap:", profileMap)
-      console.log("[v0] fetchChatTabs - currentUser.role:", currentUser.role)
+      // Build tabs - start with group chat tab
+      const tabs: ChatTab[] = []
+      
+      // Add group chat tab first (company name)
+      if (groupConvo) {
+        tabs.push({
+          odooUserId: "",
+          odooMemberId: "",
+          name: activeCompany.name,
+          conversationId: groupConvo.id,
+          isGroup: true
+        })
+      }
 
-      // Build tabs from relevant members
-      const tabs: ChatTab[] = relevantMembers.map((member) => {
+      // Add individual member tabs
+      relevantMembers.forEach((member) => {
         // Find conversation where the member's name matches either founder or coach name
+        // Only consider non-group conversations
         const convo = (convos ?? []).find((c) => {
+          if (c.is_group) return false
           const founderName = profileMap[c.founder_id]
           const coachName = profileMap[c.coach_id]
           
@@ -116,13 +148,14 @@ export function AppShell() {
           return coachName === member.name
         })
 
-        return {
+        tabs.push({
           odooUserId: member.userId || "",
           odooMemberId: member.id,
           name: member.name,
           conversationId: convo?.id,
           supabaseUserId: convo ? (currentUser.role === "coach" ? convo.founder_id : convo.coach_id) : undefined,
-        }
+          isGroup: false
+        })
       })
 
       setChatTabs(tabs)
