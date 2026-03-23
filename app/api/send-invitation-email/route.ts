@@ -1,26 +1,78 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import { z } from "zod"
+import {
+  requireAuth,
+  requireCompanyAccess,
+  checkRateLimit,
+  getRateLimitKey,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
+import { createClient } from "@supabase/supabase-js"
+
+const sendInvitationSchema = z.object({
+  email: schemas.email,
+  founderName: schemas.name,
+  invitationToken: schemas.token,
+  senderName: z.string().max(255).optional(),
+  companyId: schemas.uuid,
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, founderName, invitationToken, senderName } = await request.json()
-
-    if (!email || !founderName || !invitationToken) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
+    // 1. Rate limiting
+    const rateLimitKey = getRateLimitKey(request, "send-invitation")
+    const rateLimit = checkRateLimit(rateLimitKey, 10, 60000) // 10 per minute
+    if (!rateLimit.allowed) {
+      return errorResponse(ERROR_MESSAGES.RATE_LIMITED, 429)
     }
 
+    // 2. Authentication
+    const { user, error: authError } = await requireAuth()
+    if (authError) return authError
+    if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
+
+    // 3. Validate input
+    const body = await request.json()
+    const validation = validateInput(sendInvitationSchema, body)
+    if (!validation.success) return validation.error
+
+    const { email, founderName, invitationToken, senderName, companyId } = validation.data
+
+    // 4. Authorization - verify user is a coach in this company
+    const { hasAccess } = await requireCompanyAccess(user.id, companyId, "coach")
+    if (!hasAccess) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
+    // 5. Verify the invitation exists and belongs to this company
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    
+    const { data: invitation } = await adminSupabase
+      .from("invitations")
+      .select("id, company_id")
+      .eq("token", invitationToken)
+      .eq("company_id", companyId)
+      .eq("status", "pending")
+      .single()
+
+    if (!invitation) {
+      return errorResponse(ERROR_MESSAGES.NOT_FOUND, 404)
+    }
+
+    // 6. Send email
     const postmarkApiKey = process.env.POSTMARK_API_KEY
     if (!postmarkApiKey) {
       console.error("POSTMARK_API_KEY not configured")
-      return NextResponse.json(
-        { error: "Email service not configured" },
-        { status: 500 }
-      )
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
-    // Always use the production URL for invite links so they work for everyone
     const productionHost = process.env.NEXT_PUBLIC_APP_URL
       || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
       || `${request.nextUrl.protocol}//${request.headers.get("x-forwarded-host") || request.nextUrl.host}`
@@ -44,7 +96,6 @@ export async function POST(request: NextRequest) {
     <p>Best regards,<br/>Snoek</p>
     `
 
-    // Send via Postmark
     const response = await fetch("https://api.postmarkapp.com/email", {
       method: "POST",
       headers: {
@@ -63,21 +114,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const error = await response.text()
-      console.error("Postmark API error:", error)
-      return NextResponse.json(
-        { error: "Failed to send email" },
-        { status: 500 }
-      )
+      console.error("Postmark API error:", await response.text())
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     const result = await response.json()
-    return NextResponse.json({ success: true, messageId: result.MessageID })
+    return successResponse({ success: true, messageId: result.MessageID })
   } catch (error) {
     console.error("Email sending error:", error)
-    return NextResponse.json(
-      { error: "Failed to send email" },
-      { status: 500 }
-    )
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }

@@ -1,14 +1,35 @@
 import { createClient } from "@supabase/supabase-js"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import {
+  checkRateLimit,
+  getRateLimitKey,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.nextUrl.searchParams.get("token")
-
-    if (!token) {
-      return NextResponse.json({ error: "Missing token" }, { status: 400 })
+    // 1. Rate limiting
+    const rateLimitKey = getRateLimitKey(request, "invitation-details")
+    const rateLimit = checkRateLimit(rateLimitKey, 20, 60000) // 20 per minute
+    if (!rateLimit.allowed) {
+      return errorResponse(ERROR_MESSAGES.RATE_LIMITED, 429)
     }
 
+    const token = request.nextUrl.searchParams.get("token")
+
+    // 2. Validate token
+    if (!token) {
+      return errorResponse(ERROR_MESSAGES.BAD_REQUEST, 400, "Missing token")
+    }
+
+    const validation = validateInput(schemas.token, token)
+    if (!validation.success) return validation.error
+
+    // 3. Get invitation details
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -21,24 +42,15 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error || !invitation) {
-      return NextResponse.json(
-        { error: "Invitation not found" },
-        { status: 404 }
-      )
+      return errorResponse(ERROR_MESSAGES.NOT_FOUND, 404)
     }
 
     if (invitation.status !== "pending") {
-      return NextResponse.json(
-        { error: "This invitation has already been used" },
-        { status: 400 }
-      )
+      return errorResponse("This invitation has already been used", 400)
     }
 
     if (new Date(invitation.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "This invitation has expired. Please ask for a new one." },
-        { status: 410 }
-      )
+      return errorResponse("This invitation has expired. Please ask for a new one.", 410)
     }
 
     // Get company name
@@ -48,15 +60,12 @@ export async function GET(request: NextRequest) {
       .eq("id", invitation.company_id)
       .single()
 
-    return NextResponse.json({
+    return successResponse({
       email: invitation.email,
       companyName: company?.name || null,
     })
   } catch (err) {
     console.error("Invitation details error:", err)
-    return NextResponse.json(
-      { error: "An unexpected error occurred" },
-      { status: 500 }
-    )
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }

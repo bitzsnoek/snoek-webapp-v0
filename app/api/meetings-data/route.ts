@@ -1,15 +1,39 @@
-// New route to bypass caching - 2026-03-07
 import { createClient } from "@/lib/supabase/server"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import {
+  requireAuth,
+  requireCompanyAccess,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    // 1. Authentication
+    const { user, error: authError } = await requireAuth()
+    if (authError) return authError
+    if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
+
     const companyId = request.nextUrl.searchParams.get("companyId")
 
+    // 2. Validate companyId
     if (!companyId) {
-      return NextResponse.json({ error: "Missing companyId" }, { status: 400 })
+      return errorResponse(ERROR_MESSAGES.BAD_REQUEST, 400, "Missing companyId")
     }
+
+    const validation = validateInput(schemas.uuid, companyId)
+    if (!validation.success) return validation.error
+
+    // 3. Authorization - verify user has access to this company
+    const { hasAccess } = await requireCompanyAccess(user.id, companyId)
+    if (!hasAccess) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
+    const supabase = await createClient()
 
     // Check if calendar is connected and get calendar details
     const { data: connection } = await supabase
@@ -28,11 +52,11 @@ export async function GET(request: NextRequest) {
     if (error) throw error
 
     // Transform snake_case to camelCase for frontend
-    const meetings = (rawMeetings || []).map((m: any) => {
-      const docs = m.meeting_documents || []
-      const transcriptCount = docs.filter((d: any) => d.document_type === "transcript").length
-      const notesCount = docs.filter((d: any) => d.document_type === "notes").length
-      const otherCount = docs.filter((d: any) => d.document_type === "other" || !d.document_type).length
+    const meetings = (rawMeetings || []).map((m: Record<string, unknown>) => {
+      const docs = (m.meeting_documents || []) as Array<{ id: string; document_type: string }>
+      const transcriptCount = docs.filter((d) => d.document_type === "transcript").length
+      const notesCount = docs.filter((d) => d.document_type === "notes").length
+      const otherCount = docs.filter((d) => d.document_type === "other" || !d.document_type).length
       
       return {
         id: m.id,
@@ -51,7 +75,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    return successResponse({
       meetings,
       hasConnection: !!connection,
       connectedCalendar: connection?.google_calendar_id || null,
@@ -59,6 +83,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("Failed to fetch meetings:", error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }

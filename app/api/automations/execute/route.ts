@@ -1,25 +1,36 @@
-import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-
-// This endpoint is called by Supabase Cron to execute automations
-// It handles both recurring messages and meeting-triggered messages
+import { z } from "zod"
+import {
+  validateCronSecret,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+} from "@/lib/api-security"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
+const executeSchema = z.object({
+  type: z.enum(["recurring", "meeting_trigger"]).optional(),
+})
+
 export async function POST(request: Request) {
   try {
-    // Verify the request is from Supabase Cron (basic auth check)
-    const authHeader = request.headers.get("authorization")
-    const cronSecret = process.env.CRON_SECRET
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 1. CRON Secret validation - REQUIRED (fail closed)
+    if (!validateCronSecret(request)) {
+      console.error("[Automations] Unauthorized request - invalid or missing CRON_SECRET")
+      return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    // 2. Validate input
     const body = await request.json()
-    const { type } = body // "recurring" or "meeting_trigger"
+    const validation = validateInput(executeSchema, body)
+    if (!validation.success) return validation.error
+
+    const { type } = validation.data
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     if (type === "recurring") {
       await executeRecurringAutomations(supabase)
@@ -31,18 +42,15 @@ export async function POST(request: Request) {
       await executeMeetingTriggerAutomations(supabase)
     }
 
-    return NextResponse.json({ success: true })
+    return successResponse({ success: true })
   } catch (error) {
     console.error("[Automations] Error executing automations:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }
 
 async function executeRecurringAutomations(supabase: ReturnType<typeof createClient>) {
   const now = new Date()
-  const currentHour = now.getUTCHours()
-  const currentDay = now.getUTCDay() // 0 = Sunday, 6 = Saturday
-  const currentDayOfMonth = now.getUTCDate()
 
   // Get all active recurring automations with their configs
   const { data: automations, error } = await supabase
@@ -169,12 +177,12 @@ async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof crea
 
 async function sendAutomationMessage(
   supabase: ReturnType<typeof createClient>,
-  automation: any,
-  meeting?: any
+  automation: Record<string, unknown>,
+  meeting?: Record<string, unknown>
 ) {
-  const companyId = automation.company_id
-  const coachId = automation.coach_id
-  const messageContent = automation.message_content
+  const companyId = automation.company_id as string
+  const coachId = automation.coach_id as string
+  const messageContent = automation.message_content as string
 
   // Get all founders in this company
   const { data: members } = await supabase
@@ -234,10 +242,10 @@ async function sendAutomationMessage(
     const { data: keyResults } = await supabase
       .from("automation_key_results")
       .select("quarterly_key_result_id")
-      .eq("automation_id", automation.id)
+      .eq("automation_id", automation.id as string)
 
     if (keyResults && keyResults.length > 0 && newMessage) {
-      const inserts = keyResults.map((kr: any) => ({
+      const inserts = keyResults.map((kr: Record<string, unknown>) => ({
         message_id: newMessage.id,
         quarterly_key_result_id: kr.quarterly_key_result_id,
       }))
@@ -264,10 +272,10 @@ async function sendAutomationMessage(
   console.log(`[Automations] Sent message for automation ${automation.id} to ${members.length} founders`)
 }
 
-// Also support GET for easy testing
-export async function GET(request: Request) {
-  return NextResponse.json({ 
-    message: "Automations execution endpoint. Use POST to trigger automations.",
+// Also support GET for easy testing (but require auth)
+export async function GET() {
+  return successResponse({ 
+    message: "Automations execution endpoint. Use POST with valid CRON_SECRET to trigger automations.",
     usage: "POST with body: { type: 'recurring' | 'meeting_trigger' }"
   })
 }

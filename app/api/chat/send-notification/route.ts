@@ -1,18 +1,57 @@
-import { NextResponse } from "next/server"
+import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import {
+  requireAuth,
+  requireConversationAccess,
+  checkRateLimit,
+  getRateLimitKey,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
+import { NextRequest } from "next/server"
 
-export async function POST(request: Request) {
+const sendNotificationSchema = z.object({
+  conversationId: schemas.uuid,
+  senderId: schemas.uuid,
+  content: schemas.message,
+})
+
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const body = await request.json()
-    const { conversationId, senderId, content } = body
-
-    if (!conversationId || !senderId || !content) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
+    // 1. Rate limiting
+    const rateLimitKey = getRateLimitKey(request, "send-notification")
+    const rateLimit = checkRateLimit(rateLimitKey, 30, 60000) // 30 per minute
+    if (!rateLimit.allowed) {
+      return errorResponse(ERROR_MESSAGES.RATE_LIMITED, 429)
     }
+
+    // 2. Authentication
+    const { user, error: authError } = await requireAuth()
+    if (authError) return authError
+    if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
+
+    // 3. Validate input
+    const body = await request.json()
+    const validation = validateInput(sendNotificationSchema, body)
+    if (!validation.success) return validation.error
+
+    const { conversationId, senderId, content } = validation.data
+
+    // 4. Verify the authenticated user matches the senderId
+    if (user.id !== senderId) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
+    // 5. Verify user has access to this conversation
+    const { hasAccess } = await requireConversationAccess(user.id, conversationId)
+    if (!hasAccess) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
+    const supabase = await createClient()
 
     // Get the conversation to find the recipient
     const { data: conversation, error: convoError } = await supabase
@@ -22,10 +61,7 @@ export async function POST(request: Request) {
       .single()
 
     if (convoError || !conversation) {
-      return NextResponse.json(
-        { error: "Conversation not found" },
-        { status: 404 }
-      )
+      return errorResponse(ERROR_MESSAGES.NOT_FOUND, 404)
     }
 
     // Determine the recipient (the other participant in the conversation)
@@ -52,7 +88,7 @@ export async function POST(request: Request) {
 
     if (tokenError || !pushTokens || pushTokens.length === 0) {
       // No push tokens for this user, that's okay
-      return NextResponse.json({ success: true, sent: 0 })
+      return successResponse({ success: true, sent: 0 })
     }
 
     // Send push notifications via Expo's push notification service
@@ -80,10 +116,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       console.error("Push notification failed:", await response.text())
-      return NextResponse.json(
-        { success: false, error: "Failed to send push notifications" },
-        { status: 500 }
-      )
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     // Update last_used_at for the tokens we used
@@ -93,12 +126,9 @@ export async function POST(request: Request) {
       .update({ last_used_at: new Date().toISOString() })
       .in("token", tokenValues)
 
-    return NextResponse.json({ success: true, sent: messages.length })
+    return successResponse({ success: true, sent: messages.length })
   } catch (error) {
     console.error("Error sending push notification:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }

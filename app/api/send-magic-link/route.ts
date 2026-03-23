@@ -1,24 +1,48 @@
 import { createClient } from "@supabase/supabase-js"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import { z } from "zod"
+import {
+  checkRateLimit,
+  getRateLimitKey,
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
+
+const sendMagicLinkSchema = z.object({
+  email: schemas.email,
+  redirectTo: z.string().max(2000).optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, redirectTo } = await request.json()
-
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+    // 1. Rate limiting - strict for email endpoints
+    const rateLimitKey = getRateLimitKey(request, "magic-link")
+    const rateLimit = checkRateLimit(rateLimitKey, 5, 300000) // 5 per 5 minutes
+    if (!rateLimit.allowed) {
+      return errorResponse(ERROR_MESSAGES.RATE_LIMITED, 429)
     }
 
+    // 2. Validate input
+    const body = await request.json()
+    const validation = validateInput(sendMagicLinkSchema, body)
+    if (!validation.success) return validation.error
+
+    const { email, redirectTo } = validation.data
+
+    // 3. Check service configuration
     const postmarkApiKey = process.env.POSTMARK_API_KEY
     if (!postmarkApiKey) {
       console.error("POSTMARK_API_KEY not configured")
-      return NextResponse.json({ error: "Email service not configured" }, { status: 500 })
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!supabaseUrl || !supabaseServiceRole) {
-      return NextResponse.json({ error: "Auth service not configured" }, { status: 500 })
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     // Create admin client to generate magic link
@@ -26,16 +50,14 @@ export async function POST(request: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Determine the production host from the incoming request's origin
-    // The client sends redirectTo as a full URL (built from window.location.origin),
-    // so we can derive the host from that. Otherwise fall back to headers/env.
-    let productionHost: string
+    // Determine the production host
+    let productionHost: string = ""
     if (redirectTo) {
       try {
         const parsed = new URL(redirectTo)
         productionHost = parsed.origin
       } catch {
-        productionHost = ""
+        // Invalid URL, will use fallback
       }
     }
     if (!productionHost) {
@@ -64,21 +86,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error("Generate magic link error:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
-    // The generated action_link uses Supabase's Site URL (often localhost).
-    // Extract the token params and rebuild the link using our actual host.
-    const actionLink = data.properties?.action_link
-    if (!actionLink) {
-      return NextResponse.json({ error: "Failed to generate magic link" }, { status: 500 })
-    }
-
-    // Build magic link that goes through our own verify endpoint
-    // which will use the hashed_token to verify and sign the user in
     const hashedToken = data.properties?.hashed_token
     if (!hashedToken) {
-      return NextResponse.json({ error: "Failed to generate magic link token" }, { status: 500 })
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     const verifyUrl = new URL(`${productionHost}/api/auth/verify-magic-link`)
@@ -124,14 +137,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errText = await response.text()
-      console.error("Postmark API error:", errText)
-      return NextResponse.json({ error: "Failed to send email" }, { status: 500 })
+      console.error("Postmark API error:", await response.text())
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
-    return NextResponse.json({ success: true })
+    return successResponse({ success: true })
   } catch (error) {
     console.error("Send magic link error:", error)
-    return NextResponse.json({ error: "Failed to send magic link" }, { status: 500 })
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }

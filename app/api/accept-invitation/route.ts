@@ -1,30 +1,43 @@
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
+import { z } from "zod"
+import {
+  validateInput,
+  errorResponse,
+  successResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
+
+const acceptInvitationSchema = z.object({
+  token: schemas.token,
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const { token } = await request.json()
+    // 1. Validate input
+    const body = await request.json()
+    const validation = validateInput(acceptInvitationSchema, body)
+    if (!validation.success) return validation.error
 
-    if (!token) {
-      return NextResponse.json({ success: false, error: "Missing token" }, { status: 400 })
-    }
+    const { token } = validation.data
 
-    // Verify the user is authenticated via the regular server client
+    // 2. Verify the user is authenticated via the regular server client
     const serverSupabase = await createServerClient()
     const { data: { user } } = await serverSupabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 })
+      return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
     }
 
-    // Use service role client to bypass RLS for reading/writing invitations
+    // 3. Use service role client to bypass RLS for reading/writing invitations
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get the invitation (bypasses RLS)
+    // 4. Get the invitation (bypasses RLS)
     const { data: invitation, error: getError } = await adminSupabase
       .from("invitations")
       .select("*")
@@ -33,21 +46,15 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (getError || !invitation) {
-      return NextResponse.json(
-        { success: false, error: "Invitation not found or already used" },
-        { status: 404 }
-      )
+      return errorResponse(ERROR_MESSAGES.NOT_FOUND, 404, "Invitation not found or already used")
     }
 
-    // Check expiry
+    // 5. Check expiry
     if (new Date(invitation.expires_at) < new Date()) {
-      return NextResponse.json(
-        { success: false, error: "Invitation has expired" },
-        { status: 410 }
-      )
+      return errorResponse("Invitation has expired", 410)
     }
 
-    // Check if user is already a member of this company
+    // 6. Check if user is already a member of this company
     const { data: alreadyMember } = await adminSupabase
       .from("company_members")
       .select("id")
@@ -67,10 +74,7 @@ export async function POST(request: NextRequest) {
 
         if (linkError) {
           console.error("Accept invitation link error:", linkError)
-          return NextResponse.json(
-            { success: false, error: "Failed to link user to founder" },
-            { status: 500 }
-          )
+          return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
         }
       } else {
         // No specific member linked -- create a new company member
@@ -86,29 +90,23 @@ export async function POST(request: NextRequest) {
 
         if (memberError) {
           console.error("Accept invitation member error:", memberError)
-          return NextResponse.json(
-            { success: false, error: "Failed to add user to company" },
-            { status: 500 }
-          )
+          return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
         }
       }
     }
 
-    // Mark invitation as accepted
+    // 7. Mark invitation as accepted
     await adminSupabase
       .from("invitations")
       .update({ status: "accepted", updated_at: new Date().toISOString() })
       .eq("id", invitation.id)
 
-    return NextResponse.json({
+    return successResponse({
       success: true,
       companyId: invitation.company_id,
     })
   } catch (err) {
     console.error("Accept invitation error:", err)
-    return NextResponse.json(
-      { success: false, error: "An unexpected error occurred" },
-      { status: 500 }
-    )
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }
