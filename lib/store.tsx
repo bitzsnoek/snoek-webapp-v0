@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, type Invitation, type UnconnectedFounder } from "./supabase-data"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, dbReorderYearlyGoals, dbReorderYearlyKeyResults, dbReorderQuarterlyGoals, dbReorderQuarterlyKeyResults, type Invitation, type UnconnectedFounder } from "./supabase-data"
 import type { Company, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
 
 interface AppState {
@@ -45,6 +45,10 @@ interface AppState {
   acceptInvitation: (token: string) => Promise<{ success: boolean; companyId?: string; error?: string }>
   updateProfile: (name: string) => Promise<void>
   refreshData: () => Promise<void>
+  reorderYearlyGoals: (yearId: string, fromIndex: number, toIndex: number) => void
+  reorderYearlyKeyResults: (yearId: string, goalId: string, fromIndex: number, toIndex: number) => void
+  reorderQuarterlyGoals: (quarterId: string, fromIndex: number, toIndex: number) => void
+  reorderQuarterlyKeyResults: (quarterId: string, goalId: string, fromIndex: number, toIndex: number) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -610,6 +614,111 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser((prev) => ({ ...prev, name, avatar: initials }))
   }
 
+  // =========== REORDERING FUNCTIONS ===========
+
+  function reorderYearlyGoals(yearId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : {
+              ...company,
+              years: company.years.map((y) => {
+                if (y.id !== yearId) return y
+                const goals = [...y.goals]
+                const [moved] = goals.splice(fromIndex, 1)
+                goals.splice(toIndex, 0, moved)
+                return { ...y, goals }
+              }),
+            }
+      )
+    )
+    // Persist to DB
+    const year = activeCompany.years.find((y) => y.id === yearId)
+    if (year) {
+      const goals = [...year.goals]
+      const [moved] = goals.splice(fromIndex, 1)
+      goals.splice(toIndex, 0, moved)
+      dbReorderYearlyGoals(goals.map((g) => g.id))
+    }
+  }
+
+  function reorderYearlyKeyResults(yearId: string, goalId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : {
+              ...company,
+              years: company.years.map((y) => {
+                if (y.id !== yearId) return y
+                return {
+                  ...y,
+                  goals: y.goals.map((g) => {
+                    if (g.id !== goalId) return g
+                    const keyResults = [...g.keyResults]
+                    const [moved] = keyResults.splice(fromIndex, 1)
+                    keyResults.splice(toIndex, 0, moved)
+                    return { ...g, keyResults }
+                  }),
+                }
+              }),
+            }
+      )
+    )
+    // Persist to DB
+    const year = activeCompany.years.find((y) => y.id === yearId)
+    const goal = year?.goals.find((g) => g.id === goalId)
+    if (goal) {
+      const keyResults = [...goal.keyResults]
+      const [moved] = keyResults.splice(fromIndex, 1)
+      keyResults.splice(toIndex, 0, moved)
+      dbReorderYearlyKeyResults(keyResults.map((kr) => kr.id))
+    }
+  }
+
+  function reorderQuarterlyGoals(quarterId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    patchQuarters(quarterId, (goals) => {
+      const copy = [...goals]
+      const [moved] = copy.splice(fromIndex, 1)
+      copy.splice(toIndex, 0, moved)
+      return copy
+    })
+    // Persist to DB
+    const quarter = activeCompany.quarters.find((q) => q.id === quarterId)
+    if (quarter) {
+      const goals = [...quarter.goals]
+      const [moved] = goals.splice(fromIndex, 1)
+      goals.splice(toIndex, 0, moved)
+      dbReorderQuarterlyGoals(goals.map((g) => g.id))
+    }
+  }
+
+  function reorderQuarterlyKeyResults(quarterId: string, goalId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    patchQuarters(quarterId, (goals) =>
+      goals.map((g) => {
+        if (g.id !== goalId) return g
+        const keyResults = [...g.keyResults]
+        const [moved] = keyResults.splice(fromIndex, 1)
+        keyResults.splice(toIndex, 0, moved)
+        return { ...g, keyResults }
+      })
+    )
+    // Persist to DB
+    const quarter = activeCompany.quarters.find((q) => q.id === quarterId)
+    const goal = quarter?.goals.find((g) => g.id === goalId)
+    if (goal) {
+      const keyResults = [...goal.keyResults]
+      const [moved] = keyResults.splice(fromIndex, 1)
+      keyResults.splice(toIndex, 0, moved)
+      dbReorderQuarterlyKeyResults(keyResults.map((kr) => kr.id))
+    }
+  }
+
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -664,6 +773,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         acceptInvitation,
         updateProfile,
         refreshData: loadData,
+        reorderYearlyGoals,
+        reorderYearlyKeyResults,
+        reorderQuarterlyGoals,
+        reorderQuarterlyKeyResults,
       }}
     >
       {children}

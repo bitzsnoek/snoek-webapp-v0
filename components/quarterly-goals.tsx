@@ -3,9 +3,10 @@
 import { useState } from "react"
 import type { Quarter, Year, QuarterlyGoal } from "@/lib/mock-data"
 import { getProgressPercent } from "@/lib/mock-data"
+import { useApp } from "@/lib/store"
 import { KeyResultCard } from "./key-result-card"
 import { GoalDialog } from "./goal-dialog"
-import { TrendingUp, Plus, Target, Pencil } from "lucide-react"
+import { TrendingUp, Plus, Target, Pencil, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -17,6 +18,7 @@ export function QuarterlyGoals({
   quarters: Quarter[]
   years: Year[]
 }) {
+  const { reorderQuarterlyGoals, reorderQuarterlyKeyResults } = useApp()
   const [dialogState, setDialogState] = useState<{
     quarterId: string
     goal?: QuarterlyGoal
@@ -93,8 +95,11 @@ export function QuarterlyGoals({
                         key={group.yearlyGoalId}
                         group={group}
                         quarterId={quarter.id}
+                        allGoals={quarter.goals}
                         onEdit={(goal) => setDialogState({ quarterId: quarter.id, goal })}
                         onAdd={() => setDialogState({ quarterId: quarter.id })}
+                        onReorderGoal={(fromIndex, toIndex) => reorderQuarterlyGoals(quarter.id, fromIndex, toIndex)}
+                        onReorderKeyResult={(goalId, fromIndex, toIndex) => reorderQuarterlyKeyResults(quarter.id, goalId, fromIndex, toIndex)}
                       />
                     ))
                   )}
@@ -204,13 +209,19 @@ function groupByYearlyGoal(quarter: Quarter, years: Year[]): YearlyGoalGroupData
 function YearlyGoalGroup({
   group,
   quarterId,
+  allGoals,
   onEdit,
   onAdd,
+  onReorderGoal,
+  onReorderKeyResult,
 }: {
   group: YearlyGoalGroupData
   quarterId: string
+  allGoals: QuarterlyGoal[]
   onEdit: (goal: QuarterlyGoal) => void
   onAdd: () => void
+  onReorderGoal: (fromIndex: number, toIndex: number) => void
+  onReorderKeyResult: (goalId: string, fromIndex: number, toIndex: number) => void
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -223,32 +234,78 @@ function YearlyGoalGroup({
       </div>
 
       <div className="flex flex-col gap-5">
-        {group.quarterlyGoals.map(({ goal }) => (
-          <div key={goal.id} className="group/goal rounded-xl border border-border bg-card p-4 md:p-5">
-            <div className="mb-4 flex items-start justify-between gap-2">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chart-2/10">
-                  <TrendingUp className="h-3.5 w-3.5 text-chart-2" />
+        {group.quarterlyGoals.map(({ goal }) => {
+          // Find the index in the full list of quarterly goals
+          const goalIndex = allGoals.findIndex((g) => g.id === goal.id)
+          return (
+            <div key={goal.id} className="group/goal rounded-xl border border-border bg-card p-4 md:p-5">
+              <div className="mb-4 flex items-start justify-between gap-2">
+                <div className="flex items-start gap-3">
+                  {/* Goal reorder controls */}
+                  <div className="flex flex-col gap-0.5 -ml-1 mr-1">
+                    <button
+                      onClick={() => onReorderGoal(goalIndex, goalIndex - 1)}
+                      disabled={goalIndex === 0}
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                      title="Move up"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onReorderGoal(goalIndex, goalIndex + 1)}
+                      disabled={goalIndex === allGoals.length - 1}
+                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                      title="Move down"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chart-2/10">
+                    <TrendingUp className="h-3.5 w-3.5 text-chart-2" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">{goal.objective}</h3>
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">{goal.objective}</h3>
+                <button
+                  onClick={() => onEdit(goal)}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground md:opacity-0 transition-opacity hover:text-foreground md:group-hover/goal:opacity-100"
+                  title="Edit goal"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
               </div>
-              <button
-                onClick={() => onEdit(goal)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground md:opacity-0 transition-opacity hover:text-foreground md:group-hover/goal:opacity-100"
-                title="Edit goal"
-              >
-                <Pencil className="h-3 w-3" />
-                Edit
-              </button>
-            </div>
 
-            <div className="flex flex-col gap-3">
-              {goal.keyResults.map((kr) => (
-                <KeyResultCard key={kr.id} kr={kr} quarterId={quarterId} goalId={goal.id} />
-              ))}
+              <div className="flex flex-col gap-3">
+                {goal.keyResults.map((kr, krIndex) => (
+                  <div key={kr.id} className="flex items-start gap-2">
+                    {/* KR reorder controls */}
+                    <div className="flex flex-col gap-0.5 pt-3">
+                      <button
+                        onClick={() => onReorderKeyResult(goal.id, krIndex, krIndex - 1)}
+                        disabled={krIndex === 0}
+                        className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => onReorderKeyResult(goal.id, krIndex, krIndex + 1)}
+                        disabled={krIndex === goal.keyResults.length - 1}
+                        className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      <KeyResultCard kr={kr} quarterId={quarterId} goalId={goal.id} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

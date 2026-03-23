@@ -1,50 +1,66 @@
-import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import {
+  requireAuth,
+  requireCompanyAccess,
+  validateInput,
+  errorResponse,
+  ERROR_MESSAGES,
+  schemas,
+} from "@/lib/api-security"
 
 const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ")
 
+const connectSchema = z.object({
+  company_id: schemas.uuid,
+})
+
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    // 1. Authentication
+    const { user, error: authError } = await requireAuth()
+    if (authError) return authError
+    if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 2. Validate input
+    const companyId = request.nextUrl.searchParams.get("company_id")
+    const validation = validateInput(connectSchema, { company_id: companyId })
+    if (!validation.success) return validation.error
+
+    // 3. Authorization - verify user is a coach in this company
+    const { hasAccess } = await requireCompanyAccess(user.id, validation.data.company_id, "coach")
+    if (!hasAccess) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
+    // 4. Check configuration
+    const clientId = process.env.GOOGLE_CLIENT_ID
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!clientId || !appUrl) {
+      console.error("Google OAuth not configured")
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
+    }
+
+    // 5. Build OAuth URL
+    const redirectUri = `${appUrl}/api/google-calendar/callback`
+    const state = JSON.stringify({ company_id: validation.data.company_id, user_id: user.id })
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: GOOGLE_OAUTH_SCOPES,
+      state,
+      access_type: "offline",
+      prompt: "consent",
+    })
+
+    return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+  } catch (error) {
+    console.error("Google Calendar connect error:", error)
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
-
-  const companyId = request.nextUrl.searchParams.get("company_id")
-  if (!companyId) {
-    return NextResponse.json({ error: "Missing company_id" }, { status: 400 })
-  }
-
-  // Verify user is a coach in this company
-  const { data: member } = await supabase
-    .from("company_members")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("user_id", user.id)
-    .eq("role", "coach")
-    .single()
-
-  if (!member) {
-    return NextResponse.json({ error: "Not a coach in this company" }, { status: 403 })
-  }
-
-  // Build OAuth URL
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/google-calendar/callback`
-  const state = JSON.stringify({ company_id: companyId, user_id: user.id })
-
-  const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID || "",
-    redirect_uri: redirectUri,
-    response_type: "code",
-    scope: GOOGLE_OAUTH_SCOPES,
-    state,
-    access_type: "offline",
-    prompt: "consent",
-  })
-
-  return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
 }

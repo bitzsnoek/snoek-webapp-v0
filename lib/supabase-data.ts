@@ -52,8 +52,8 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   const [companyRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("company_members_with_email").select("*").eq("company_id", companyId),
-    supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
-    supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }),
+    supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
+    supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
     supabase.from("metrics").select("*").eq("company_id", companyId),
   ])
 
@@ -76,10 +76,10 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     { data: metricVals },
   ] = await Promise.all([
     yearlyGoalIds.length > 0
-      ? supabase.from("yearly_key_results").select("*").in("yearly_goal_id", yearlyGoalIds)
+      ? supabase.from("yearly_key_results").select("*").in("yearly_goal_id", yearlyGoalIds).order("position", { ascending: true })
       : Promise.resolve({ data: [] }),
     quarterlyGoalIds.length > 0
-      ? supabase.from("quarterly_key_results").select("*").in("quarterly_goal_id", quarterlyGoalIds)
+      ? supabase.from("quarterly_key_results").select("*").in("quarterly_goal_id", quarterlyGoalIds).order("position", { ascending: true })
       : Promise.resolve({ data: [] }),
     metricIds.length > 0
       ? supabase.from("metric_values").select("*").in("metric_id", metricIds)
@@ -775,4 +775,37 @@ export async function dbAddQuarter(companyId: string, label: string, year: numbe
   const match = label.match(/Q(\d)/)
   const q = match ? parseInt(match[1]) : 1
   return `${year}-${q}`
+}
+
+// ============================================================
+// Reordering functions
+// ============================================================
+
+export async function dbReorderYearlyGoals(goalIds: string[]) {
+  const supabase = createClient()
+  // Update position for each goal based on array order
+  for (let i = 0; i < goalIds.length; i++) {
+    await supabase.from("yearly_goals").update({ position: i }).eq("id", goalIds[i])
+  }
+}
+
+export async function dbReorderYearlyKeyResults(krIds: string[]) {
+  const supabase = createClient()
+  for (let i = 0; i < krIds.length; i++) {
+    await supabase.from("yearly_key_results").update({ position: i }).eq("id", krIds[i])
+  }
+}
+
+export async function dbReorderQuarterlyGoals(goalIds: string[]) {
+  const supabase = createClient()
+  for (let i = 0; i < goalIds.length; i++) {
+    await supabase.from("quarterly_goals").update({ position: i }).eq("id", goalIds[i])
+  }
+}
+
+export async function dbReorderQuarterlyKeyResults(krIds: string[]) {
+  const supabase = createClient()
+  for (let i = 0; i < krIds.length; i++) {
+    await supabase.from("quarterly_key_results").update({ position: i }).eq("id", krIds[i])
+  }
 }
