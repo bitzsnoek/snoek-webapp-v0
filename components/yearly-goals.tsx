@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import type { Year, YearlyGoal, Confidence } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
-import { Target, Plus, Circle, CheckCircle2, Pencil, Trash2, X } from "lucide-react"
+import { Target, Plus, Circle, CheckCircle2, Pencil, Trash2, X, ChevronUp, ChevronDown, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -235,7 +235,7 @@ function GoalDialog({ state, onClose }: { state: DialogState; onClose: () => voi
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function YearlyGoals({ years }: { years: Year[] }) {
-  const { updateYearlyKRConfidence } = useApp()
+  const { updateYearlyKRConfidence, reorderYearlyGoals, reorderYearlyKeyResults } = useApp()
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [confettiOrigin, setConfettiOrigin] = useState<{ x: number; y: number } | null>(null)
 
@@ -280,13 +280,32 @@ export function YearlyGoals({ years }: { years: Year[] }) {
       {years.map((year) => (
         <div key={year.id} className="mb-10">
           <div className="flex flex-col gap-4">
-            {year.goals.map((goal) => (
+            {year.goals.map((goal, goalIndex) => (
               <div
                 key={goal.id}
                 className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
+                    {/* Reorder controls */}
+                    <div className="flex flex-col gap-0.5 -ml-1 mr-1">
+                      <button
+                        onClick={() => reorderYearlyGoals(year.id, goalIndex, goalIndex - 1)}
+                        disabled={goalIndex === 0}
+                        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => reorderYearlyGoals(year.id, goalIndex, goalIndex + 1)}
+                        disabled={goalIndex === year.goals.length - 1}
+                        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                       <Target className="h-4 w-4 text-primary" />
                     </div>
@@ -302,7 +321,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                 </div>
 
                 <div className="ml-0 sm:ml-11 flex flex-col gap-1.5">
-                  {goal.keyResults.map((kr) => {
+                  {goal.keyResults.map((kr, krIndex) => {
                     const option = getOption(kr.confidence)
                     const isDone = kr.confidence === "done"
                     const isDiscontinued = kr.confidence === "discontinued"
@@ -315,6 +334,25 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                         )}
                       >
                         <div className="flex items-center gap-2.5 text-sm">
+                          {/* KR reorder controls */}
+                          <div className="flex items-center gap-0.5 -ml-1">
+                            <button
+                              onClick={() => reorderYearlyKeyResults(year.id, goal.id, krIndex, krIndex - 1)}
+                              disabled={krIndex === 0}
+                              className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                              title="Move up"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => reorderYearlyKeyResults(year.id, goal.id, krIndex, krIndex + 1)}
+                              disabled={krIndex === goal.keyResults.length - 1}
+                              className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
+                              title="Move down"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+                          </div>
                           {isDone ? (
                             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-400" />
                           ) : (
