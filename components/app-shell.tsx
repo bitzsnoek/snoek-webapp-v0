@@ -340,26 +340,59 @@ export function AppShell() {
   }
 
   if (companies.length === 0) {
+    // Coaches can create companies, founders need to wait for an invitation
+    if (currentUser.role === "coach") {
+      return (
+        <div className="flex h-dvh items-center justify-center bg-background p-6">
+          <div className="w-full max-w-sm text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+              <Building2 className="h-7 w-7 text-primary" />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground">Welcome to Snoek</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Get started by adding your first company to coach.
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <Input
+                placeholder="Company name"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFirstCompany()}
+                className="text-center"
+              />
+              <Button onClick={handleCreateFirstCompany} disabled={!newCompanyName.trim() || creatingCompany}>
+                {creatingCompany ? "Creating..." : "Add company"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // Founder with no companies - they were removed or haven't been invited yet
     return (
       <div className="flex h-dvh items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <Building2 className="h-7 w-7 text-primary" />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+            <Building2 className="h-7 w-7 text-muted-foreground" />
           </div>
-          <h1 className="text-xl font-semibold text-foreground">Welcome to Snoek</h1>
+          <h1 className="text-xl font-semibold text-foreground">No Company Access</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Get started by adding your first company to coach.
+            You are not currently connected to any company. This can happen if you were removed from a company or if your invitation is still pending.
           </p>
-          <div className="mt-6 flex flex-col gap-3">
-            <Input
-              placeholder="Company name"
-              value={newCompanyName}
-              onChange={(e) => setNewCompanyName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateFirstCompany()}
-              className="text-center"
-            />
-            <Button onClick={handleCreateFirstCompany} disabled={!newCompanyName.trim() || creatingCompany}>
-              {creatingCompany ? "Creating..." : "Add company"}
+          <p className="mt-4 text-sm text-muted-foreground">
+            Please contact your coach to request an invitation.
+          </p>
+          <div className="mt-6">
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                const supabase = createClient()
+                await supabase.auth.signOut()
+                window.location.href = "/"
+              }}
+            >
+              Sign out
             </Button>
           </div>
         </div>
