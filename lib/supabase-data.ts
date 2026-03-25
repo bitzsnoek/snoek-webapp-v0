@@ -550,7 +550,7 @@ export async function dbInviteUser(
 
     const senderName = senderProfile.data?.full_name || "Your coach"
 
-    await fetch("/api/send-invitation-email", {
+    const emailResponse = await fetch("/api/send-invitation-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -558,8 +558,14 @@ export async function dbInviteUser(
         founderName: founderName || email.split("@")[0],
         invitationToken: token,
         senderName,
+        companyId, // Required for authorization check
       }),
     })
+    
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json().catch(() => ({}))
+      console.error("Failed to send invitation email:", emailResponse.status, errorData)
+    }
   } catch (emailError) {
     console.error("Failed to send invitation email:", emailError)
     // Don't fail the invitation creation if email fails
