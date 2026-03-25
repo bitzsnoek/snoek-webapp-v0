@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe } from "lucide-react"
+import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
 import { createClient } from "@/lib/supabase/client"
@@ -152,16 +152,13 @@ export function CompanySettings() {
       emailsToSave.push(pendingEmail)
     }
 
-    console.log("[v0] Saving founder with emails:", emailsToSave)
     updateFounder(founderDialog.founderId, name, role, emailsToSave)
     setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
   }
 
   function addEmail() {
     const email = founderDialog.emailInput.trim()
-    console.log("[v0] addEmail called:", { email, currentEmails: founderDialog.emails })
     if (email && !founderDialog.emails.includes(email)) {
-      console.log("[v0] Adding email to list")
       setFounderDialog((prev) => ({
         ...prev,
         emails: [...prev.emails, email],
@@ -384,6 +381,66 @@ export function CompanySettings() {
         )}
       </section>
 
+      {/* Coaches */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-4 md:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
+              <Users className="h-4 w-4 text-foreground" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Coaches</h2>
+          </div>
+        </div>
+
+        {(() => {
+          const coaches = activeCompany.members?.filter((m) => m.role === "coach") ?? []
+          if (coaches.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
+                <Users className="mb-2 h-8 w-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No coaches added yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Invite coaches using the invitations section below</p>
+              </div>
+            )
+          }
+          return (
+            <div className="flex flex-col gap-1">
+              {coaches.map((coach) => {
+                const initials = coach.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                return (
+                  <div
+                    key={coach.id}
+                    className="group flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-secondary/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        {coach.avatar && (
+                          <AvatarImage src={coach.avatar} alt={coach.name} />
+                        )}
+                        <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {coach.name}
+                        </p>
+                        {coach.roleTitle && (
+                          <p className="text-xs text-muted-foreground">{coach.roleTitle}</p>
+                        )}
+                        {coach.email && (
+                          <p className="text-xs text-muted-foreground">{coach.email}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+      </section>
+
       {/* Invitations Manager */}
       <InvitationsManager />
 
@@ -525,10 +582,7 @@ export function CompanySettings() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    console.log("[v0] Add button clicked, emailInput:", founderDialog.emailInput)
-                    addEmail()
-                  }}
+                  onClick={addEmail}
                   disabled={!founderDialog.emailInput.trim()}
                 >
                   Add
@@ -572,10 +626,7 @@ export function CompanySettings() {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                console.log("[v0] Save button clicked, emails:", founderDialog.emails)
-                handleSaveFounder()
-              }}
+              onClick={handleSaveFounder}
               disabled={!founderDialog.name.trim()}
             >
               Save

@@ -105,14 +105,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .eq("id", session.user.id)
         .single()
 
-      // Determine user role: check if they own any company (coach) or are a member
+      // Determine user role: check if they own any company OR are a coach member in any company
       const { data: ownedCompanies } = await supabase
         .from("companies")
         .select("id")
         .eq("coach_id", session.user.id)
         .limit(1)
 
-      const userRole = (ownedCompanies && ownedCompanies.length > 0) ? "coach" : "founder"
+      // Also check if the user is a coach member in any company
+      const { data: coachMemberships } = await supabase
+        .from("company_members")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("role", "coach")
+        .limit(1)
+
+      const userRole = (ownedCompanies && ownedCompanies.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "founder"
       const userName = profile?.full_name || session.user.email?.split("@")[0] || "User"
       const initials = userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
 
