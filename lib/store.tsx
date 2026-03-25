@@ -34,6 +34,7 @@ interface AppState {
   addFounder: (name: string, role: string) => void
   updateFounder: (founderId: string, name: string, role: string, emails?: string[]) => void
   removeFounder: (founderId: string) => void
+  removeMember: (memberId: string) => void
   updateMetricValue: (metricId: string, month: number, value: number) => void
   addMetric: (metric: Omit<Metric, "id">) => void
   deleteMetric: (metricId: string) => void
@@ -474,11 +475,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
-          ? { ...c, founders: c.founders.filter((f) => f.id !== founderId) }
+          ? { 
+              ...c, 
+              founders: c.founders.filter((f) => f.id !== founderId),
+              members: c.members.filter((m) => m.id !== founderId),
+            }
           : c
       )
     )
     dbRemoveFounder(founderId)
+  }
+
+  function removeMember(memberId: string) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? { 
+              ...c, 
+              founders: c.founders.filter((f) => f.id !== memberId),
+              members: c.members.filter((m) => m.id !== memberId),
+            }
+          : c
+      )
+    )
+    dbRemoveFounder(memberId) // Uses same DB function since it's the same table
   }
 
   function updateMetricValue(metricId: string, month: number, value: number) {
@@ -770,6 +790,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addFounder,
         updateFounder,
         removeFounder,
+        removeMember,
         updateMetricValue,
         addMetric,
         deleteMetric,

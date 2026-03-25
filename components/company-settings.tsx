@@ -61,6 +61,7 @@ export function CompanySettings() {
     updateCompanyName,
     updateFounder,
     removeFounder,
+    removeMember,
     deleteCompany,
   } = useApp()
 
@@ -85,6 +86,9 @@ export function CompanySettings() {
 
   // Confirm delete founder state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  
+  // Confirm delete coach state
+  const [deleteCoachConfirm, setDeleteCoachConfirm] = useState<string | null>(null)
 
   // Danger zone: delete company
   const [deleteCompanyDialog, setDeleteCompanyDialog] = useState(false)
@@ -433,6 +437,42 @@ export function CompanySettings() {
                         )}
                       </div>
                     </div>
+
+                    {isCoach && (
+                      <div className="flex items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
+                        {deleteCoachConfirm === coach.id ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                removeMember(coach.id)
+                                setDeleteCoachConfirm(null)
+                              }}
+                            >
+                              Remove
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => setDeleteCoachConfirm(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteCoachConfirm(coach.id)}
+                            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                            title="Remove coach"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
