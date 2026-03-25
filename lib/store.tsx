@@ -34,6 +34,7 @@ interface AppState {
   addFounder: (name: string, role: string) => void
   updateFounder: (founderId: string, name: string, role: string, emails?: string[]) => void
   removeFounder: (founderId: string) => void
+  removeMember: (memberId: string) => void
   updateMetricValue: (metricId: string, month: number, value: number) => void
   addMetric: (metric: Omit<Metric, "id">) => void
   deleteMetric: (metricId: string) => void
@@ -105,14 +106,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .eq("id", session.user.id)
         .single()
 
-      // Determine user role: check if they own any company (coach) or are a member
+      // Determine user role: check if they own any company OR are a coach member in any company
       const { data: ownedCompanies } = await supabase
         .from("companies")
         .select("id")
         .eq("coach_id", session.user.id)
         .limit(1)
 
-      const userRole = (ownedCompanies && ownedCompanies.length > 0) ? "coach" : "founder"
+      // Also check if the user is a coach member in any company
+      const { data: coachMemberships } = await supabase
+        .from("company_members")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("role", "coach")
+        .limit(1)
+
+      const userRole = (ownedCompanies && ownedCompanies.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "founder"
       const userName = profile?.full_name || session.user.email?.split("@")[0] || "User"
       const initials = userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
 
@@ -466,11 +475,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCompanies((prev) =>
       prev.map((c) =>
         c.id === activeCompanyId
-          ? { ...c, founders: c.founders.filter((f) => f.id !== founderId) }
+          ? { 
+              ...c, 
+              founders: c.founders.filter((f) => f.id !== founderId),
+              members: c.members.filter((m) => m.id !== founderId),
+            }
           : c
       )
     )
     dbRemoveFounder(founderId)
+  }
+
+  function removeMember(memberId: string) {
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.id === activeCompanyId
+          ? { 
+              ...c, 
+              founders: c.founders.filter((f) => f.id !== memberId),
+              members: c.members.filter((m) => m.id !== memberId),
+            }
+          : c
+      )
+    )
+    dbRemoveFounder(memberId) // Uses same DB function since it's the same table
   }
 
   function updateMetricValue(metricId: string, month: number, value: number) {
@@ -762,6 +790,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addFounder,
         updateFounder,
         removeFounder,
+        removeMember,
         updateMetricValue,
         addMetric,
         deleteMetric,
