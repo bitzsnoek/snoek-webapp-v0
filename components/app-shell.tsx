@@ -7,6 +7,8 @@ import { Sidebar, type MainSection } from "./sidebar"
 import { YearlyGoals } from "./yearly-goals"
 import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
+import { RealtimeGoalsProvider } from "@/lib/realtime-goals-context"
+import { RealtimeConnectionStatus, ActiveEditorsIndicator } from "@/components/editing-indicator"
 import { MonthlyMetrics } from "./monthly-metrics"
 import MeetingsSection from "./meetings-section"
 import { ChatSection, type ChatTab } from "./chat-section"
@@ -559,14 +561,17 @@ export function AppShell() {
           "flex-1 overflow-y-auto",
           activeSection === "chat" ? "" : "p-4 md:p-6"
         )}>
-          {activeSection === "goals" && activeTabId === "priorities" && (
-            <MonthlyPriorities />
-          )}
-          {activeSection === "goals" && activeYear && (
-            <YearlyGoals years={[activeYear]} />
-          )}
-          {activeSection === "goals" && activeQuarter && (
-            <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />
+          {activeSection === "goals" && (
+            <RealtimeGoalsProvider>
+              {/* Realtime status bar */}
+              <div className="mb-4 flex items-center justify-between">
+                <ActiveEditorsIndicator />
+                <RealtimeConnectionStatus />
+              </div>
+              {activeTabId === "priorities" && <MonthlyPriorities />}
+              {activeYear && <YearlyGoals years={[activeYear]} />}
+              {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
+            </RealtimeGoalsProvider>
           )}
           {activeSection === "metrics" && <MonthlyMetrics />}
           {activeSection === "meetings" && <MeetingsSection />}

@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from "react"
 import type { KeyResult } from "@/lib/mock-data"
 import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarget } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
+import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
+import { EditingIndicator } from "@/components/editing-indicator"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -61,17 +63,21 @@ function EditableCell({
   krId: string
 }) {
   const { updateWeeklyValue } = useApp()
+  const realtimeContext = useOptionalRealtimeGoals()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(value || ""))
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const cellId = `${krId}:${week}`
+
   const commit = useCallback(() => {
     setEditing(false)
+    realtimeContext?.stopEditing()
     const parsed = parseInt(draft, 10)
     const newVal = isNaN(parsed) || parsed < 0 ? 0 : parsed
     if (newVal !== value) updateWeeklyValue(krId, week, newVal)
     setDraft(String(newVal || ""))
-  }, [draft, value, krId, week, updateWeeklyValue])
+  }, [draft, value, krId, week, updateWeeklyValue, realtimeContext])
 
   if (editing) {
     return (
@@ -92,16 +98,24 @@ function EditableCell({
     )
   }
 
+  // Check if someone else is editing this cell
+  const editingUser = realtimeContext?.getEditingUser(cellId)
+
   return (
     <button
-      onClick={() => { setDraft(String(value || "")); setEditing(true) }}
+      onClick={() => { 
+        setDraft(String(value || "")); 
+        setEditing(true)
+        realtimeContext?.startEditing(cellId, "weekly_value")
+      }}
       className={cn(
         "inline-flex h-7 w-12 items-center justify-center rounded-md text-xs transition-colors cursor-text",
+        editingUser ? "ring-2 ring-amber-500/50 bg-amber-500/10" :
         value > 0
           ? "bg-primary/10 font-medium text-primary hover:bg-primary/20"
           : "text-muted-foreground/50 hover:bg-secondary hover:text-muted-foreground"
       )}
-      title={`Click to edit ${week}`}
+      title={editingUser ? `${editingUser.name} is editing` : `Click to edit ${week}`}
     >
       {value || "-"}
     </button>
@@ -124,16 +138,23 @@ function InputCell({
   isFuture: boolean
 }) {
   const { updateWeeklyValue } = useApp()
+  const realtimeContext = useOptionalRealtimeGoals()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(value || ""))
 
+  const cellId = `${krId}:${week}`
+
   const commit = useCallback(() => {
     setEditing(false)
+    realtimeContext?.stopEditing()
     const parsed = parseInt(draft, 10)
     const newVal = isNaN(parsed) || parsed < 0 ? 0 : parsed
     if (newVal !== value) updateWeeklyValue(krId, week, newVal)
     setDraft(String(newVal || ""))
-  }, [draft, value, krId, week, updateWeeklyValue])
+  }, [draft, value, krId, week, updateWeeklyValue, realtimeContext])
+
+  // Check if someone else is editing this cell
+  const editingUser = realtimeContext?.getEditingUser(cellId)
 
   const met = value >= target
   const hasValue = value > 0
@@ -163,9 +184,18 @@ function InputCell({
     // Future empty week — just a dim dash, still clickable
     return (
       <button
-        onClick={() => { setDraft(""); setEditing(true) }}
-        className="inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground"
-        title={`Enter value for ${week}`}
+        onClick={() => { 
+          setDraft(""); 
+          setEditing(true)
+          realtimeContext?.startEditing(cellId, "weekly_value")
+        }}
+        className={cn(
+          "inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md transition-colors",
+          editingUser 
+            ? "ring-2 ring-amber-500/50 bg-amber-500/10 text-amber-500" 
+            : "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
+        )}
+        title={editingUser ? `${editingUser.name} is editing` : `Enter value for ${week}`}
       >
         <span className="text-xs">—</span>
       </button>
@@ -174,16 +204,22 @@ function InputCell({
 
   return (
     <button
-      onClick={() => { setDraft(String(value || "")); setEditing(true) }}
+      onClick={() => { 
+        setDraft(String(value || "")); 
+        setEditing(true)
+        realtimeContext?.startEditing(cellId, "weekly_value")
+      }}
       className={cn(
         "inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md transition-colors cursor-text",
-        !hasValue
+        editingUser
+          ? "ring-2 ring-amber-500/50 bg-amber-500/10"
+          : !hasValue
           ? "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
           : met
           ? "bg-primary/10 hover:bg-primary/20"
           : "bg-destructive/10 hover:bg-destructive/15"
       )}
-      title={`${value} / ${target} — click to edit`}
+      title={editingUser ? `${editingUser.name} is editing` : `${value} / ${target} — click to edit`}
     >
       {hasValue ? (
         <>
@@ -291,12 +327,19 @@ export function KeyResultCard({
   goalId: string
 }) {
   const [expanded, setExpanded] = useState(false)
+  const realtimeContext = useOptionalRealtimeGoals()
   const isInput = kr.type === "input"
   const progress = getProgressPercent(kr)
   const total = sumWeeklyValues(kr)
   const config = typeConfig[kr.type]
   const TypeIcon = config.icon
   const { met, total: trackedWeeks } = getWeeksOnTarget(kr)
+  
+  // Check if anyone is editing any cell in this KR
+  const editingUsers = realtimeContext?.getAllEditingUsers().filter(
+    u => u.editingId?.startsWith(kr.id)
+  ) ?? []
+  const hasActiveEditors = editingUsers.length > 0
 
   const currentWeek = getCurrentWeekKey()
   const currentWeekNum = parseInt(currentWeek.replace("W", ""), 10)
@@ -311,10 +354,36 @@ export function KeyResultCard({
   return (
     <div className={cn(
       "rounded-lg border bg-background/50 p-4 transition-colors hover:border-border/80",
+      hasActiveEditors && "ring-2 ring-amber-500/30",
       kr.owner
         ? "border-border"
         : "border-border/50 opacity-60"
     )}>
+      {/* Active editors indicator */}
+      {hasActiveEditors && (
+        <div className="mb-3 flex items-center gap-2 text-xs text-amber-500">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+          </span>
+          <div className="flex -space-x-1">
+            {editingUsers.slice(0, 3).map((user) => (
+              <span
+                key={user.id}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-amber-500/20 text-[8px] font-medium text-amber-600"
+                title={user.name}
+              >
+                {user.avatar}
+              </span>
+            ))}
+          </div>
+          <span>
+            {editingUsers.length === 1
+              ? `${editingUsers[0].name} is editing`
+              : `${editingUsers.length} people editing`}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         {/* Left: icon + title */}
         <div className="flex items-start gap-3 min-w-0">

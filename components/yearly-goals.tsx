@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import type { Year, YearlyGoal, Confidence } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
+import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
+import { EditingIndicator } from "@/components/editing-indicator"
 import { Target, Plus, Circle, CheckCircle2, Pencil, Trash2, X, ChevronUp, ChevronDown, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -129,6 +131,7 @@ interface DialogState {
 
 function GoalDialog({ state, onClose }: { state: DialogState; onClose: () => void }) {
   const { addYearlyGoal, updateYearlyGoal, deleteYearlyGoal, activeCompany } = useApp()
+  const realtimeContext = useOptionalRealtimeGoals()
   const year = activeCompany.years.find((y) => y.id === state.yearId)!
   const isEdit = state.goal !== null
 
@@ -136,6 +139,16 @@ function GoalDialog({ state, onClose }: { state: DialogState; onClose: () => voi
   const [krTitles, setKrTitles] = useState<string[]>(
     state.goal?.keyResults.map((kr) => kr.title) ?? [""]
   )
+
+  // Track that we're editing this goal
+  useEffect(() => {
+    if (state.goal?.id) {
+      realtimeContext?.startEditing(state.goal.id, "yearly_goal")
+    }
+    return () => {
+      realtimeContext?.stopEditing()
+    }
+  }, [state.goal?.id, realtimeContext])
 
   function setKr(idx: number, value: string) {
     setKrTitles((prev) => prev.map((t, i) => (i === idx ? value : t)))
@@ -283,8 +296,10 @@ export function YearlyGoals({ years }: { years: Year[] }) {
             {year.goals.map((goal, goalIndex) => (
               <div
                 key={goal.id}
-                className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
+                className="group relative rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30"
               >
+                {/* Editing indicator */}
+                <EditingIndicator itemId={goal.id} className="absolute right-4 top-4" />
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
                     {/* Reorder controls */}
