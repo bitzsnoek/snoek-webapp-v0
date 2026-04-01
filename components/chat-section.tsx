@@ -106,6 +106,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
   const [sending, setSending] = useState(false)
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
+  const [creatingConversation, setCreatingConversation] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -363,9 +364,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       </div>
     )
   }
-
-  // State for creating a new conversation
-  const [creatingConversation, setCreatingConversation] = useState(false)
 
   // Create a new 1-on-1 conversation
   const createConversation = async () => {
