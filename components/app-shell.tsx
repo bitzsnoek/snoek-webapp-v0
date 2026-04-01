@@ -80,35 +80,8 @@ export function AppShell() {
 
       if (convosError) throw convosError
 
-      // Find or create group conversation
-      let groupConvo = (convos ?? []).find((c) => c.is_group === true)
-      
-      // If no group conversation exists, create one (with conflict handling)
-      if (!groupConvo) {
-        const { data: newGroupConvo, error: createError } = await supabase
-          .from("conversations")
-          .insert({
-            company_id: activeCompany.id,
-            coach_id: currentUser.id,
-            is_group: true,
-            name: activeCompany.name
-          })
-          .select()
-          .single()
-        
-        if (createError) {
-          // If unique constraint violation, re-fetch to get existing group chat
-          const { data: existingGroup } = await supabase
-            .from("conversations")
-            .select("*")
-            .eq("company_id", activeCompany.id)
-            .eq("is_group", true)
-            .single()
-          groupConvo = existingGroup
-        } else {
-          groupConvo = newGroupConvo
-        }
-      }
+      // Find existing group conversation (don't auto-create)
+      const groupConvo = (convos ?? []).find((c) => c.is_group === true)
 
       // Get profile mappings to match conversations to members by name
       const allUserIds = [...new Set([
@@ -501,28 +474,64 @@ export function AppShell() {
                   No {currentUser.role === "coach" ? "founders" : "coaches"} in this company
                 </span>
               ) : (
-                chatTabs.map((tab) => {
-                  const isActive = selectedChatTab?.odooMemberId === tab.odooMemberId
-                  return (
+                <>
+                  {chatTabs.map((tab) => {
+                    const isActive = tab.isGroup 
+                      ? selectedChatTab?.isGroup === true
+                      : selectedChatTab?.odooMemberId === tab.odooMemberId
+                    return (
+                      <button
+                        key={tab.isGroup ? "group" : tab.odooMemberId}
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => setSelectedChatTab(tab)}
+                        className={cn(
+                          "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
+                          isActive
+                            ? "font-medium text-success"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {tab.name}
+                        {isActive && (
+                          <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
+                        )}
+                      </button>
+                    )
+                  })}
+                  {/* Show "Create Group Chat" button for coaches when no group chat exists */}
+                  {currentUser.role === "coach" && !chatTabs.some(t => t.isGroup) && (
                     <button
-                      key={tab.odooMemberId}
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => setSelectedChatTab(tab)}
-                      className={cn(
-                        "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
-                        isActive
-                          ? "font-medium text-success"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
+                      onClick={async () => {
+                        const supabase = createClient()
+                        try {
+                          const { data: newGroupConvo, error } = await supabase
+                            .from("conversations")
+                            .insert({
+                              company_id: activeCompany.id,
+                              coach_id: currentUser.id,
+                              is_group: true,
+                              name: activeCompany.name
+                            })
+                            .select()
+                            .single()
+                          
+                          if (!error && newGroupConvo) {
+                            // Refresh chat tabs
+                            fetchChatTabs()
+                          }
+                        } catch (err) {
+                          console.error("Error creating group chat:", err)
+                        }
+                      }}
+                      className="ml-1 flex h-7 shrink-0 items-center gap-1 self-center rounded-md border border-dashed border-border px-2 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                      title="Create group chat for this company"
                     >
-                      {tab.name}
-                      {isActive && (
-                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
-                      )}
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Group Chat</span>
                     </button>
-                  )
-                })
+                  )}
+                </>
               )}
             </div>
           )}

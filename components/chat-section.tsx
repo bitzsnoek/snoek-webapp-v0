@@ -364,7 +364,68 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     )
   }
 
-  // No conversation exists yet (only for 1-on-1 chats, group chats always exist)
+  // State for creating a new conversation
+  const [creatingConversation, setCreatingConversation] = useState(false)
+
+  // Create a new 1-on-1 conversation
+  const createConversation = async () => {
+    if (!selectedTab || !activeCompany.id || !currentUser.id) return
+    
+    setCreatingConversation(true)
+    const supabase = createClient()
+
+    try {
+      // Determine coach_id and founder_id based on current user's role
+      const coachId = currentUser.role === "coach" ? currentUser.id : selectedTab.supabaseUserId
+      const founderId = currentUser.role === "founder" ? currentUser.id : selectedTab.supabaseUserId
+
+      // We need to find the supabase user ID for the other person
+      // Look up the member's user_id from company_members
+      const { data: memberData } = await supabase
+        .from("company_members")
+        .select("user_id")
+        .eq("id", selectedTab.odooMemberId)
+        .single()
+
+      const otherUserId = memberData?.user_id
+
+      if (!otherUserId) {
+        console.error("Could not find user ID for member")
+        setCreatingConversation(false)
+        return
+      }
+
+      const finalCoachId = currentUser.role === "coach" ? currentUser.id : otherUserId
+      const finalFounderId = currentUser.role === "founder" ? currentUser.id : otherUserId
+
+      const { data: newConvo, error } = await supabase
+        .from("conversations")
+        .insert({
+          company_id: activeCompany.id,
+          coach_id: finalCoachId,
+          founder_id: finalFounderId,
+          is_group: false,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("Error creating conversation:", error)
+        setCreatingConversation(false)
+        return
+      }
+
+      // Trigger a refresh of the chat tabs by reloading the page section
+      // The parent component will refetch and update the conversationId
+      window.location.reload()
+    } catch (err) {
+      console.error("Error creating conversation:", err)
+    } finally {
+      setCreatingConversation(false)
+    }
+  }
+
+  // No conversation exists yet (only for 1-on-1 chats, group chats are created on demand)
   if (!selectedTab.conversationId && !selectedTab.isGroup) {
     return (
       <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl items-center justify-center">
@@ -373,9 +434,13 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           <p className="text-sm text-muted-foreground">
             No conversation with {selectedTab.name} yet.
           </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Start a conversation from the mobile app to enable chat.
-          </p>
+          <Button 
+            onClick={createConversation} 
+            disabled={creatingConversation}
+            className="mt-4"
+          >
+            {creatingConversation ? "Starting..." : "Start Conversation"}
+          </Button>
         </div>
       </div>
     )
