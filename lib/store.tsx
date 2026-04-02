@@ -88,6 +88,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? emptyCompany
 
+  // Clear all user data (used on logout or session change)
+  const clearUserData = useCallback(() => {
+    setCompanies([])
+    setActiveCompanyId("")
+    setCurrentUser(defaultUser)
+  }, [])
+
   // Load data from Supabase on mount
   const loadData = useCallback(async () => {
     try {
@@ -95,6 +102,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
+        // Clear any existing data when no session
+        clearUserData()
         setLoadError("No active session found. Please log in.")
         return
       }
@@ -152,7 +161,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadData()
-  }, [loadData])
+    
+    // Listen for auth state changes to clear data on logout or user switch
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        // Clear all data immediately when user signs out
+        clearUserData()
+        setIsLoading(false)
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        // Reload data for new user (or refreshed session)
+        loadData()
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [loadData, clearUserData])
 
   // Helper to refresh a single company after mutations.
   // Merges DB data with optimistic state to avoid losing locally-added items

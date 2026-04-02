@@ -4,6 +4,8 @@ import { useState } from "react"
 import type { Quarter, Year, QuarterlyGoal } from "@/lib/mock-data"
 import { getProgressPercent } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
+import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
+import { EditingIndicator } from "@/components/editing-indicator"
 import { KeyResultCard } from "./key-result-card"
 import { GoalDialog } from "./goal-dialog"
 import { TrendingUp, Plus, Target, Pencil, ChevronUp, ChevronDown } from "lucide-react"
@@ -238,7 +240,9 @@ function YearlyGoalGroup({
           // Find the index in the full list of quarterly goals
           const goalIndex = allGoals.findIndex((g) => g.id === goal.id)
           return (
-            <div key={goal.id} className="group/goal rounded-xl border border-border bg-card p-4 md:p-5">
+            <div key={goal.id} className="group/goal relative rounded-xl border border-border bg-card p-4 md:p-5">
+              {/* Editing indicator */}
+              <EditingIndicator itemId={goal.id} className="absolute right-4 top-4" />
               <div className="mb-4 flex items-start justify-between gap-2">
                 <div className="flex items-start gap-3">
                   {/* Goal reorder controls */}

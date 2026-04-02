@@ -7,6 +7,8 @@ import { Sidebar, type MainSection } from "./sidebar"
 import { YearlyGoals } from "./yearly-goals"
 import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
+import { RealtimeGoalsProvider } from "@/lib/realtime-goals-context"
+import { RealtimeConnectionStatus, ActiveEditorsIndicator } from "@/components/editing-indicator"
 import { MonthlyMetrics } from "./monthly-metrics"
 import MeetingsSection from "./meetings-section"
 import { ChatSection, type ChatTab } from "./chat-section"
@@ -80,35 +82,8 @@ export function AppShell() {
 
       if (convosError) throw convosError
 
-      // Find or create group conversation
-      let groupConvo = (convos ?? []).find((c) => c.is_group === true)
-      
-      // If no group conversation exists, create one (with conflict handling)
-      if (!groupConvo) {
-        const { data: newGroupConvo, error: createError } = await supabase
-          .from("conversations")
-          .insert({
-            company_id: activeCompany.id,
-            coach_id: currentUser.id,
-            is_group: true,
-            name: activeCompany.name
-          })
-          .select()
-          .single()
-        
-        if (createError) {
-          // If unique constraint violation, re-fetch to get existing group chat
-          const { data: existingGroup } = await supabase
-            .from("conversations")
-            .select("*")
-            .eq("company_id", activeCompany.id)
-            .eq("is_group", true)
-            .single()
-          groupConvo = existingGroup
-        } else {
-          groupConvo = newGroupConvo
-        }
-      }
+      // Find existing group conversation (don't auto-create)
+      const groupConvo = (convos ?? []).find((c) => c.is_group === true)
 
       // Get profile mappings to match conversations to members by name
       const allUserIds = [...new Set([
@@ -501,28 +476,64 @@ export function AppShell() {
                   No {currentUser.role === "coach" ? "founders" : "coaches"} in this company
                 </span>
               ) : (
-                chatTabs.map((tab) => {
-                  const isActive = selectedChatTab?.odooMemberId === tab.odooMemberId
-                  return (
+                <>
+                  {chatTabs.map((tab) => {
+                    const isActive = tab.isGroup 
+                      ? selectedChatTab?.isGroup === true
+                      : selectedChatTab?.odooMemberId === tab.odooMemberId
+                    return (
+                      <button
+                        key={tab.isGroup ? "group" : tab.odooMemberId}
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => setSelectedChatTab(tab)}
+                        className={cn(
+                          "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
+                          isActive
+                            ? "font-medium text-success"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {tab.name}
+                        {isActive && (
+                          <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
+                        )}
+                      </button>
+                    )
+                  })}
+                  {/* Show "Create Group Chat" button for coaches when no group chat exists */}
+                  {currentUser.role === "coach" && !chatTabs.some(t => t.isGroup) && (
                     <button
-                      key={tab.odooMemberId}
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => setSelectedChatTab(tab)}
-                      className={cn(
-                        "relative flex shrink-0 items-center px-3 text-sm whitespace-nowrap transition-colors",
-                        isActive
-                          ? "font-medium text-success"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
+                      onClick={async () => {
+                        const supabase = createClient()
+                        try {
+                          const { data: newGroupConvo, error } = await supabase
+                            .from("conversations")
+                            .insert({
+                              company_id: activeCompany.id,
+                              coach_id: currentUser.id,
+                              is_group: true,
+                              name: activeCompany.name
+                            })
+                            .select()
+                            .single()
+                          
+                          if (!error && newGroupConvo) {
+                            // Refresh chat tabs
+                            fetchChatTabs()
+                          }
+                        } catch (err) {
+                          console.error("Error creating group chat:", err)
+                        }
+                      }}
+                      className="ml-1 flex h-7 shrink-0 items-center gap-1 self-center rounded-md border border-dashed border-border px-2 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                      title="Create group chat for this company"
                     >
-                      {tab.name}
-                      {isActive && (
-                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
-                      )}
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Group Chat</span>
                     </button>
-                  )
-                })
+                  )}
+                </>
               )}
             </div>
           )}
@@ -550,14 +561,17 @@ export function AppShell() {
           "flex-1 overflow-y-auto",
           activeSection === "chat" ? "" : "p-4 md:p-6"
         )}>
-          {activeSection === "goals" && activeTabId === "priorities" && (
-            <MonthlyPriorities />
-          )}
-          {activeSection === "goals" && activeYear && (
-            <YearlyGoals years={[activeYear]} />
-          )}
-          {activeSection === "goals" && activeQuarter && (
-            <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />
+          {activeSection === "goals" && (
+            <RealtimeGoalsProvider>
+              {/* Realtime status bar */}
+              <div className="mb-4 flex items-center justify-between">
+                <ActiveEditorsIndicator />
+                <RealtimeConnectionStatus />
+              </div>
+              {activeTabId === "priorities" && <MonthlyPriorities />}
+              {activeYear && <YearlyGoals years={[activeYear]} />}
+              {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
+            </RealtimeGoalsProvider>
           )}
           {activeSection === "metrics" && <MonthlyMetrics />}
           {activeSection === "meetings" && <MeetingsSection />}

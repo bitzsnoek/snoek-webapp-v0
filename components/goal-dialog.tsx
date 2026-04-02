@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useApp } from "@/lib/store"
+import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
 import type { QuarterlyGoal, KeyResult, KeyResultType, Year } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +38,7 @@ const emptyKr = (): Omit<KeyResult, "id"> => ({
 
 export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps) {
   const { activeCompany, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal, refreshData } = useApp()
+  const realtimeContext = useOptionalRealtimeGoals()
 
   const [objective, setObjective] = useState(goal?.objective ?? "")
   const [yearlyGoalId, setYearlyGoalId] = useState(goal?.yearlyGoalId ?? "")
@@ -47,6 +49,16 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+
+  // Track that we're editing this goal
+  useEffect(() => {
+    if (goal?.id) {
+      realtimeContext?.startEditing(goal.id, "quarterly_goal")
+    }
+    return () => {
+      realtimeContext?.stopEditing()
+    }
+  }, [goal?.id, realtimeContext])
 
   // All yearly goals across all active years
   const allYearlyGoals = years.flatMap((y) => y.goals.map((g) => ({ ...g, year: y.year })))
