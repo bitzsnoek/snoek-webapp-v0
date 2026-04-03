@@ -471,26 +471,43 @@ export function AutomationsSection() {
 
   // Save automation
   const saveAutomation = async () => {
-    if (!formData.message_content.trim() || !selectedType) return
+    console.log("[v0] saveAutomation called", { selectedType, formData, selectedConversations })
+    
+    if (!formData.message_content.trim() || !selectedType) {
+      console.log("[v0] Validation failed: missing message or type")
+      return
+    }
     
     // Additional validation for scheduled type
     if (selectedType === "scheduled") {
-      if (!formData.scheduled_date || !formData.conversation_id) return
+      if (!formData.scheduled_date || !formData.conversation_id) {
+        console.log("[v0] Validation failed: scheduled missing date or conversation", { 
+          scheduled_date: formData.scheduled_date, 
+          conversation_id: formData.conversation_id 
+        })
+        return
+      }
     }
     
     // Validation for recurring - must have at least one conversation
     if (selectedType === "recurring") {
-      if (selectedConversations.length === 0) return
+      if (selectedConversations.length === 0) {
+        console.log("[v0] Validation failed: recurring missing conversations")
+        return
+      }
     }
 
     const supabase = createClient()
     setSaving(true)
+
+    console.log("[v0] Validation passed, starting save...")
 
     try {
       const autoName = formData.name.trim() || generateDefaultName()
 
       if (editorMode === "create") {
         // Create automation
+        console.log("[v0] Creating automation...")
         const { data: newAuto, error: autoError } = await supabase
           .from("automations")
           .insert({
@@ -504,6 +521,7 @@ export function AutomationsSection() {
           .select()
           .single()
 
+        console.log("[v0] Automation created:", newAuto, "error:", autoError)
         if (autoError) throw autoError
 
         // Create config
@@ -530,7 +548,9 @@ export function AutomationsSection() {
           if (mcError) throw mcError
         } else if (selectedType === "scheduled") {
           // Combine date and time into a timestamp
+          console.log("[v0] Creating scheduled config with:", { date: formData.scheduled_date, time: formData.scheduled_time, conversation_id: formData.conversation_id })
           const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}:00`)
+          console.log("[v0] scheduledAt:", scheduledAt.toISOString())
           const { error: scError } = await supabase
             .from("automation_scheduled_config")
             .insert({
@@ -538,6 +558,7 @@ export function AutomationsSection() {
               conversation_id: formData.conversation_id,
               scheduled_at: scheduledAt.toISOString(),
             })
+          console.log("[v0] scheduled config error:", scError)
           if (scError) throw scError
         }
 
