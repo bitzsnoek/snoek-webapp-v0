@@ -405,13 +405,17 @@ export function AutomationsSection() {
       scheduled_time = dt.toTimeString().slice(0, 5)
     }
     
+    // Parse time_of_day - database stores as '09:00:00' but UI uses '09:00'
+    const dbTimeOfDay = automation.recurring_config?.time_of_day || "09:00"
+    const timeOfDay = dbTimeOfDay.substring(0, 5) // Take first 5 chars (HH:MM)
+    
     setFormData({
       name: automation.name,
       message_content: automation.message_content,
       frequency: automation.recurring_config?.frequency || "weekly",
       day_of_week: automation.recurring_config?.day_of_week ?? 1,
       day_of_month: automation.recurring_config?.day_of_month ?? 1,
-      time_of_day: automation.recurring_config?.time_of_day || "09:00",
+      time_of_day: timeOfDay,
       trigger_type: automation.meeting_config?.trigger_type || "before",
       hours_offset: automation.meeting_config?.hours_offset ?? 24,
       meeting_type: automation.meeting_config?.meeting_type || "",
