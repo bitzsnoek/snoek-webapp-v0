@@ -68,7 +68,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
     if (!objective.trim()) e.objective = "Objective is required"
     keyResults.forEach((kr, i) => {
       if (!kr.title.trim()) e[`kr_${i}_title`] = "Title required"
-      if (kr.target <= 0) e[`kr_${i}_target`] = "Target must be > 0"
+      if (kr.target < 0) e[`kr_${i}_target`] = "Target must be >= 0"
     })
     setErrors(e)
     return Object.keys(e).length === 0
