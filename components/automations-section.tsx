@@ -197,15 +197,27 @@ export function AutomationsSection() {
       
       if (error) throw error
       
+      // For 1:1 chats, get founder names by looking up the user_id in company_members
+      const { data: members } = await supabase
+        .from("company_members")
+        .select("user_id, name")
+        .eq("company_id", activeCompany.id)
+        .eq("role", "founder")
+      
+      // Build a lookup map from user_id to name
+      const userIdToName = new Map<string, string>()
+      for (const m of members ?? []) {
+        if (m.user_id) {
+          userIdToName.set(m.user_id, m.name)
+        }
+      }
+      
       // Build conversation options with names
       const options: ConversationOption[] = (convos ?? []).map((c) => {
         let name = c.name || "Unknown"
-        if (!c.is_group) {
-          // For 1:1 chats, find the founder name
-          const founder = activeCompany.members?.find(
-            (m) => m.supabaseUserId === c.founder_id
-          )
-          name = founder?.name || "1:1 Chat"
+        if (!c.is_group && c.founder_id) {
+          // For 1:1 chats, find the founder name via user_id
+          name = userIdToName.get(c.founder_id) || "1:1 Chat"
         }
         return {
           id: c.id,
@@ -218,7 +230,7 @@ export function AutomationsSection() {
     } catch (err) {
       console.error("Error fetching conversations:", err)
     }
-  }, [activeCompany.id, activeCompany.members])
+  }, [activeCompany.id])
 
   // Fetch automations
   const fetchAutomations = useCallback(async () => {
