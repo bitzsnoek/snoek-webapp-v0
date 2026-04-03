@@ -1,8 +1,17 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { RealtimeChannel } from "@supabase/supabase-js"
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js"
+
+// Debounce helper to prevent too many refreshes
+function debounce<T extends (...args: unknown[]) => void>(fn: T, delay: number): T {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  return ((...args: unknown[]) => {
+    if (timeoutId) clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn(...args), delay)
+  }) as T
+}
 
 // Types for presence state
 export interface EditingUser {
@@ -41,6 +50,18 @@ export function useRealtimeGoals({
   const [currentEditingId, setCurrentEditingId] = useState<string | null>(null)
   const [currentEditingType, setCurrentEditingType] = useState<EditingUser["editingType"]>(null)
 
+  // Keep a stable reference to onDataChange
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
+
+  // Debounced data change handler to prevent rapid refreshes
+  const debouncedOnDataChange = useMemo(() => {
+    return debounce(() => {
+      console.log("[v0] Realtime: Triggering data refresh")
+      onDataChangeRef.current?.()
+    }, 300)
+  }, []) // Empty deps - uses ref for stable reference
+
   // Update presence when editing state changes
   const updatePresence = useCallback(async () => {
     if (!presenceChannelRef.current) return
@@ -60,6 +81,12 @@ export function useRealtimeGoals({
 
     const supabase = createClient()
 
+    // Handler for database changes
+    const handleChange = (table: string) => (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      console.log(`[v0] Realtime: ${table} ${payload.eventType}`, payload)
+      debouncedOnDataChange?.()
+    }
+
     // Create a channel for database changes
     const dbChannel = supabase
       .channel(`goals:${companyId}`)
@@ -71,9 +98,7 @@ export function useRealtimeGoals({
           table: "quarterly_goals",
           filter: `company_id=eq.${companyId}`,
         },
-        () => {
-          onDataChange?.()
-        }
+        handleChange("quarterly_goals")
       )
       .on(
         "postgres_changes",
@@ -82,11 +107,7 @@ export function useRealtimeGoals({
           schema: "public",
           table: "quarterly_key_results",
         },
-        (payload) => {
-          // We need to check if this belongs to our company via the goal
-          // For simplicity, we'll refresh on any change and let the data fetching filter
-          onDataChange?.()
-        }
+        handleChange("quarterly_key_results")
       )
       .on(
         "postgres_changes",
@@ -96,9 +117,7 @@ export function useRealtimeGoals({
           table: "yearly_goals",
           filter: `company_id=eq.${companyId}`,
         },
-        () => {
-          onDataChange?.()
-        }
+        handleChange("yearly_goals")
       )
       .on(
         "postgres_changes",
@@ -107,9 +126,7 @@ export function useRealtimeGoals({
           schema: "public",
           table: "yearly_key_results",
         },
-        () => {
-          onDataChange?.()
-        }
+        handleChange("yearly_key_results")
       )
       .on(
         "postgres_changes",
@@ -118,11 +135,10 @@ export function useRealtimeGoals({
           schema: "public",
           table: "weekly_values",
         },
-        () => {
-          onDataChange?.()
-        }
+        handleChange("weekly_values")
       )
       .subscribe((status) => {
+        console.log(`[v0] Realtime: Database channel status: ${status}`)
         setIsConnected(status === "SUBSCRIBED")
       })
 
@@ -193,7 +209,7 @@ export function useRealtimeGoals({
       channelRef.current = null
       presenceChannelRef.current = null
     }
-  }, [companyId, userId, userName, userAvatar, onDataChange])
+  }, [companyId, userId, userName, userAvatar]) // debouncedOnDataChange is stable via useMemo
 
   // Update presence when editing state changes
   useEffect(() => {
