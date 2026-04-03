@@ -325,11 +325,11 @@ export function AutomationsSection() {
         let founders: { member_id: string; name: string }[] = []
         const { data: afs } = await supabase
           .from("automation_founders")
-          .select("company_member_id")
+          .select("founder_member_id")
           .eq("automation_id", auto.id)
 
         if (afs && afs.length > 0) {
-          const memberIds = afs.map((af) => af.company_member_id)
+          const memberIds = afs.map((af) => af.founder_member_id)
           const { data: members } = await supabase
             .from("company_members")
             .select("id, name")
@@ -526,7 +526,7 @@ export function AutomationsSection() {
         if (selectedFounders.length > 0) {
           const founderInserts = selectedFounders.map((f) => ({
             automation_id: newAuto.id,
-            company_member_id: f.id,
+            founder_member_id: f.id,
           }))
           await supabase.from("automation_founders").insert(founderInserts)
         }
@@ -588,7 +588,7 @@ export function AutomationsSection() {
         if (selectedFounders.length > 0) {
           const founderInserts = selectedFounders.map((f) => ({
             automation_id: editingId,
-            company_member_id: f.id,
+            founder_member_id: f.id,
           }))
           await supabase.from("automation_founders").insert(founderInserts)
         }
