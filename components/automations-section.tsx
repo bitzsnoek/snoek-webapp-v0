@@ -323,10 +323,12 @@ export function AutomationsSection() {
 
         // Fetch founders
         let founders: { member_id: string; name: string }[] = []
-        const { data: afs } = await supabase
+        const { data: afs, error: afsError } = await supabase
           .from("automation_founders")
           .select("founder_member_id")
           .eq("automation_id", auto.id)
+
+        console.log("[v0] automation_founders for", auto.id, ":", afs, "error:", afsError)
 
         if (afs && afs.length > 0) {
           const memberIds = afs.map((af) => af.founder_member_id)
@@ -334,6 +336,7 @@ export function AutomationsSection() {
             .from("company_members")
             .select("id, name")
             .in("id", memberIds)
+          console.log("[v0] members for founders:", members)
           founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
         }
 
@@ -437,10 +440,12 @@ export function AutomationsSection() {
     setSelectedKeyResults(krs as KeyResultOption[])
 
     // Map founders
+    console.log("[v0] automation.founders:", automation.founders)
     const fndrs = (automation.founders || []).map((f) => ({
       id: f.member_id,
       name: f.name,
     }))
+    console.log("[v0] mapped founders:", fndrs)
     setSelectedFounders(fndrs)
 
     setEditorOpen(true)
