@@ -74,6 +74,7 @@ interface Automation {
   }
   key_results?: { id: string; title: string; type: string; target: number }[]
   founders?: { member_id: string; name: string }[]
+  conversations?: { id: string; name: string; is_group: boolean }[]
 }
 
 interface ConversationOption {
@@ -172,6 +173,7 @@ export function AutomationsSection() {
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
   const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
+  const [selectedConversations, setSelectedConversations] = useState<ConversationOption[]>([])
   const [conversations, setConversations] = useState<ConversationOption[]>([])
 
   // Get all key results from the active company
@@ -323,19 +325,40 @@ export function AutomationsSection() {
 
         // Fetch founders
         let founders: { member_id: string; name: string }[] = []
-        const { data: afs } = await supabase
+        const { data: afs, error: afsError } = await supabase
           .from("automation_founders")
-          .select("company_member_id")
+          .select("founder_member_id")
           .eq("automation_id", auto.id)
 
         if (afs && afs.length > 0) {
-          const memberIds = afs.map((af) => af.company_member_id)
+          const memberIds = afs.map((af) => af.founder_member_id)
           const { data: members } = await supabase
             .from("company_members")
             .select("id, name")
             .in("id", memberIds)
           founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
         }
+
+        // Fetch conversations linked to this automation
+        let linkedConversations: { id: string; name: string; is_group: boolean }[] = []
+        const { data: acs, error: acsError } = await supabase
+          .from("automation_conversations")
+          .select("conversation_id, conversations(id, name, is_group, founder_id)")
+          .eq("automation_id", auto.id)
+
+        console.log("[v0] automation_conversations for", auto.id, ":", acs, "error:", acsError)
+
+        if (acs && acs.length > 0) {
+          linkedConversations = acs.map((ac) => {
+            const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
+            return {
+              id: c?.id || ac.conversation_id,
+              name: c?.name || "Chat",
+              is_group: c?.is_group || false,
+            }
+          })
+        }
+        console.log("[v0] linkedConversations:", linkedConversations)
 
         enrichedAutomations.push({
           ...auto,
@@ -344,6 +367,7 @@ export function AutomationsSection() {
           scheduled_config,
           key_results,
           founders,
+          conversations: linkedConversations,
         })
       }
 
@@ -378,6 +402,7 @@ export function AutomationsSection() {
     })
     setSelectedKeyResults([])
     setSelectedFounders([])
+    setSelectedConversations([])
     setEditingId(null)
   }
 
@@ -443,6 +468,16 @@ export function AutomationsSection() {
     }))
     setSelectedFounders(fndrs)
 
+    // Map conversations
+    console.log("[v0] automation.conversations:", automation.conversations)
+    const convos = (automation.conversations || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      is_group: c.is_group,
+    }))
+    console.log("[v0] mapped convos:", convos)
+    setSelectedConversations(convos)
+
     setEditorOpen(true)
   }
 
@@ -453,6 +488,11 @@ export function AutomationsSection() {
     // Additional validation for scheduled type
     if (selectedType === "scheduled") {
       if (!formData.scheduled_date || !formData.conversation_id) return
+    }
+    
+    // Validation for recurring - must have at least one conversation
+    if (selectedType === "recurring") {
+      if (selectedConversations.length === 0) return
     }
 
     const supabase = createClient()
@@ -526,9 +566,18 @@ export function AutomationsSection() {
         if (selectedFounders.length > 0) {
           const founderInserts = selectedFounders.map((f) => ({
             automation_id: newAuto.id,
-            company_member_id: f.id,
+            founder_member_id: f.id,
           }))
           await supabase.from("automation_founders").insert(founderInserts)
+        }
+
+        // Create conversation associations (for recurring messages)
+        if (selectedConversations.length > 0) {
+          const convoInserts = selectedConversations.map((c) => ({
+            automation_id: newAuto.id,
+            conversation_id: c.id,
+          }))
+          await supabase.from("automation_conversations").insert(convoInserts)
         }
       } else {
         // Update automation
@@ -588,9 +637,19 @@ export function AutomationsSection() {
         if (selectedFounders.length > 0) {
           const founderInserts = selectedFounders.map((f) => ({
             automation_id: editingId,
-            company_member_id: f.id,
+            founder_member_id: f.id,
           }))
           await supabase.from("automation_founders").insert(founderInserts)
+        }
+
+        // Update conversations - delete and re-insert
+        await supabase.from("automation_conversations").delete().eq("automation_id", editingId)
+        if (selectedConversations.length > 0) {
+          const convoInserts = selectedConversations.map((c) => ({
+            automation_id: editingId,
+            conversation_id: c.id,
+          }))
+          await supabase.from("automation_conversations").insert(convoInserts)
         }
       }
 
@@ -745,11 +804,11 @@ export function AutomationsSection() {
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {formatSchedule(auto)}
                   </p>
-                  {auto.founders && auto.founders.length > 0 && (
+                  {auto.conversations && auto.conversations.length > 0 && (
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <User className="h-3 w-3" />
+                      <MessageSquare className="h-3 w-3" />
                       <span>
-                        To: {auto.founders.map((f) => f.name).join(", ")}
+                        To: {auto.conversations.map((c) => c.name).join(", ")}
                       </span>
                     </div>
                   )}
@@ -965,24 +1024,24 @@ export function AutomationsSection() {
                   <span className="text-muted-foreground">to</span>
                 </div>
 
-                {/* Founder Selection */}
+                {/* Conversation Selection */}
                 <div className="mt-3 flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">Send to founders:</Label>
-                  {allFounders.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No founders in this company</p>
+                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  {conversations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {allFounders.map((founder) => {
-                        const isSelected = selectedFounders.some((f) => f.id === founder.id)
+                      {conversations.map((convo) => {
+                        const isSelected = selectedConversations.some((c) => c.id === convo.id)
                         return (
                           <button
-                            key={founder.id}
+                            key={convo.id}
                             type="button"
                             onClick={() => {
                               if (isSelected) {
-                                setSelectedFounders((prev) => prev.filter((f) => f.id !== founder.id))
+                                setSelectedConversations((prev) => prev.filter((c) => c.id !== convo.id))
                               } else {
-                                setSelectedFounders((prev) => [...prev, founder])
+                                setSelectedConversations((prev) => [...prev, convo])
                               }
                             }}
                             className={cn(
@@ -992,15 +1051,19 @@ export function AutomationsSection() {
                                 : "bg-secondary text-foreground hover:bg-secondary/80"
                             )}
                           >
-                            <User className="h-3 w-3" />
-                            {founder.name}
+                            {convo.is_group ? (
+                              <Users className="h-3 w-3" />
+                            ) : (
+                              <MessageSquare className="h-3 w-3" />
+                            )}
+                            {convo.name}
                           </button>
                         )
                       })}
                     </div>
                   )}
-                  {selectedFounders.length === 0 && allFounders.length > 0 && (
-                    <p className="text-xs text-amber-500">Please select at least one founder</p>
+                  {selectedConversations.length === 0 && conversations.length > 0 && (
+                    <p className="text-xs text-amber-500">Please select at least one chat</p>
                   )}
                 </div>
               </div>
@@ -1049,33 +1112,40 @@ export function AutomationsSection() {
             {selectedType === "scheduled" && (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label>Send to</Label>
-                  <Select
-                    value={formData.conversation_id}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, conversation_id: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a chat..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {conversations.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          <div className="flex items-center gap-2">
-                            {c.is_group ? (
-                              <Users className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  {conversations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {conversations.map((convo) => {
+                        const isSelected = formData.conversation_id === convo.id
+                        return (
+                          <button
+                            key={convo.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, conversation_id: convo.id }))
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary text-foreground hover:bg-secondary/80"
                             )}
-                            {c.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {conversations.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No conversations available. Start a conversation first.
-                    </p>
+                          >
+                            {convo.is_group ? (
+                              <Users className="h-3 w-3" />
+                            ) : (
+                              <MessageSquare className="h-3 w-3" />
+                            )}
+                            {convo.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!formData.conversation_id && conversations.length > 0 && (
+                    <p className="text-xs text-amber-500">Please select a chat</p>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -1203,7 +1273,7 @@ export function AutomationsSection() {
                 disabled={
                   !formData.message_content.trim() ||
                   saving ||
-                  (selectedType === "recurring" && selectedFounders.length === 0) ||
+                  (selectedType === "recurring" && selectedConversations.length === 0) ||
                   (selectedType === "scheduled" && (!formData.scheduled_date || !formData.conversation_id))
                 }
               >
