@@ -1107,33 +1107,40 @@ export function AutomationsSection() {
             {selectedType === "scheduled" && (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label>Send to</Label>
-                  <Select
-                    value={formData.conversation_id}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, conversation_id: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a chat..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {conversations.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          <div className="flex items-center gap-2">
-                            {c.is_group ? (
-                              <Users className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  {conversations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {conversations.map((convo) => {
+                        const isSelected = formData.conversation_id === convo.id
+                        return (
+                          <button
+                            key={convo.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, conversation_id: convo.id }))
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary text-foreground hover:bg-secondary/80"
                             )}
-                            {c.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {conversations.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No conversations available. Start a conversation first.
-                    </p>
+                          >
+                            {convo.is_group ? (
+                              <Users className="h-3 w-3" />
+                            ) : (
+                              <MessageSquare className="h-3 w-3" />
+                            )}
+                            {convo.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!formData.conversation_id && conversations.length > 0 && (
+                    <p className="text-xs text-amber-500">Please select a chat</p>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
