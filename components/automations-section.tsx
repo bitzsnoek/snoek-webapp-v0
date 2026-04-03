@@ -126,11 +126,16 @@ const DAYS_OF_WEEK = [
   { value: 6, label: "Saturday" },
 ]
 
-const HOURS = Array.from({ length: 24 }, (_, i) => {
-  const hour = i
+const HOURS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const hour = Math.floor(i / 4)
+  const minute = (i % 4) * 15
   const ampm = hour >= 12 ? "PM" : "AM"
   const displayHour = hour % 12 || 12
-  return { value: `${hour.toString().padStart(2, "0")}:00`, label: `${displayHour}:00 ${ampm}` }
+  const minuteStr = minute.toString().padStart(2, "0")
+  return { 
+    value: `${hour.toString().padStart(2, "0")}:${minuteStr}`, 
+    label: `${displayHour}:${minuteStr} ${ampm}` 
+  }
 })
 
 export function AutomationsSection() {
