@@ -341,10 +341,12 @@ export function AutomationsSection() {
 
         // Fetch conversations linked to this automation
         let linkedConversations: { id: string; name: string; is_group: boolean }[] = []
-        const { data: acs } = await supabase
+        const { data: acs, error: acsError } = await supabase
           .from("automation_conversations")
           .select("conversation_id, conversations(id, name, is_group, founder_id)")
           .eq("automation_id", auto.id)
+
+        console.log("[v0] automation_conversations for", auto.id, ":", acs, "error:", acsError)
 
         if (acs && acs.length > 0) {
           linkedConversations = acs.map((ac) => {
@@ -356,6 +358,7 @@ export function AutomationsSection() {
             }
           })
         }
+        console.log("[v0] linkedConversations:", linkedConversations)
 
         enrichedAutomations.push({
           ...auto,
@@ -466,11 +469,13 @@ export function AutomationsSection() {
     setSelectedFounders(fndrs)
 
     // Map conversations
+    console.log("[v0] automation.conversations:", automation.conversations)
     const convos = (automation.conversations || []).map((c) => ({
       id: c.id,
       name: c.name,
       is_group: c.is_group,
     }))
+    console.log("[v0] mapped convos:", convos)
     setSelectedConversations(convos)
 
     setEditorOpen(true)
