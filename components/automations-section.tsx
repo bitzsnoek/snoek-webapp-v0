@@ -127,18 +127,6 @@ const DAYS_OF_WEEK = [
   { value: 6, label: "Saturday" },
 ]
 
-const HOURS = Array.from({ length: 24 * 4 }, (_, i) => {
-  const hour = Math.floor(i / 4)
-  const minute = (i % 4) * 15
-  const ampm = hour >= 12 ? "PM" : "AM"
-  const displayHour = hour % 12 || 12
-  const minuteStr = minute.toString().padStart(2, "0")
-  return { 
-    value: `${hour.toString().padStart(2, "0")}:${minuteStr}`, 
-    label: `${displayHour}:${minuteStr} ${ampm}` 
-  }
-})
-
 export function AutomationsSection() {
   const { activeCompany, currentUser } = useApp()
   const [automations, setAutomations] = useState<Automation[]>([])
@@ -346,8 +334,6 @@ export function AutomationsSection() {
           .select("conversation_id, conversations(id, name, is_group, founder_id)")
           .eq("automation_id", auto.id)
 
-        console.log("[v0] automation_conversations for", auto.id, ":", acs, "error:", acsError)
-
         if (acs && acs.length > 0) {
           linkedConversations = acs.map((ac) => {
             const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
@@ -358,7 +344,6 @@ export function AutomationsSection() {
             }
           })
         }
-        console.log("[v0] linkedConversations:", linkedConversations)
 
         enrichedAutomations.push({
           ...auto,
@@ -469,13 +454,11 @@ export function AutomationsSection() {
     setSelectedFounders(fndrs)
 
     // Map conversations
-    console.log("[v0] automation.conversations:", automation.conversations)
     const convos = (automation.conversations || []).map((c) => ({
       id: c.id,
       name: c.name,
       is_group: c.is_group,
     }))
-    console.log("[v0] mapped convos:", convos)
     setSelectedConversations(convos)
 
     setEditorOpen(true)
@@ -707,11 +690,19 @@ export function AutomationsSection() {
     return `${formData.hours_offset}h ${formData.trigger_type} meeting`
   }
 
+  // Format time string (HH:MM) to readable format (e.g., "9:30 AM")
+  const formatTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(":").map(Number)
+    const ampm = hours >= 12 ? "PM" : "AM"
+    const displayHour = hours % 12 || 12
+    return `${displayHour}:${minutes.toString().padStart(2, "0")} ${ampm}`
+  }
+
   // Format schedule description
   const formatSchedule = (auto: Automation) => {
     if (auto.type === "recurring" && auto.recurring_config) {
       const rc = auto.recurring_config
-      const time = HOURS.find((h) => h.value === rc.time_of_day)?.label || rc.time_of_day
+      const time = formatTime(rc.time_of_day.substring(0, 5))
       
       if (rc.frequency === "daily") {
         return `Every day at ${time}`
@@ -1006,21 +997,12 @@ export function AutomationsSection() {
                   )}
 
                   <span className="text-muted-foreground">at</span>
-                  <Select
+                  <Input
+                    type="time"
                     value={formData.time_of_day}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, time_of_day: v }))}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HOURS.map((h) => (
-                        <SelectItem key={h.value} value={h.value}>
-                          {h.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => setFormData((prev) => ({ ...prev, time_of_day: e.target.value }))}
+                    className="w-28"
+                  />
                   <span className="text-muted-foreground">to</span>
                 </div>
 
@@ -1188,21 +1170,12 @@ export function AutomationsSection() {
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="scheduled-time">Time</Label>
-                    <Select
+                    <Input
+                      id="scheduled-time"
+                      type="time"
                       value={formData.scheduled_time}
-                      onValueChange={(v) => setFormData((prev) => ({ ...prev, scheduled_time: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {HOURS.map((h) => (
-                          <SelectItem key={h.value} value={h.value}>
-                            {h.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_time: e.target.value }))}
+                    />
                   </div>
                 </div>
               </div>
