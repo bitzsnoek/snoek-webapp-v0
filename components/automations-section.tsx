@@ -607,7 +607,9 @@ export function AutomationsSection() {
                   {auto.key_results && auto.key_results.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {auto.key_results.map((kr) => {
+                        if (!kr || !kr.type) return null
                         const config = typeConfig[kr.type as keyof typeof typeConfig]
+                        if (!config) return null
                         return (
                           <span
                             key={kr.id}
@@ -965,7 +967,9 @@ export function AutomationsSection() {
                 </p>
               ) : (
                 allKeyResults.map((kr) => {
+                  if (!kr || !kr.type) return null
                   const config = typeConfig[kr.type]
+                  if (!config) return null
                   const TypeIcon = config.icon
                   const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
                   return (
