@@ -24,11 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
 import {
   Zap,
   Plus,
   Clock,
   Calendar,
+  CalendarIcon,
   Target,
   X,
   ArrowUpRight,
@@ -1067,14 +1071,41 @@ export function AutomationsSection() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="scheduled-date">Date</Label>
-                    <Input
-                      id="scheduled-date"
-                      type="date"
-                      value={formData.scheduled_date}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_date: e.target.value }))}
-                      min={new Date().toISOString().split("T")[0]}
-                    />
+                    <Label>Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !formData.scheduled_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.scheduled_date ? (
+                            format(new Date(formData.scheduled_date), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={formData.scheduled_date ? new Date(formData.scheduled_date) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                scheduled_date: format(date, "yyyy-MM-dd"),
+                              }))
+                            }
+                          }}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="scheduled-time">Time</Label>
