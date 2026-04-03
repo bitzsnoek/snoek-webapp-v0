@@ -74,6 +74,7 @@ interface Automation {
   }
   key_results?: { id: string; title: string; type: string; target: number }[]
   founders?: { member_id: string; name: string }[]
+  conversations?: { id: string; name: string; is_group: boolean }[]
 }
 
 interface ConversationOption {
@@ -172,6 +173,7 @@ export function AutomationsSection() {
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
   const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
+  const [selectedConversations, setSelectedConversations] = useState<ConversationOption[]>([])
   const [conversations, setConversations] = useState<ConversationOption[]>([])
 
   // Get all key results from the active company
@@ -328,16 +330,31 @@ export function AutomationsSection() {
           .select("founder_member_id")
           .eq("automation_id", auto.id)
 
-        console.log("[v0] automation_founders for", auto.id, ":", afs, "error:", afsError)
-
         if (afs && afs.length > 0) {
           const memberIds = afs.map((af) => af.founder_member_id)
           const { data: members } = await supabase
             .from("company_members")
             .select("id, name")
             .in("id", memberIds)
-          console.log("[v0] members for founders:", members)
           founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
+        }
+
+        // Fetch conversations linked to this automation
+        let linkedConversations: { id: string; name: string; is_group: boolean }[] = []
+        const { data: acs } = await supabase
+          .from("automation_conversations")
+          .select("conversation_id, conversations(id, name, is_group, founder_id)")
+          .eq("automation_id", auto.id)
+
+        if (acs && acs.length > 0) {
+          linkedConversations = acs.map((ac) => {
+            const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
+            return {
+              id: c?.id || ac.conversation_id,
+              name: c?.name || "Chat",
+              is_group: c?.is_group || false,
+            }
+          })
         }
 
         enrichedAutomations.push({
@@ -347,6 +364,7 @@ export function AutomationsSection() {
           scheduled_config,
           key_results,
           founders,
+          conversations: linkedConversations,
         })
       }
 
@@ -381,6 +399,7 @@ export function AutomationsSection() {
     })
     setSelectedKeyResults([])
     setSelectedFounders([])
+    setSelectedConversations([])
     setEditingId(null)
   }
 
@@ -440,13 +459,19 @@ export function AutomationsSection() {
     setSelectedKeyResults(krs as KeyResultOption[])
 
     // Map founders
-    console.log("[v0] automation.founders:", automation.founders)
     const fndrs = (automation.founders || []).map((f) => ({
       id: f.member_id,
       name: f.name,
     }))
-    console.log("[v0] mapped founders:", fndrs)
     setSelectedFounders(fndrs)
+
+    // Map conversations
+    const convos = (automation.conversations || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      is_group: c.is_group,
+    }))
+    setSelectedConversations(convos)
 
     setEditorOpen(true)
   }
@@ -458,6 +483,11 @@ export function AutomationsSection() {
     // Additional validation for scheduled type
     if (selectedType === "scheduled") {
       if (!formData.scheduled_date || !formData.conversation_id) return
+    }
+    
+    // Validation for recurring - must have at least one conversation
+    if (selectedType === "recurring") {
+      if (selectedConversations.length === 0) return
     }
 
     const supabase = createClient()
@@ -535,6 +565,15 @@ export function AutomationsSection() {
           }))
           await supabase.from("automation_founders").insert(founderInserts)
         }
+
+        // Create conversation associations (for recurring messages)
+        if (selectedConversations.length > 0) {
+          const convoInserts = selectedConversations.map((c) => ({
+            automation_id: newAuto.id,
+            conversation_id: c.id,
+          }))
+          await supabase.from("automation_conversations").insert(convoInserts)
+        }
       } else {
         // Update automation
         const { error: autoError } = await supabase
@@ -596,6 +635,16 @@ export function AutomationsSection() {
             founder_member_id: f.id,
           }))
           await supabase.from("automation_founders").insert(founderInserts)
+        }
+
+        // Update conversations - delete and re-insert
+        await supabase.from("automation_conversations").delete().eq("automation_id", editingId)
+        if (selectedConversations.length > 0) {
+          const convoInserts = selectedConversations.map((c) => ({
+            automation_id: editingId,
+            conversation_id: c.id,
+          }))
+          await supabase.from("automation_conversations").insert(convoInserts)
         }
       }
 
@@ -750,11 +799,11 @@ export function AutomationsSection() {
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {formatSchedule(auto)}
                   </p>
-                  {auto.founders && auto.founders.length > 0 && (
+                  {auto.conversations && auto.conversations.length > 0 && (
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <User className="h-3 w-3" />
+                      <MessageSquare className="h-3 w-3" />
                       <span>
-                        To: {auto.founders.map((f) => f.name).join(", ")}
+                        To: {auto.conversations.map((c) => c.name).join(", ")}
                       </span>
                     </div>
                   )}
@@ -970,24 +1019,24 @@ export function AutomationsSection() {
                   <span className="text-muted-foreground">to</span>
                 </div>
 
-                {/* Founder Selection */}
+                {/* Conversation Selection */}
                 <div className="mt-3 flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">Send to founders:</Label>
-                  {allFounders.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No founders in this company</p>
+                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  {conversations.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {allFounders.map((founder) => {
-                        const isSelected = selectedFounders.some((f) => f.id === founder.id)
+                      {conversations.map((convo) => {
+                        const isSelected = selectedConversations.some((c) => c.id === convo.id)
                         return (
                           <button
-                            key={founder.id}
+                            key={convo.id}
                             type="button"
                             onClick={() => {
                               if (isSelected) {
-                                setSelectedFounders((prev) => prev.filter((f) => f.id !== founder.id))
+                                setSelectedConversations((prev) => prev.filter((c) => c.id !== convo.id))
                               } else {
-                                setSelectedFounders((prev) => [...prev, founder])
+                                setSelectedConversations((prev) => [...prev, convo])
                               }
                             }}
                             className={cn(
@@ -997,15 +1046,19 @@ export function AutomationsSection() {
                                 : "bg-secondary text-foreground hover:bg-secondary/80"
                             )}
                           >
-                            <User className="h-3 w-3" />
-                            {founder.name}
+                            {convo.is_group ? (
+                              <Users className="h-3 w-3" />
+                            ) : (
+                              <MessageSquare className="h-3 w-3" />
+                            )}
+                            {convo.name}
                           </button>
                         )
                       })}
                     </div>
                   )}
-                  {selectedFounders.length === 0 && allFounders.length > 0 && (
-                    <p className="text-xs text-amber-500">Please select at least one founder</p>
+                  {selectedConversations.length === 0 && conversations.length > 0 && (
+                    <p className="text-xs text-amber-500">Please select at least one chat</p>
                   )}
                 </div>
               </div>
@@ -1208,7 +1261,7 @@ export function AutomationsSection() {
                 disabled={
                   !formData.message_content.trim() ||
                   saving ||
-                  (selectedType === "recurring" && selectedFounders.length === 0) ||
+                  (selectedType === "recurring" && selectedConversations.length === 0) ||
                   (selectedType === "scheduled" && (!formData.scheduled_date || !formData.conversation_id))
                 }
               >
