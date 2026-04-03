@@ -12,7 +12,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const executeSchema = z.object({
-  type: z.enum(["recurring", "meeting_trigger"]).optional(),
+  type: z.enum(["recurring", "meeting_trigger", "scheduled"]).optional(),
 })
 
 export async function POST(request: Request) {
@@ -36,10 +36,13 @@ export async function POST(request: Request) {
       await executeRecurringAutomations(supabase)
     } else if (type === "meeting_trigger") {
       await executeMeetingTriggerAutomations(supabase)
+    } else if (type === "scheduled") {
+      await executeScheduledAutomations(supabase)
     } else {
-      // Execute both if no type specified (default hourly run)
+      // Execute all types if no type specified (default run)
       await executeRecurringAutomations(supabase)
       await executeMeetingTriggerAutomations(supabase)
+      await executeScheduledAutomations(supabase)
     }
 
     return successResponse({ success: true })
@@ -175,58 +178,138 @@ async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof crea
   }
 }
 
+async function executeScheduledAutomations(supabase: ReturnType<typeof createClient>) {
+  const now = new Date()
+
+  // Get all active scheduled automations that are due
+  const { data: automations, error } = await supabase
+    .from("automations")
+    .select(`
+      *,
+      automation_scheduled_config(*)
+    `)
+    .eq("type", "scheduled")
+    .eq("is_active", true)
+
+  if (error) {
+    console.error("[Automations] Error fetching scheduled automations:", error)
+    return
+  }
+
+  for (const automation of automations || []) {
+    const config = automation.automation_scheduled_config?.[0]
+    if (!config) continue
+
+    // Check if already executed
+    if (config.executed) continue
+
+    // Check if it's time to send (scheduled_at has passed)
+    const scheduledAt = new Date(config.scheduled_at)
+    if (scheduledAt > now) continue
+
+    // Send the message to the specific conversation
+    await sendScheduledMessage(supabase, automation, config)
+
+    // Mark as executed
+    await supabase
+      .from("automation_scheduled_config")
+      .update({ executed: true })
+      .eq("id", config.id)
+
+    // Optionally deactivate the automation since it's a one-time message
+    await supabase
+      .from("automations")
+      .update({ is_active: false })
+      .eq("id", automation.id)
+
+    console.log(`[Automations] Executed scheduled automation ${automation.id}`)
+  }
+}
+
+async function sendScheduledMessage(
+  supabase: ReturnType<typeof createClient>,
+  automation: Record<string, unknown>,
+  config: Record<string, unknown>
+) {
+  const coachId = automation.coach_id as string
+  const messageContent = automation.message_content as string
+  const conversationId = config.conversation_id as string
+
+  // Insert the message
+  const { data: newMessage, error: msgError } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: coachId,
+      content: messageContent,
+    })
+    .select()
+    .single()
+
+  if (msgError) {
+    console.error("[Automations] Error sending scheduled message:", msgError)
+    return
+  }
+
+  // Attach key results if any
+  const { data: keyResults } = await supabase
+    .from("automation_key_results")
+    .select("quarterly_key_result_id")
+    .eq("automation_id", automation.id as string)
+
+  if (keyResults && keyResults.length > 0 && newMessage) {
+    const inserts = keyResults.map((kr: Record<string, unknown>) => ({
+      message_id: newMessage.id,
+      quarterly_key_result_id: kr.quarterly_key_result_id,
+    }))
+    
+    await supabase.from("message_key_results").insert(inserts)
+  }
+
+  // Send push notification
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ""}/api/chat/send-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId,
+        senderId: coachId,
+        content: messageContent,
+      }),
+    })
+  } catch (notifErr) {
+    console.error("[Automations] Failed to send push notification:", notifErr)
+  }
+}
+
 async function sendAutomationMessage(
   supabase: ReturnType<typeof createClient>,
   automation: Record<string, unknown>,
   meeting?: Record<string, unknown>
 ) {
-  const companyId = automation.company_id as string
   const coachId = automation.coach_id as string
   const messageContent = automation.message_content as string
 
-  // Get all founders in this company
-  const { data: members } = await supabase
-    .from("company_members")
-    .select("user_id")
-    .eq("company_id", companyId)
-    .eq("role", "founder")
+  // Get conversations linked to this automation
+  const { data: linkedConvos } = await supabase
+    .from("automation_conversations")
+    .select("conversation_id")
+    .eq("automation_id", automation.id as string)
 
-  if (!members || members.length === 0) return
+  if (!linkedConvos || linkedConvos.length === 0) {
+    console.log(`[Automations] No conversations linked to automation ${automation.id}`)
+    return
+  }
 
-  // Get or create conversations with each founder
-  for (const member of members) {
-    if (!member.user_id) continue
-
-    // Find existing conversation
-    let { data: conversation } = await supabase
-      .from("conversations")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("coach_id", coachId)
-      .eq("founder_id", member.user_id)
-      .single()
-
-    // Create conversation if it doesn't exist
-    if (!conversation) {
-      const { data: newConvo } = await supabase
-        .from("conversations")
-        .insert({
-          company_id: companyId,
-          coach_id: coachId,
-          founder_id: member.user_id,
-        })
-        .select()
-        .single()
-      conversation = newConvo
-    }
-
-    if (!conversation) continue
+  // Send message to each linked conversation
+  for (const link of linkedConvos) {
+    const conversationId = link.conversation_id
 
     // Insert the message
     const { data: newMessage, error: msgError } = await supabase
       .from("messages")
       .insert({
-        conversation_id: conversation.id,
+        conversation_id: conversationId,
         sender_id: coachId,
         content: messageContent,
       })
@@ -259,7 +342,7 @@ async function sendAutomationMessage(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversationId: conversation.id,
+          conversationId,
           senderId: coachId,
           content: messageContent,
         }),
@@ -269,13 +352,28 @@ async function sendAutomationMessage(
     }
   }
 
-  console.log(`[Automations] Sent message for automation ${automation.id} to ${members.length} founders`)
+  console.log(`[Automations] Sent message for automation ${automation.id} to ${linkedConvos.length} conversations`)
 }
 
 // Also support GET for easy testing (but require auth)
-export async function GET() {
+export async function GET(request: Request) {
+  // For Vercel Cron, GET requests are sent with the CRON_SECRET
+  if (validateCronSecret(request)) {
+    // Execute all automation types
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    try {
+      await executeRecurringAutomations(supabase)
+      await executeMeetingTriggerAutomations(supabase)
+      await executeScheduledAutomations(supabase)
+      return successResponse({ success: true, executed: ["recurring", "meeting_trigger", "scheduled"] })
+    } catch (error) {
+      console.error("[Automations] Error executing automations:", error)
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
+    }
+  }
+  
   return successResponse({ 
-    message: "Automations execution endpoint. Use POST with valid CRON_SECRET to trigger automations.",
-    usage: "POST with body: { type: 'recurring' | 'meeting_trigger' }"
+    message: "Automations execution endpoint. Cron runs every 5 minutes.",
+    types: ["recurring", "meeting_trigger", "scheduled"]
   })
 }
