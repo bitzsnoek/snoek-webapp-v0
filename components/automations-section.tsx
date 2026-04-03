@@ -24,11 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
 import {
   Zap,
   Plus,
   Clock,
   Calendar,
+  CalendarIcon,
   Target,
   X,
   ArrowUpRight,
@@ -38,6 +42,8 @@ import {
   Pencil,
   Users,
   User,
+  Send,
+  MessageSquare,
 } from "lucide-react"
 
 // Types
@@ -45,7 +51,7 @@ interface Automation {
   id: string
   company_id: string
   coach_id: string
-  type: "recurring" | "meeting_trigger"
+  type: "recurring" | "meeting_trigger" | "scheduled"
   name: string
   message_content: string
   is_active: boolean
@@ -61,8 +67,19 @@ interface Automation {
     hours_offset: number
     meeting_type?: string
   }
+  scheduled_config?: {
+    scheduled_at: string
+    conversation_id: string
+    conversation_name?: string
+  }
   key_results?: { id: string; title: string; type: string; target: number }[]
   founders?: { member_id: string; name: string }[]
+}
+
+interface ConversationOption {
+  id: string
+  name: string
+  is_group: boolean
 }
 
 interface FounderOption {
@@ -109,11 +126,16 @@ const DAYS_OF_WEEK = [
   { value: 6, label: "Saturday" },
 ]
 
-const HOURS = Array.from({ length: 24 }, (_, i) => {
-  const hour = i
+const HOURS = Array.from({ length: 24 * 4 }, (_, i) => {
+  const hour = Math.floor(i / 4)
+  const minute = (i % 4) * 15
   const ampm = hour >= 12 ? "PM" : "AM"
   const displayHour = hour % 12 || 12
-  return { value: `${hour.toString().padStart(2, "0")}:00`, label: `${displayHour}:00 ${ampm}` }
+  const minuteStr = minute.toString().padStart(2, "0")
+  return { 
+    value: `${hour.toString().padStart(2, "0")}:${minuteStr}`, 
+    label: `${displayHour}:${minuteStr} ${ampm}` 
+  }
 })
 
 export function AutomationsSection() {
@@ -126,7 +148,7 @@ export function AutomationsSection() {
   const [typePickerOpen, setTypePickerOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create")
-  const [selectedType, setSelectedType] = useState<"recurring" | "meeting_trigger" | null>(null)
+  const [selectedType, setSelectedType] = useState<"recurring" | "meeting_trigger" | "scheduled" | null>(null)
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
 
   // Form state
@@ -143,9 +165,14 @@ export function AutomationsSection() {
     trigger_type: "before" as "before" | "after",
     hours_offset: 24,
     meeting_type: "",
+    // Scheduled
+    scheduled_date: "",
+    scheduled_time: "09:00",
+    conversation_id: "",
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
   const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
+  const [conversations, setConversations] = useState<ConversationOption[]>([])
 
   // Get all key results from the active company
   const allKeyResults: KeyResultOption[] = activeCompany.quarters.flatMap((quarter) =>
@@ -164,6 +191,55 @@ export function AutomationsSection() {
   const allFounders: FounderOption[] = (activeCompany.members || [])
     .filter((m) => m.role === "founder")
     .map((m) => ({ id: m.id, name: m.name }))
+
+  // Fetch conversations for the company
+  const fetchConversations = useCallback(async () => {
+    if (!activeCompany.id) return
+    
+    const supabase = createClient()
+    
+    try {
+      const { data: convos, error } = await supabase
+        .from("conversations")
+        .select("id, name, is_group, coach_id, founder_id")
+        .eq("company_id", activeCompany.id)
+      
+      if (error) throw error
+      
+      // For 1:1 chats, get founder names by looking up the user_id in company_members
+      const { data: members } = await supabase
+        .from("company_members")
+        .select("user_id, name")
+        .eq("company_id", activeCompany.id)
+        .eq("role", "founder")
+      
+      // Build a lookup map from user_id to name
+      const userIdToName = new Map<string, string>()
+      for (const m of members ?? []) {
+        if (m.user_id) {
+          userIdToName.set(m.user_id, m.name)
+        }
+      }
+      
+      // Build conversation options with names
+      const options: ConversationOption[] = (convos ?? []).map((c) => {
+        let name = c.name || "Unknown"
+        if (!c.is_group && c.founder_id) {
+          // For 1:1 chats, find the founder name via user_id
+          name = userIdToName.get(c.founder_id) || "1:1 Chat"
+        }
+        return {
+          id: c.id,
+          name: c.is_group ? `${name} (Group)` : name,
+          is_group: c.is_group,
+        }
+      })
+      
+      setConversations(options)
+    } catch (err) {
+      console.error("Error fetching conversations:", err)
+    }
+  }, [activeCompany.id])
 
   // Fetch automations
   const fetchAutomations = useCallback(async () => {
@@ -188,6 +264,7 @@ export function AutomationsSection() {
       for (const auto of (autos ?? [])) {
         let recurring_config = undefined
         let meeting_config = undefined
+        let scheduled_config = undefined
         let key_results: { id: string; title: string; type: string; target: number }[] = []
 
         if (auto.type === "recurring") {
@@ -209,6 +286,22 @@ export function AutomationsSection() {
               trigger_type: mc.trigger_timing as "before" | "after",
               hours_offset: mc.hours_offset,
               meeting_type: mc.meeting_type,
+            }
+          }
+        } else if (auto.type === "scheduled") {
+          const { data: sc } = await supabase
+            .from("automation_scheduled_config")
+            .select("*, conversations(name, is_group)")
+            .eq("automation_id", auto.id)
+            .single()
+          if (sc) {
+            const convoName = sc.conversations?.is_group 
+              ? `${sc.conversations?.name || "Group"} (Group)` 
+              : sc.conversations?.name || "1:1 Chat"
+            scheduled_config = {
+              scheduled_at: sc.scheduled_at,
+              conversation_id: sc.conversation_id,
+              conversation_name: convoName,
             }
           }
         }
@@ -248,6 +341,7 @@ export function AutomationsSection() {
           ...auto,
           recurring_config,
           meeting_config,
+          scheduled_config,
           key_results,
           founders,
         })
@@ -263,7 +357,8 @@ export function AutomationsSection() {
 
   useEffect(() => {
     fetchAutomations()
-  }, [fetchAutomations])
+    fetchConversations()
+  }, [fetchAutomations, fetchConversations])
 
   // Reset form
   const resetForm = () => {
@@ -277,6 +372,9 @@ export function AutomationsSection() {
       trigger_type: "before",
       hours_offset: 24,
       meeting_type: "",
+      scheduled_date: "",
+      scheduled_time: "09:00",
+      conversation_id: "",
     })
     setSelectedKeyResults([])
     setSelectedFounders([])
@@ -290,7 +388,7 @@ export function AutomationsSection() {
   }
 
   // Select type and open editor
-  const selectType = (type: "recurring" | "meeting_trigger") => {
+  const selectType = (type: "recurring" | "meeting_trigger" | "scheduled") => {
     setSelectedType(type)
     setEditorMode("create")
     setTypePickerOpen(false)
@@ -303,16 +401,32 @@ export function AutomationsSection() {
     setSelectedType(automation.type)
     setEditorMode("edit")
     
+    // Parse scheduled datetime if present
+    let scheduled_date = ""
+    let scheduled_time = "09:00"
+    if (automation.scheduled_config?.scheduled_at) {
+      const dt = new Date(automation.scheduled_config.scheduled_at)
+      scheduled_date = dt.toISOString().split("T")[0]
+      scheduled_time = dt.toTimeString().slice(0, 5)
+    }
+    
+    // Parse time_of_day - database stores as '09:00:00' but UI uses '09:00'
+    const dbTimeOfDay = automation.recurring_config?.time_of_day || "09:00"
+    const timeOfDay = dbTimeOfDay.substring(0, 5) // Take first 5 chars (HH:MM)
+    
     setFormData({
       name: automation.name,
       message_content: automation.message_content,
       frequency: automation.recurring_config?.frequency || "weekly",
       day_of_week: automation.recurring_config?.day_of_week ?? 1,
       day_of_month: automation.recurring_config?.day_of_month ?? 1,
-      time_of_day: automation.recurring_config?.time_of_day || "09:00",
+      time_of_day: timeOfDay,
       trigger_type: automation.meeting_config?.trigger_type || "before",
       hours_offset: automation.meeting_config?.hours_offset ?? 24,
       meeting_type: automation.meeting_config?.meeting_type || "",
+      scheduled_date,
+      scheduled_time,
+      conversation_id: automation.scheduled_config?.conversation_id || "",
     })
 
     // Map key results
@@ -335,6 +449,11 @@ export function AutomationsSection() {
   // Save automation
   const saveAutomation = async () => {
     if (!formData.message_content.trim() || !selectedType) return
+    
+    // Additional validation for scheduled type
+    if (selectedType === "scheduled") {
+      if (!formData.scheduled_date || !formData.conversation_id) return
+    }
 
     const supabase = createClient()
     setSaving(true)
@@ -371,7 +490,7 @@ export function AutomationsSection() {
               time_of_day: formData.time_of_day,
             })
           if (rcError) throw rcError
-        } else {
+        } else if (selectedType === "meeting_trigger") {
           const { error: mcError } = await supabase
             .from("automation_meeting_config")
             .insert({
@@ -381,6 +500,17 @@ export function AutomationsSection() {
               meeting_type: formData.meeting_type || null,
             })
           if (mcError) throw mcError
+        } else if (selectedType === "scheduled") {
+          // Combine date and time into a timestamp
+          const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}:00`)
+          const { error: scError } = await supabase
+            .from("automation_scheduled_config")
+            .insert({
+              automation_id: newAuto.id,
+              conversation_id: formData.conversation_id,
+              scheduled_at: scheduledAt.toISOString(),
+            })
+          if (scError) throw scError
         }
 
         // Create key result associations
@@ -423,13 +553,22 @@ export function AutomationsSection() {
               time_of_day: formData.time_of_day,
             })
             .eq("automation_id", editingId)
-        } else {
+        } else if (selectedType === "meeting_trigger") {
           await supabase
             .from("automation_meeting_config")
             .update({
               trigger_timing: formData.trigger_type,
               hours_offset: formData.hours_offset,
               meeting_type: formData.meeting_type || null,
+            })
+            .eq("automation_id", editingId)
+        } else if (selectedType === "scheduled") {
+          const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}:00`)
+          await supabase
+            .from("automation_scheduled_config")
+            .update({
+              conversation_id: formData.conversation_id,
+              scheduled_at: scheduledAt.toISOString(),
             })
             .eq("automation_id", editingId)
         }
@@ -501,6 +640,11 @@ export function AutomationsSection() {
       const day = DAYS_OF_WEEK.find((d) => d.value === formData.day_of_week)?.label || ""
       return `${formData.frequency === "weekly" ? `Weekly on ${day}` : formData.frequency === "daily" ? "Daily" : `Monthly on day ${formData.day_of_month}`}`
     }
+    if (selectedType === "scheduled") {
+      const convo = conversations.find((c) => c.id === formData.conversation_id)
+      const dateStr = formData.scheduled_date ? new Date(formData.scheduled_date).toLocaleDateString() : "TBD"
+      return `Scheduled for ${convo?.name || "chat"} on ${dateStr}`
+    }
     return `${formData.hours_offset}h ${formData.trigger_type} meeting`
   }
 
@@ -521,6 +665,12 @@ export function AutomationsSection() {
     } else if (auto.type === "meeting_trigger" && auto.meeting_config) {
       const mc = auto.meeting_config
       return `${mc.hours_offset}h ${mc.trigger_type} meetings`
+    } else if (auto.type === "scheduled" && auto.scheduled_config) {
+      const sc = auto.scheduled_config
+      const dt = new Date(sc.scheduled_at)
+      const dateStr = dt.toLocaleDateString()
+      const timeStr = dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      return `${dateStr} at ${timeStr} to ${sc.conversation_name || "chat"}`
     }
     return ""
   }
@@ -574,22 +724,24 @@ export function AutomationsSection() {
               )}
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "rounded p-1.5",
-                        auto.type === "recurring" ? "bg-chart-2/10" : "bg-chart-1/10"
-                      )}
-                    >
-                      {auto.type === "recurring" ? (
-                        <Clock className="h-4 w-4 text-chart-2" />
-                      ) : (
-                        <Calendar className="h-4 w-4 text-chart-1" />
-                      )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "rounded p-1.5",
+                          auto.type === "recurring" ? "bg-chart-2/10" : auto.type === "scheduled" ? "bg-chart-3/10" : "bg-chart-1/10"
+                        )}
+                      >
+                        {auto.type === "recurring" ? (
+                          <Clock className="h-4 w-4 text-chart-2" />
+                        ) : auto.type === "scheduled" ? (
+                          <Send className="h-4 w-4 text-chart-3" />
+                        ) : (
+                          <Calendar className="h-4 w-4 text-chart-1" />
+                        )}
+                      </div>
+                      <h3 className="font-medium text-foreground">{auto.name}</h3>
                     </div>
-                    <h3 className="font-medium text-foreground">{auto.name}</h3>
-                  </div>
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {formatSchedule(auto)}
                   </p>
@@ -607,7 +759,9 @@ export function AutomationsSection() {
                   {auto.key_results && auto.key_results.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {auto.key_results.map((kr) => {
+                        if (!kr || !kr.type) return null
                         const config = typeConfig[kr.type as keyof typeof typeConfig]
+                        if (!config) return null
                         return (
                           <span
                             key={kr.id}
@@ -688,6 +842,20 @@ export function AutomationsSection() {
                 </p>
               </div>
             </button>
+            <button
+              onClick={() => selectType("scheduled")}
+              className="flex items-start gap-3 rounded-lg border border-border p-4 text-left transition-colors hover:bg-secondary/50"
+            >
+              <div className="rounded bg-chart-3/10 p-2">
+                <Send className="h-5 w-5 text-chart-3" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Scheduled Message</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Schedule a single message to be sent at a specific date and time
+                </p>
+              </div>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
@@ -701,7 +869,7 @@ export function AutomationsSection() {
           <DialogHeader>
             <DialogTitle>
               {editorMode === "create" ? "Create" : "Edit"}{" "}
-              {selectedType === "recurring" ? "Recurring Message" : "Meeting Trigger"}
+              {selectedType === "recurring" ? "Recurring Message" : selectedType === "scheduled" ? "Scheduled Message" : "Meeting Trigger"}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
@@ -877,6 +1045,99 @@ export function AutomationsSection() {
               </div>
             )}
 
+            {/* Scheduled Config */}
+            {selectedType === "scheduled" && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Send to</Label>
+                  <Select
+                    value={formData.conversation_id}
+                    onValueChange={(v) => setFormData((prev) => ({ ...prev, conversation_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a chat..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conversations.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            {c.is_group ? (
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            {c.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {conversations.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No conversations available. Start a conversation first.
+                    </p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Label>Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !formData.scheduled_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.scheduled_date ? (
+                            format(new Date(formData.scheduled_date), "PPP")
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={formData.scheduled_date ? new Date(formData.scheduled_date) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                scheduled_date: format(date, "yyyy-MM-dd"),
+                              }))
+                            }
+                          }}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="scheduled-time">Time</Label>
+                    <Select
+                      value={formData.scheduled_time}
+                      onValueChange={(v) => setFormData((prev) => ({ ...prev, scheduled_time: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HOURS.map((h) => (
+                          <SelectItem key={h.value} value={h.value}>
+                            {h.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Message */}
             <div className="flex flex-col gap-2">
               <Label htmlFor="auto-message">Message</Label>
@@ -937,14 +1198,15 @@ export function AutomationsSection() {
             <Button variant="outline" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={saveAutomation} 
-              disabled={
-                !formData.message_content.trim() || 
-                saving || 
-                (selectedType === "recurring" && selectedFounders.length === 0)
-              }
-            >
+              <Button
+                onClick={saveAutomation}
+                disabled={
+                  !formData.message_content.trim() ||
+                  saving ||
+                  (selectedType === "recurring" && selectedFounders.length === 0) ||
+                  (selectedType === "scheduled" && (!formData.scheduled_date || !formData.conversation_id))
+                }
+              >
               {saving ? "Saving..." : editorMode === "create" ? "Create" : "Save"}
             </Button>
           </DialogFooter>
@@ -965,7 +1227,9 @@ export function AutomationsSection() {
                 </p>
               ) : (
                 allKeyResults.map((kr) => {
+                  if (!kr || !kr.type) return null
                   const config = typeConfig[kr.type]
+                  if (!config) return null
                   const TypeIcon = config.icon
                   const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
                   return (
