@@ -172,12 +172,12 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
 
         // Get unique key result IDs
-        const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id))]
+        const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id).filter(Boolean))]
         console.log("[v0] Key result IDs from junction table:", krIds)
         
         // Also include legacy key_result_id values
         const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
-        const allKrIds = [...new Set([...krIds, ...legacyKrIds])]
+        const allKrIds = [...new Set([...krIds, ...legacyKrIds])].filter((id): id is string => !!id)
         
         let krMap: Record<string, { id: string; title: string; type: string; target: number; owner: string | null }> = {}
         
