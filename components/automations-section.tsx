@@ -69,7 +69,7 @@ interface Automation {
     conversation_id: string
     conversation_name?: string
   }
-  key_results?: { id: string; title: string; type: string; target: number }[]
+  key_results?: { id: string; title: string; type: string; target: number; owner: string | null }[]
   founders?: { member_id: string; name: string }[]
   conversations?: { id: string; name: string; is_group: boolean }[]
 }
@@ -253,7 +253,7 @@ export function AutomationsSection() {
         let recurring_config = undefined
 
         let scheduled_config = undefined
-        let key_results: { id: string; title: string; type: string; target: number }[] = []
+        let key_results: { id: string; title: string; type: string; target: number; owner: string | null }[] = []
 
         if (auto.type === "recurring") {
           const { data: rc } = await supabase
@@ -446,7 +446,7 @@ export function AutomationsSection() {
     // Map key results
     const krs = (automation.key_results || []).map((kr) => {
       const found = allKeyResults.find((akr) => akr.id === kr.id)
-      return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "" }
+      return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "", owner: kr.owner }
     })
     setSelectedKeyResults(krs as KeyResultOption[])
 
@@ -593,18 +593,13 @@ export function AutomationsSection() {
         }
 
         // Update key results - delete and re-insert
-        console.log("[v0] Updating key results for automation:", editingId)
-        console.log("[v0] selectedKeyResults:", selectedKeyResults)
-        const deleteResult = await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
-        console.log("[v0] Delete result:", deleteResult)
+        await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
         if (selectedKeyResults.length > 0) {
           const inserts = selectedKeyResults.map((kr) => ({
             automation_id: editingId,
             quarterly_key_result_id: kr.id,
           }))
-          console.log("[v0] Inserting key results:", inserts)
-          const insertResult = await supabase.from("automation_key_results").insert(inserts)
-          console.log("[v0] Insert result:", insertResult)
+          await supabase.from("automation_key_results").insert(inserts)
         }
 
         // Update founders - delete and re-insert
