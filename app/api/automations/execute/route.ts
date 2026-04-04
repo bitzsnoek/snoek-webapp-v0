@@ -173,7 +173,9 @@ async function executeScheduledAutomations(supabase: ReturnType<typeof createCli
   console.log("[Automations] Found", automations?.length || 0, "active scheduled automations")
 
   for (const automation of automations || []) {
-    const config = automation.automation_scheduled_config?.[0]
+    // Supabase returns object for single() or array otherwise - handle both
+    const configData = automation.automation_scheduled_config
+    const config = Array.isArray(configData) ? configData[0] : configData
     if (!config) {
       console.log("[Automations] No config for automation", automation.id)
       continue

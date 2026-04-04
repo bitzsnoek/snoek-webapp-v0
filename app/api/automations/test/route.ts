@@ -58,7 +58,9 @@ export async function POST(request: Request) {
 
     if (automation.type === "scheduled") {
       // For scheduled, use the conversation_id from config
-      const config = automation.automation_scheduled_config?.[0]
+      // Supabase returns object for single() or array otherwise - handle both
+      const configData = automation.automation_scheduled_config
+      const config = Array.isArray(configData) ? configData[0] : configData
       console.log("[v0] Scheduled config:", config)
       if (config?.conversation_id) {
         conversationIds = [config.conversation_id]
