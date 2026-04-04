@@ -80,7 +80,9 @@ async function executeRecurringAutomations(supabase: ReturnType<typeof createCli
   console.log("[Automations] Found", automations?.length || 0, "active recurring automations")
 
   for (const automation of automations || []) {
-    const config = automation.automation_recurring_config?.[0]
+    // Supabase returns object for single relations or array - handle both
+    const configData = automation.automation_recurring_config
+    const config = Array.isArray(configData) ? configData[0] : configData
     if (!config) {
       console.log("[Automations] No config for automation", automation.id)
       continue
