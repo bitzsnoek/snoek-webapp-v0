@@ -227,9 +227,11 @@ export function validateCronSecret(request: Request): boolean {
     return true
   }
   
-  // Log only if neither is configured
-  if (!cronSecret && !serviceRoleKey) {
-    console.error("Neither CRON_SECRET nor SUPABASE_SERVICE_ROLE_KEY is configured - rejecting request")
+  // Check for Supabase pg_cron header (hardcoded secret)
+  const supabaseCronHeader = request.headers.get("x-supabase-cron")
+  const cronSecretHeader = request.headers.get("x-cron-secret")
+  if (supabaseCronHeader === "true" && cronSecretHeader === "snoek-automation-cron-2026") {
+    return true
   }
   
   return false
