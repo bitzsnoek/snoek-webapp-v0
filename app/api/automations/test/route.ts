@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         conversationIds = [config.conversation_id]
       }
     } else {
-      // For recurring/meeting_trigger, use automation_conversations
+      // For recurring, use automation_conversations
       conversationIds = (automation.automation_conversations || []).map(
         (ac: { conversation_id: string }) => ac.conversation_id
       )
