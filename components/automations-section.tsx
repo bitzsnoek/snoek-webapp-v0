@@ -263,13 +263,22 @@ export function AutomationsSection() {
         } else if (auto.type === "scheduled") {
           const { data: sc } = await supabase
             .from("automation_scheduled_config")
-            .select("*, conversations(name, is_group)")
+            .select("*, conversations(name, is_group, founder_id)")
             .eq("automation_id", auto.id)
             .single()
           if (sc) {
-            const convoName = sc.conversations?.is_group 
-              ? `${sc.conversations?.name || "Group"} (Group)` 
-              : sc.conversations?.name || "1:1 Chat"
+            let convoName = "Chat"
+            if (sc.conversations?.is_group) {
+              convoName = sc.conversations?.name || "Group Chat"
+            } else if (sc.conversations?.founder_id) {
+              // For 1:1 chats, fetch the founder's name
+              const { data: founder } = await supabase
+                .from("profiles")
+                .select("full_name")
+                .eq("id", sc.conversations.founder_id)
+                .single()
+              convoName = founder?.full_name || "Founder"
+            }
             scheduled_config = {
               scheduled_at: sc.scheduled_at,
               conversation_id: sc.conversation_id,
@@ -552,6 +561,17 @@ export function AutomationsSection() {
               time_of_day: formData.time_of_day,
             })
             .eq("automation_id", editingId)
+        } else if (selectedType === "scheduled") {
+          // Build scheduled_at from date and time
+          const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}`)
+          await supabase
+            .from("automation_scheduled_config")
+            .update({
+              scheduled_at: scheduledAt.toISOString(),
+              conversation_id: selectedConversations[0]?.id || null,
+              executed: false, // Reset executed flag when editing
+            })
+            .eq("automation_id", editingId)
         }
 
         // Update key results - delete and re-insert
@@ -690,9 +710,13 @@ export function AutomationsSection() {
     } else if (auto.type === "scheduled" && auto.scheduled_config) {
       const sc = auto.scheduled_config
       const dt = new Date(sc.scheduled_at)
-      const dateStr = dt.toLocaleDateString()
-      const timeStr = dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      return `${dateStr} at ${timeStr} to ${sc.conversation_name || "chat"}`
+      const dateStr = dt.toLocaleDateString("en-US", { 
+        month: "short", 
+        day: "numeric",
+        year: dt.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined 
+      })
+      const timeStr = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+      return `${dateStr} at ${timeStr} to ${sc.conversation_name}`
     }
     return ""
   }
