@@ -159,10 +159,13 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       let messageKeyResultsMap: Record<string, KeyResultDisplay[]> = {}
       
       if (messageIds.length > 0) {
+        console.log("[v0] Fetching key results for", messageIds.length, "messages")
         const { data: mkrs, error: mkrError } = await supabase
           .from("message_key_results")
           .select("message_id, quarterly_key_result_id")
           .in("message_id", messageIds)
+        
+        console.log("[v0] message_key_results query result:", { mkrs, mkrError })
         
         if (mkrError) {
           console.error("Error fetching message_key_results:", mkrError)
@@ -170,6 +173,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
         // Get unique key result IDs
         const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id))]
+        console.log("[v0] Key result IDs from junction table:", krIds)
         
         // Also include legacy key_result_id values
         const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
@@ -226,12 +230,16 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
       }
 
+      console.log("[v0] messageKeyResultsMap:", messageKeyResultsMap)
+      
       const enrichedMessages: Message[] = (msgs ?? []).map((m) => ({
         ...m,
         sender_name: profileMap[m.sender_id] || "Unknown",
         key_results: messageKeyResultsMap[m.id] || [],
       }))
 
+      console.log("[v0] Messages with key_results:", enrichedMessages.filter(m => m.key_results && m.key_results.length > 0).map(m => ({ id: m.id, krs: m.key_results?.length })))
+      
       setMessages(enrichedMessages)
     } catch (err) {
       console.error("Error fetching messages:", err)
