@@ -31,7 +31,6 @@ import {
   Zap,
   Plus,
   Clock,
-  Calendar,
   CalendarIcon,
   Target,
   X,
@@ -53,7 +52,7 @@ interface Automation {
   id: string
   company_id: string
   coach_id: string
-  type: "recurring" | "meeting_trigger" | "scheduled"
+  type: "recurring" | "scheduled"
   name: string
   message_content: string
   is_active: boolean
@@ -64,11 +63,7 @@ interface Automation {
     day_of_month?: number
     time_of_day: string
   }
-  meeting_config?: {
-    trigger_type: "before" | "after"
-    hours_offset: number
-    meeting_type?: string
-  }
+
   scheduled_config?: {
     scheduled_at: string
     conversation_id: string
@@ -139,7 +134,7 @@ export function AutomationsSection() {
   const [typePickerOpen, setTypePickerOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create")
-  const [selectedType, setSelectedType] = useState<"recurring" | "meeting_trigger" | "scheduled" | null>(null)
+  const [selectedType, setSelectedType] = useState<"recurring" | "scheduled" | null>(null)
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
 
   // Form state
@@ -153,9 +148,7 @@ export function AutomationsSection() {
     day_of_month: 1,
     time_of_day: "09:00",
     // Meeting trigger
-    trigger_type: "before" as "before" | "after",
-    hours_offset: 24,
-    meeting_type: "",
+
     // Scheduled
     scheduled_date: "",
     scheduled_time: "09:00",
@@ -256,7 +249,7 @@ export function AutomationsSection() {
       
       for (const auto of (autos ?? [])) {
         let recurring_config = undefined
-        let meeting_config = undefined
+
         let scheduled_config = undefined
         let key_results: { id: string; title: string; type: string; target: number }[] = []
 
@@ -267,20 +260,6 @@ export function AutomationsSection() {
             .eq("automation_id", auto.id)
             .single()
           recurring_config = rc || undefined
-        } else if (auto.type === "meeting_trigger") {
-          const { data: mc } = await supabase
-            .from("automation_meeting_config")
-            .select("*")
-            .eq("automation_id", auto.id)
-            .single()
-          // Map trigger_timing from DB to trigger_type for UI
-          if (mc) {
-            meeting_config = {
-              trigger_type: mc.trigger_timing as "before" | "after",
-              hours_offset: mc.hours_offset,
-              meeting_type: mc.meeting_type,
-            }
-          }
         } else if (auto.type === "scheduled") {
           const { data: sc } = await supabase
             .from("automation_scheduled_config")
@@ -351,7 +330,6 @@ export function AutomationsSection() {
         enrichedAutomations.push({
           ...auto,
           recurring_config,
-          meeting_config,
           scheduled_config,
           key_results,
           founders,
@@ -381,9 +359,7 @@ export function AutomationsSection() {
       day_of_week: 1,
       day_of_month: 1,
       time_of_day: "09:00",
-      trigger_type: "before",
-      hours_offset: 24,
-      meeting_type: "",
+
       scheduled_date: "",
       scheduled_time: "09:00",
       conversation_id: "",
@@ -401,7 +377,7 @@ export function AutomationsSection() {
   }
 
   // Select type and open editor
-  const selectType = (type: "recurring" | "meeting_trigger" | "scheduled") => {
+  const selectType = (type: "recurring" | "scheduled") => {
     setSelectedType(type)
     setEditorMode("create")
     setTypePickerOpen(false)
@@ -434,9 +410,7 @@ export function AutomationsSection() {
       day_of_week: automation.recurring_config?.day_of_week ?? 1,
       day_of_month: automation.recurring_config?.day_of_month ?? 1,
       time_of_day: timeOfDay,
-      trigger_type: automation.meeting_config?.trigger_type || "before",
-      hours_offset: automation.meeting_config?.hours_offset ?? 24,
-      meeting_type: automation.meeting_config?.meeting_type || "",
+
       scheduled_date,
       scheduled_time,
       conversation_id: automation.scheduled_config?.conversation_id || "",
@@ -516,16 +490,6 @@ export function AutomationsSection() {
               time_of_day: formData.time_of_day,
             })
           if (rcError) throw rcError
-        } else if (selectedType === "meeting_trigger") {
-          const { error: mcError } = await supabase
-            .from("automation_meeting_config")
-            .insert({
-              automation_id: newAuto.id,
-              trigger_timing: formData.trigger_type,
-              hours_offset: formData.hours_offset,
-              meeting_type: formData.meeting_type || null,
-            })
-          if (mcError) throw mcError
         } else if (selectedType === "scheduled") {
           // Combine date and time into a timestamp
           const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}:00`)
@@ -586,24 +550,6 @@ export function AutomationsSection() {
               day_of_week: formData.frequency === "weekly" ? formData.day_of_week : null,
               day_of_month: formData.frequency === "monthly" ? formData.day_of_month : null,
               time_of_day: formData.time_of_day,
-            })
-            .eq("automation_id", editingId)
-        } else if (selectedType === "meeting_trigger") {
-          await supabase
-            .from("automation_meeting_config")
-            .update({
-              trigger_timing: formData.trigger_type,
-              hours_offset: formData.hours_offset,
-              meeting_type: formData.meeting_type || null,
-            })
-            .eq("automation_id", editingId)
-        } else if (selectedType === "scheduled") {
-          const scheduledAt = new Date(`${formData.scheduled_date}T${formData.scheduled_time}:00`)
-          await supabase
-            .from("automation_scheduled_config")
-            .update({
-              conversation_id: formData.conversation_id,
-              scheduled_at: scheduledAt.toISOString(),
             })
             .eq("automation_id", editingId)
         }
@@ -716,7 +662,7 @@ export function AutomationsSection() {
       const dateStr = formData.scheduled_date ? new Date(formData.scheduled_date).toLocaleDateString() : "TBD"
       return `Scheduled for ${convo?.name || "chat"} on ${dateStr}`
     }
-    return `${formData.hours_offset}h ${formData.trigger_type} meeting`
+
   }
 
   // Format time string (HH:MM) to readable format (e.g., "9:30 AM")
@@ -741,9 +687,6 @@ export function AutomationsSection() {
       } else {
         return `Monthly on day ${rc.day_of_month} at ${time}`
       }
-    } else if (auto.type === "meeting_trigger" && auto.meeting_config) {
-      const mc = auto.meeting_config
-      return `${mc.hours_offset}h ${mc.trigger_type} meetings`
     } else if (auto.type === "scheduled" && auto.scheduled_config) {
       const sc = auto.scheduled_config
       const dt = new Date(sc.scheduled_at)
@@ -807,16 +750,14 @@ export function AutomationsSection() {
                     <div className="flex items-center gap-2">
                       <div
                         className={cn(
-                          "rounded p-1.5",
-                          auto.type === "recurring" ? "bg-chart-2/10" : auto.type === "scheduled" ? "bg-chart-3/10" : "bg-chart-1/10"
+                          "rounded p-2",
+                          auto.type === "recurring" ? "bg-chart-2/10" : "bg-chart-3/10"
                         )}
                       >
                         {auto.type === "recurring" ? (
                           <Clock className="h-4 w-4 text-chart-2" />
-                        ) : auto.type === "scheduled" ? (
-                          <Send className="h-4 w-4 text-chart-3" />
                         ) : (
-                          <Calendar className="h-4 w-4 text-chart-1" />
+                          <Send className="h-4 w-4 text-chart-3" />
                         )}
                       </div>
                       <h3 className="font-medium text-foreground">{auto.name}</h3>
@@ -921,20 +862,7 @@ export function AutomationsSection() {
                 </p>
               </div>
             </button>
-            <button
-              onClick={() => selectType("meeting_trigger")}
-              className="flex items-start gap-3 rounded-lg border border-border p-4 text-left transition-colors hover:bg-secondary/50"
-            >
-              <div className="rounded bg-chart-1/10 p-2">
-                <Calendar className="h-5 w-5 text-chart-1" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Meeting Trigger</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Send messages before or after scheduled meetings
-                </p>
-              </div>
-            </button>
+
             <button
               onClick={() => selectType("scheduled")}
               className="flex items-start gap-3 rounded-lg border border-border p-4 text-left transition-colors hover:bg-secondary/50"
@@ -962,7 +890,7 @@ export function AutomationsSection() {
           <DialogHeader>
             <DialogTitle>
               {editorMode === "create" ? "Create" : "Edit"}{" "}
-              {selectedType === "recurring" ? "Recurring Message" : selectedType === "scheduled" ? "Scheduled Message" : "Meeting Trigger"}
+              {selectedType === "recurring" ? "Recurring Message" : "Scheduled Message"}
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
@@ -1090,45 +1018,6 @@ export function AutomationsSection() {
                   {selectedConversations.length === 0 && conversations.length > 0 && (
                     <p className="text-xs text-amber-500">Please select at least one chat</p>
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* Meeting Trigger Config */}
-            {selectedType === "meeting_trigger" && (
-              <div className="flex flex-col gap-3">
-                <Label>Trigger</Label>
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Send a message</span>
-                  <Select
-                    value={formData.hours_offset.toString()}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, hours_offset: parseInt(v) }))}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 4, 6, 12, 24, 48, 72].map((h) => (
-                        <SelectItem key={h} value={h.toString()}>
-                          {h}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-muted-foreground">hours</span>
-                  <Select
-                    value={formData.trigger_type}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, trigger_type: v as "before" | "after" }))}
-                  >
-                    <SelectTrigger className="w-24">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="before">before</SelectItem>
-                      <SelectItem value="after">after</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-muted-foreground">each meeting</span>
                 </div>
               </div>
             )}

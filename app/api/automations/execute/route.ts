@@ -12,7 +12,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const executeSchema = z.object({
-  type: z.enum(["recurring", "meeting_trigger", "scheduled"]).optional(),
+  type: z.enum(["recurring", "scheduled"]).optional(),
 })
 
 export async function POST(request: Request) {
@@ -38,14 +38,11 @@ export async function POST(request: Request) {
 
     if (type === "recurring") {
       results.recurring = await executeRecurringAutomations(supabase)
-    } else if (type === "meeting_trigger") {
-      results.meeting_trigger = await executeMeetingTriggerAutomations(supabase)
     } else if (type === "scheduled") {
       results.scheduled = await executeScheduledAutomations(supabase)
     } else {
       // Execute all types if no type specified (default run)
       results.recurring = await executeRecurringAutomations(supabase)
-      results.meeting_trigger = await executeMeetingTriggerAutomations(supabase)
       results.scheduled = await executeScheduledAutomations(supabase)
     }
 
@@ -146,89 +143,6 @@ async function executeRecurringAutomations(supabase: ReturnType<typeof createCli
       })
       
       executedCount++
-    }
-  }
-
-  return executedCount
-}
-
-async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof createClient>): Promise<number> {
-  const now = new Date()
-  let executedCount = 0
-
-  console.log("[Automations] Checking meeting trigger automations at:", now.toISOString())
-
-  // Get all active meeting trigger automations
-  const { data: automations, error } = await supabase
-    .from("automations")
-    .select(`
-      *,
-      automation_meeting_config(*)
-    `)
-    .eq("type", "meeting_trigger")
-    .eq("is_active", true)
-
-  if (error) {
-    console.error("[Automations] Error fetching meeting trigger automations:", error)
-    return 0
-  }
-
-  console.log("[Automations] Found", automations?.length || 0, "active meeting trigger automations")
-
-  for (const automation of automations || []) {
-    const config = automation.automation_meeting_config?.[0]
-    if (!config) continue
-
-    // Find meetings that match the trigger time
-    const offsetMs = config.hours_offset * 60 * 60 * 1000 // hours to ms
-    
-    let meetingTimeWindow: { start: Date; end: Date }
-    
-    if (config.trigger_type === "before") {
-      // For "before" triggers, look for meetings starting in X hours
-      meetingTimeWindow = {
-        start: new Date(now.getTime() + offsetMs - 30 * 60 * 1000), // -30 min buffer
-        end: new Date(now.getTime() + offsetMs + 30 * 60 * 1000),   // +30 min buffer
-      }
-    } else {
-      // For "after" triggers, look for meetings that ended X hours ago
-      meetingTimeWindow = {
-        start: new Date(now.getTime() - offsetMs - 30 * 60 * 1000),
-        end: new Date(now.getTime() - offsetMs + 30 * 60 * 1000),
-      }
-    }
-
-    // Get meetings for this company within the time window
-    const { data: meetings } = await supabase
-      .from("meetings")
-      .select("*")
-      .eq("company_id", automation.company_id)
-      .gte(config.trigger_type === "before" ? "start_time" : "end_time", meetingTimeWindow.start.toISOString())
-      .lte(config.trigger_type === "before" ? "start_time" : "end_time", meetingTimeWindow.end.toISOString())
-
-    if (meetings && meetings.length > 0) {
-      // Check if we've already sent a message for these meetings
-      for (const meeting of meetings) {
-        const logKey = `${automation.id}-${meeting.id}-${config.trigger_type}`
-        
-        const { data: existingLog } = await supabase
-          .from("automation_execution_log")
-          .select("id")
-          .eq("log_key", logKey)
-          .single()
-
-        if (!existingLog) {
-          await sendAutomationMessage(supabase, automation, meeting)
-          
-          // Log the execution to prevent duplicates
-          await supabase.from("automation_execution_log").insert({
-            automation_id: automation.id,
-            meeting_id: meeting.id,
-            log_key: logKey,
-          })
-          executedCount++
-        }
-      }
     }
   }
 
@@ -458,7 +372,7 @@ export async function GET(request: Request) {
       console.log("[Automations] Unauthorized - no valid cron secret or header")
       return successResponse({ 
         message: "Automations execution endpoint. Cron runs every 5 minutes.",
-        types: ["recurring", "meeting_trigger", "scheduled"]
+        types: ["recurring", "scheduled"]
       })
     }
   }
@@ -470,7 +384,6 @@ export async function GET(request: Request) {
   try {
     const results = {
       recurring: await executeRecurringAutomations(supabase),
-      meeting_trigger: await executeMeetingTriggerAutomations(supabase),
       scheduled: await executeScheduledAutomations(supabase),
     }
     

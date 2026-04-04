@@ -213,14 +213,24 @@ export function validateInput<T extends z.ZodType>(
 // ============================================================
 
 export function validateCronSecret(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET
+  const authHeader = request.headers.get("authorization")
   
-  // CRON_SECRET must be set - fail closed
-  if (!cronSecret) {
-    console.error("CRON_SECRET is not configured - rejecting request")
-    return false
+  // Check for CRON_SECRET (Vercel Cron)
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true
   }
   
-  const authHeader = request.headers.get("authorization")
-  return authHeader === `Bearer ${cronSecret}`
+  // Check for Supabase service role key (pg_cron via pg_net)
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) {
+    return true
+  }
+  
+  // Log only if neither is configured
+  if (!cronSecret && !serviceRoleKey) {
+    console.error("Neither CRON_SECRET nor SUPABASE_SERVICE_ROLE_KEY is configured - rejecting request")
+  }
+  
+  return false
 }
