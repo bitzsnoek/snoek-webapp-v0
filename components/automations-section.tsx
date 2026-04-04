@@ -44,6 +44,8 @@ import {
   User,
   Send,
   MessageSquare,
+  Play,
+  Loader2,
 } from "lucide-react"
 
 // Types
@@ -163,6 +165,7 @@ export function AutomationsSection() {
   const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
   const [selectedConversations, setSelectedConversations] = useState<ConversationOption[]>([])
   const [conversations, setConversations] = useState<ConversationOption[]>([])
+  const [testingId, setTestingId] = useState<string | null>(null)
 
   // Get all key results from the active company
   const allKeyResults: KeyResultOption[] = activeCompany.quarters.flatMap((quarter) =>
@@ -676,6 +679,32 @@ export function AutomationsSection() {
     }
   }
 
+  // Test automation - send message immediately
+  const testAutomation = async (automation: Automation) => {
+    setTestingId(automation.id)
+    
+    try {
+      const response = await fetch("/api/automations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ automationId: automation.id }),
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        alert(`Message sent successfully to ${result.conversationCount || 1} conversation(s)!`)
+      } else {
+        alert(`Failed to send: ${result.error || "Unknown error"}`)
+      }
+    } catch (err) {
+      console.error("Error testing automation:", err)
+      alert("Failed to test automation. Check console for details.")
+    } finally {
+      setTestingId(null)
+    }
+  }
+
   // Generate default name
   const generateDefaultName = () => {
     if (selectedType === "recurring") {
@@ -830,6 +859,20 @@ export function AutomationsSection() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-chart-2 hover:text-chart-2"
+                    onClick={() => testAutomation(auto)}
+                    disabled={testingId === auto.id}
+                    title="Test - Send message now"
+                  >
+                    {testingId === auto.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
