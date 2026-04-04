@@ -182,14 +182,18 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         let krMap: Record<string, { id: string; title: string; type: string; target: number; owner: string | null }> = {}
         
         if (allKrIds.length > 0) {
-          const { data: krs } = await supabase
+          console.log("[v0] Fetching quarterly_key_results for IDs:", allKrIds)
+          const { data: krs, error: krsError } = await supabase
             .from("quarterly_key_results")
             .select("id, title, type, target, owner")
             .in("id", allKrIds)
 
+          console.log("[v0] quarterly_key_results result:", { krs, krsError })
+
           krMap = Object.fromEntries(
             (krs ?? []).map((kr) => [kr.id, kr])
           )
+          console.log("[v0] krMap:", krMap)
         }
 
         // Group key results by message_id
