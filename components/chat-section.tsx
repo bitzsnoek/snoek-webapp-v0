@@ -158,11 +158,15 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       const messageIds = (msgs ?? []).map((m) => m.id)
       let messageKeyResultsMap: Record<string, KeyResultDisplay[]> = {}
       
+      console.log("[v0] Fetching key results for message IDs:", messageIds)
+      
       if (messageIds.length > 0) {
-        const { data: mkrs } = await supabase
+        const { data: mkrs, error: mkrError } = await supabase
           .from("message_key_results")
           .select("message_id, quarterly_key_result_id")
           .in("message_id", messageIds)
+        
+        console.log("[v0] message_key_results fetched:", mkrs, "error:", mkrError)
 
         // Get unique key result IDs
         const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id))]
@@ -222,12 +226,16 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
       }
 
+      console.log("[v0] Final messageKeyResultsMap:", messageKeyResultsMap)
+      
       const enrichedMessages: Message[] = (msgs ?? []).map((m) => ({
         ...m,
         sender_name: profileMap[m.sender_id] || "Unknown",
         key_results: messageKeyResultsMap[m.id] || [],
       }))
 
+      console.log("[v0] Enriched messages with key_results:", enrichedMessages.map(m => ({ id: m.id, key_results: m.key_results })))
+      
       setMessages(enrichedMessages)
     } catch (err) {
       console.error("Error fetching messages:", err)
