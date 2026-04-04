@@ -804,15 +804,10 @@ export function AutomationsSection() {
                     </div>
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     {formatSchedule(auto)}
+                    {auto.conversations && auto.conversations.length > 0 && (
+                      <span> · to {auto.conversations.map((c) => c.name).join(", ")}</span>
+                    )}
                   </p>
-                  {auto.conversations && auto.conversations.length > 0 && (
-                    <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <MessageSquare className="h-3 w-3" />
-                      <span>
-                        To: {auto.conversations.map((c) => c.name).join(", ")}
-                      </span>
-                    </div>
-                  )}
                   <p className="mt-2 line-clamp-2 text-sm text-foreground/80">
                     {auto.message_content}
                   </p>
