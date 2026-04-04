@@ -299,7 +299,7 @@ export function AutomationsSection() {
           const krIds = akrs.map((akr) => akr.quarterly_key_result_id)
           const { data: krs } = await supabase
             .from("quarterly_key_results")
-            .select("id, title, type, target, owner")
+            .select("id, title, type, target")
             .in("id", krIds)
           key_results = krs || []
         }
@@ -446,7 +446,7 @@ export function AutomationsSection() {
     // Map key results
     const krs = (automation.key_results || []).map((kr) => {
       const found = allKeyResults.find((akr) => akr.id === kr.id)
-      return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "" }
+      return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "", owner: kr.owner }
     })
     setSelectedKeyResults(krs as KeyResultOption[])
 
@@ -829,7 +829,7 @@ export function AutomationsSection() {
                             )}
                           >
                             <Target className="h-3 w-3" />
-                            {kr.title}{kr.owner ? ` · ${kr.owner}` : ""}
+                            {kr.title}
                           </span>
                         )
                       })}

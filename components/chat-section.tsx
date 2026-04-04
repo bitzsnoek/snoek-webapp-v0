@@ -159,34 +159,28 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       let messageKeyResultsMap: Record<string, KeyResultDisplay[]> = {}
       
       if (messageIds.length > 0) {
-        const { data: mkrs } = await supabase
+        // Fetch message_key_results with joined quarterly_key_results data
+        const { data: mkrs, error: mkrError } = await supabase
           .from("message_key_results")
-          .select("message_id, quarterly_key_result_id")
+          .select(`
+            message_id,
+            quarterly_key_result_id,
+            quarterly_key_results (
+              id,
+              title,
+              type,
+              target
+            )
+          `)
           .in("message_id", messageIds)
-
-        // Get unique key result IDs
-        const krIds = [...new Set((mkrs ?? []).map((mkr) => mkr.quarterly_key_result_id))]
         
-        // Also include legacy key_result_id values
-        const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
-        const allKrIds = [...new Set([...krIds, ...legacyKrIds])]
-        
-        let krMap: Record<string, { id: string; title: string; type: string; target: number; owner: string | null }> = {}
-        
-        if (allKrIds.length > 0) {
-          const { data: krs } = await supabase
-            .from("quarterly_key_results")
-            .select("id, title, type, target, owner")
-            .in("id", allKrIds)
-
-          krMap = Object.fromEntries(
-            (krs ?? []).map((kr) => [kr.id, kr])
-          )
+        if (mkrError) {
+          console.error("Error fetching message_key_results:", mkrError)
         }
 
-        // Group key results by message_id
+        // Build messageKeyResultsMap from joined data
         for (const mkr of (mkrs ?? [])) {
-          const kr = krMap[mkr.quarterly_key_result_id]
+          const kr = mkr.quarterly_key_results as { id: string; title: string; type: string; target: number } | null
           if (kr) {
             if (!messageKeyResultsMap[mkr.message_id]) {
               messageKeyResultsMap[mkr.message_id] = []
@@ -196,27 +190,35 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               title: kr.title,
               type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
               target: kr.target,
-              owner: kr.owner,
             })
           }
         }
 
-        // Also handle legacy key_result_id
-        for (const msg of (msgs ?? [])) {
-          if (msg.key_result_id && krMap[msg.key_result_id]) {
-            const kr = krMap[msg.key_result_id]
-            const legacyKr: KeyResultDisplay = {
-              id: kr.id,
-              title: kr.title,
-              type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
-              owner: kr.owner,
-              target: kr.target,
-            }
-            // Add to list if not already present from junction table
-            if (!messageKeyResultsMap[msg.id]) {
-              messageKeyResultsMap[msg.id] = [legacyKr]
-            } else if (!messageKeyResultsMap[msg.id].some((k) => k.id === legacyKr.id)) {
-              messageKeyResultsMap[msg.id].push(legacyKr)
+        // Also handle legacy key_result_id - fetch separately if needed
+        const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id).filter(Boolean)
+        if (legacyKrIds.length > 0) {
+          const { data: legacyKrs } = await supabase
+            .from("quarterly_key_results")
+            .select("id, title, type, target")
+            .in("id", legacyKrIds)
+          
+          const legacyKrMap = Object.fromEntries((legacyKrs ?? []).map((kr) => [kr.id, kr]))
+          
+          for (const msg of (msgs ?? [])) {
+            if (msg.key_result_id && legacyKrMap[msg.key_result_id]) {
+              const kr = legacyKrMap[msg.key_result_id]
+              const legacyKr: KeyResultDisplay = {
+                id: kr.id,
+                title: kr.title,
+                type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
+                target: kr.target,
+              }
+              // Add to list if not already present from junction table
+              if (!messageKeyResultsMap[msg.id]) {
+                messageKeyResultsMap[msg.id] = [legacyKr]
+              } else if (!messageKeyResultsMap[msg.id].some((k) => k.id === legacyKr.id)) {
+                messageKeyResultsMap[msg.id].push(legacyKr)
+              }
             }
           }
         }
@@ -517,7 +519,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                                       : "text-muted-foreground"
                                   )}
                                 >
-                                  {typeConfig[kr.type].label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
+                                  {typeConfig[kr.type].label} · Target {kr.target}
                                 </p>
                               </div>
                             ))}
