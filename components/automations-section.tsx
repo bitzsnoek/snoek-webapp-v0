@@ -326,14 +326,30 @@ export function AutomationsSection() {
           .eq("automation_id", auto.id)
 
         if (acs && acs.length > 0) {
-          linkedConversations = acs.map((ac) => {
-            const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
-            return {
-              id: c?.id || ac.conversation_id,
-              name: c?.name || "Chat",
-              is_group: c?.is_group || false,
-            }
-          })
+          // For 1:1 chats, we need to fetch the founder names
+          const conversationsWithFounders = await Promise.all(
+            acs.map(async (ac) => {
+              const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
+              let displayName = c?.name || "Chat"
+              
+              // For 1:1 chats, fetch the founder's name
+              if (c && !c.is_group && c.founder_id) {
+                const { data: founder } = await supabase
+                  .from("profiles")
+                  .select("full_name")
+                  .eq("id", c.founder_id)
+                  .single()
+                displayName = founder?.full_name || "Founder"
+              }
+              
+              return {
+                id: c?.id || ac.conversation_id,
+                name: displayName,
+                is_group: c?.is_group || false,
+              }
+            })
+          )
+          linkedConversations = conversationsWithFounders
         }
 
         enrichedAutomations.push({
