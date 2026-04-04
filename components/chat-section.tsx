@@ -175,12 +175,15 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           `)
           .in("message_id", messageIds)
         
+        console.log("[v0] message_key_results with join result:", { mkrs, mkrError })
+        
         if (mkrError) {
           console.error("Error fetching message_key_results:", mkrError)
         }
 
         // Build messageKeyResultsMap from joined data
         for (const mkr of (mkrs ?? [])) {
+          console.log("[v0] Processing mkr:", mkr)
           const kr = mkr.quarterly_key_results as { id: string; title: string; type: string; target: number; owner: string | null } | null
           if (kr) {
             if (!messageKeyResultsMap[mkr.message_id]) {
