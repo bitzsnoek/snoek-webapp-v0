@@ -41,6 +41,13 @@ export async function POST(request: Request) {
       return errorResponse("Automation not found", 404)
     }
 
+    console.log("[v0] Automation fetched:", JSON.stringify({
+      id: automation.id,
+      type: automation.type,
+      scheduled_config: automation.automation_scheduled_config,
+      conversations: automation.automation_conversations,
+    }))
+
     // Verify the user owns this automation (is the coach)
     if (automation.coach_id !== user.id) {
       return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
@@ -52,6 +59,7 @@ export async function POST(request: Request) {
     if (automation.type === "scheduled") {
       // For scheduled, use the conversation_id from config
       const config = automation.automation_scheduled_config?.[0]
+      console.log("[v0] Scheduled config:", config)
       if (config?.conversation_id) {
         conversationIds = [config.conversation_id]
       }
@@ -61,6 +69,8 @@ export async function POST(request: Request) {
         (ac: { conversation_id: string }) => ac.conversation_id
       )
     }
+
+    console.log("[v0] Conversation IDs:", conversationIds)
 
     if (conversationIds.length === 0) {
       return errorResponse("No conversations linked to this automation", 400)
