@@ -30,6 +30,7 @@ interface KeyResultDisplay {
   title: string
   type: "input" | "output" | "project"
   target: number
+  owner?: string | null
 }
 
 interface Message {
@@ -60,6 +61,7 @@ interface KeyResultOption {
   type: "input" | "output" | "project"
   target: number
   goalObjective: string
+  owner: string | null
 }
 
 export interface ChatTab {
@@ -119,6 +121,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         type: kr.type,
         target: kr.target,
         goalObjective: goal.objective,
+        owner: kr.owner,
       }))
     )
   )
@@ -168,12 +171,12 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id)
         const allKrIds = [...new Set([...krIds, ...legacyKrIds])]
         
-        let krMap: Record<string, { id: string; title: string; type: string; target: number }> = {}
+        let krMap: Record<string, { id: string; title: string; type: string; target: number; owner: string | null }> = {}
         
         if (allKrIds.length > 0) {
           const { data: krs } = await supabase
             .from("quarterly_key_results")
-            .select("id, title, type, target")
+            .select("id, title, type, target, owner")
             .in("id", allKrIds)
 
           krMap = Object.fromEntries(
@@ -193,6 +196,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               title: kr.title,
               type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
               target: kr.target,
+              owner: kr.owner,
             })
           }
         }
@@ -205,6 +209,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               id: kr.id,
               title: kr.title,
               type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
+              owner: kr.owner,
               target: kr.target,
             }
             // Add to list if not already present from junction table
@@ -512,7 +517,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                                       : "text-muted-foreground"
                                   )}
                                 >
-                                  {typeConfig[kr.type].label} · Target {kr.target}
+                                  {typeConfig[kr.type].label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
                                 </p>
                               </div>
                             ))}
@@ -641,7 +646,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground">{kr.title}</p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            {config.label} · Target {kr.target}
+                            {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
                           </p>
                           <p className="mt-1 truncate text-xs text-muted-foreground/70">
                             {kr.goalObjective}

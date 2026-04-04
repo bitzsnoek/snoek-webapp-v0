@@ -91,6 +91,7 @@ interface KeyResultOption {
   type: "input" | "output" | "project"
   target: number
   goalObjective: string
+  owner: string | null
 }
 
 const typeConfig = {
@@ -169,6 +170,7 @@ export function AutomationsSection() {
         type: kr.type,
         target: kr.target,
         goalObjective: goal.objective,
+        owner: kr.owner,
       }))
     )
   )
@@ -297,7 +299,7 @@ export function AutomationsSection() {
           const krIds = akrs.map((akr) => akr.quarterly_key_result_id)
           const { data: krs } = await supabase
             .from("quarterly_key_results")
-            .select("id, title, type, target")
+            .select("id, title, type, target, owner")
             .in("id", krIds)
           key_results = krs || []
         }
@@ -827,7 +829,7 @@ export function AutomationsSection() {
                             )}
                           >
                             <Target className="h-3 w-3" />
-                            {kr.title}
+                            {kr.title}{kr.owner ? ` · ${kr.owner}` : ""}
                           </span>
                         )
                       })}
@@ -1264,7 +1266,7 @@ export function AutomationsSection() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground">{kr.title}</p>
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            {config.label} · Target {kr.target}
+                            {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
                           </p>
                         </div>
                         {isSelected && (
