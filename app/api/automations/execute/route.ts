@@ -30,30 +30,39 @@ export async function POST(request: Request) {
 
     const { type } = validation.data
 
+    console.log("[Automations] POST request received, type:", type || "all")
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    const results: Record<string, number> = {}
+
     if (type === "recurring") {
-      await executeRecurringAutomations(supabase)
+      results.recurring = await executeRecurringAutomations(supabase)
     } else if (type === "meeting_trigger") {
-      await executeMeetingTriggerAutomations(supabase)
+      results.meeting_trigger = await executeMeetingTriggerAutomations(supabase)
     } else if (type === "scheduled") {
-      await executeScheduledAutomations(supabase)
+      results.scheduled = await executeScheduledAutomations(supabase)
     } else {
       // Execute all types if no type specified (default run)
-      await executeRecurringAutomations(supabase)
-      await executeMeetingTriggerAutomations(supabase)
-      await executeScheduledAutomations(supabase)
+      results.recurring = await executeRecurringAutomations(supabase)
+      results.meeting_trigger = await executeMeetingTriggerAutomations(supabase)
+      results.scheduled = await executeScheduledAutomations(supabase)
     }
 
-    return successResponse({ success: true })
+    console.log("[Automations] Execution complete:", results)
+
+    return successResponse({ success: true, executed: results })
   } catch (error) {
     console.error("[Automations] Error executing automations:", error)
     return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
   }
 }
 
-async function executeRecurringAutomations(supabase: ReturnType<typeof createClient>) {
+async function executeRecurringAutomations(supabase: ReturnType<typeof createClient>): Promise<number> {
   const now = new Date()
+  let executedCount = 0
+
+  console.log("[Automations] Checking recurring automations at:", now.toISOString())
 
   // Get all active recurring automations with their configs
   const { data: automations, error } = await supabase
@@ -68,43 +77,86 @@ async function executeRecurringAutomations(supabase: ReturnType<typeof createCli
 
   if (error) {
     console.error("[Automations] Error fetching recurring automations:", error)
-    return
+    return 0
   }
+
+  console.log("[Automations] Found", automations?.length || 0, "active recurring automations")
 
   for (const automation of automations || []) {
     const config = automation.automation_recurring_config?.[0]
-    if (!config) continue
+    if (!config) {
+      console.log("[Automations] No config for automation", automation.id)
+      continue
+    }
 
     const companyTimezone = automation.companies?.timezone || "UTC"
     
     // Convert current UTC time to company timezone
     const localTime = new Date(now.toLocaleString("en-US", { timeZone: companyTimezone }))
     const localHour = localTime.getHours()
+    const localMinute = localTime.getMinutes()
     const localDay = localTime.getDay()
     const localDayOfMonth = localTime.getDate()
 
-    // Parse the time_of_day (e.g., "09:00")
-    const [scheduledHour] = config.time_of_day.split(":").map(Number)
+    // Parse the time_of_day (e.g., "09:30")
+    const [scheduledHour, scheduledMinute] = config.time_of_day.split(":").map(Number)
 
-    // Check if this automation should run now
+    // Check if this automation should run now (within 5 minute window)
     let shouldRun = false
+    const timeMatches = localHour === scheduledHour && Math.abs(localMinute - scheduledMinute) < 5
 
     if (config.frequency === "daily") {
-      shouldRun = localHour === scheduledHour
+      shouldRun = timeMatches
     } else if (config.frequency === "weekly") {
-      shouldRun = localDay === config.day_of_week && localHour === scheduledHour
+      shouldRun = localDay === config.day_of_week && timeMatches
     } else if (config.frequency === "monthly") {
-      shouldRun = localDayOfMonth === config.day_of_month && localHour === scheduledHour
+      shouldRun = localDayOfMonth === config.day_of_month && timeMatches
     }
+
+    console.log("[Automations] Automation", automation.id, {
+      frequency: config.frequency,
+      scheduledTime: config.time_of_day,
+      localTime: `${localHour}:${localMinute}`,
+      localDay,
+      shouldRun
+    })
 
     if (shouldRun) {
+      // Check if we already ran this automation in this time window (prevent duplicates)
+      const windowStart = new Date(now.getTime() - 5 * 60 * 1000) // 5 minutes ago
+      const logKey = `recurring-${automation.id}-${now.toISOString().slice(0, 13)}` // hourly key
+      
+      const { data: existingLog } = await supabase
+        .from("automation_execution_log")
+        .select("id")
+        .eq("log_key", logKey)
+        .single()
+
+      if (existingLog) {
+        console.log("[Automations] Already executed this hour:", automation.id)
+        continue
+      }
+
       await sendAutomationMessage(supabase, automation)
+      
+      // Log the execution to prevent duplicates
+      await supabase.from("automation_execution_log").insert({
+        automation_id: automation.id,
+        log_key: logKey,
+      })
+      
+      executedCount++
     }
   }
+
+  return executedCount
 }
 
-async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof createClient>) {
+async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof createClient>): Promise<number> {
   const now = new Date()
+  let executedCount = 0
+
+  console.log("[Automations] Checking meeting trigger automations at:", now.toISOString())
 
   // Get all active meeting trigger automations
   const { data: automations, error } = await supabase
@@ -118,8 +170,10 @@ async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof crea
 
   if (error) {
     console.error("[Automations] Error fetching meeting trigger automations:", error)
-    return
+    return 0
   }
+
+  console.log("[Automations] Found", automations?.length || 0, "active meeting trigger automations")
 
   for (const automation of automations || []) {
     const config = automation.automation_meeting_config?.[0]
@@ -172,14 +226,20 @@ async function executeMeetingTriggerAutomations(supabase: ReturnType<typeof crea
             meeting_id: meeting.id,
             log_key: logKey,
           })
+          executedCount++
         }
       }
     }
   }
+
+  return executedCount
 }
 
-async function executeScheduledAutomations(supabase: ReturnType<typeof createClient>) {
+async function executeScheduledAutomations(supabase: ReturnType<typeof createClient>): Promise<number> {
   const now = new Date()
+  let executedCount = 0
+
+  console.log("[Automations] Checking scheduled automations at:", now.toISOString())
 
   // Get all active scheduled automations that are due
   const { data: automations, error } = await supabase
@@ -193,28 +253,47 @@ async function executeScheduledAutomations(supabase: ReturnType<typeof createCli
 
   if (error) {
     console.error("[Automations] Error fetching scheduled automations:", error)
-    return
+    return 0
   }
+
+  console.log("[Automations] Found", automations?.length || 0, "active scheduled automations")
 
   for (const automation of automations || []) {
     const config = automation.automation_scheduled_config?.[0]
-    if (!config) continue
+    if (!config) {
+      console.log("[Automations] No config for automation", automation.id)
+      continue
+    }
 
     // Check if already executed
-    if (config.executed) continue
+    if (config.executed) {
+      console.log("[Automations] Automation", automation.id, "already executed")
+      continue
+    }
 
     // Check if it's time to send (scheduled_at has passed)
     const scheduledAt = new Date(config.scheduled_at)
-    if (scheduledAt > now) continue
+    console.log("[Automations] Automation", automation.id, "scheduled for:", scheduledAt.toISOString(), "now:", now.toISOString())
+    
+    if (scheduledAt > now) {
+      console.log("[Automations] Not yet time for automation", automation.id)
+      continue
+    }
+
+    console.log("[Automations] Executing scheduled automation", automation.id)
 
     // Send the message to the specific conversation
     await sendScheduledMessage(supabase, automation, config)
 
     // Mark as executed
-    await supabase
+    const { error: updateError } = await supabase
       .from("automation_scheduled_config")
       .update({ executed: true })
       .eq("id", config.id)
+
+    if (updateError) {
+      console.error("[Automations] Error marking as executed:", updateError)
+    }
 
     // Optionally deactivate the automation since it's a one-time message
     await supabase
@@ -223,7 +302,10 @@ async function executeScheduledAutomations(supabase: ReturnType<typeof createCli
       .eq("id", automation.id)
 
     console.log(`[Automations] Executed scheduled automation ${automation.id}`)
+    executedCount++
   }
+
+  return executedCount
 }
 
 async function sendScheduledMessage(
@@ -234,6 +316,13 @@ async function sendScheduledMessage(
   const coachId = automation.coach_id as string
   const messageContent = automation.message_content as string
   const conversationId = config.conversation_id as string
+
+  console.log("[Automations] Sending scheduled message:", {
+    automationId: automation.id,
+    coachId,
+    conversationId,
+    contentLength: messageContent?.length
+  })
 
   // Insert the message
   const { data: newMessage, error: msgError } = await supabase
@@ -250,6 +339,8 @@ async function sendScheduledMessage(
     console.error("[Automations] Error sending scheduled message:", msgError)
     return
   }
+
+  console.log("[Automations] Message inserted successfully:", newMessage?.id)
 
   // Attach key results if any
   const { data: keyResults } = await supabase
@@ -355,25 +446,38 @@ async function sendAutomationMessage(
   console.log(`[Automations] Sent message for automation ${automation.id} to ${linkedConvos.length} conversations`)
 }
 
-// Also support GET for easy testing (but require auth)
+// Vercel Cron sends GET requests - this is the main entry point
 export async function GET(request: Request) {
-  // For Vercel Cron, GET requests are sent with the CRON_SECRET
-  if (validateCronSecret(request)) {
-    // Execute all automation types
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    try {
-      await executeRecurringAutomations(supabase)
-      await executeMeetingTriggerAutomations(supabase)
-      await executeScheduledAutomations(supabase)
-      return successResponse({ success: true, executed: ["recurring", "meeting_trigger", "scheduled"] })
-    } catch (error) {
-      console.error("[Automations] Error executing automations:", error)
-      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
+  console.log("[Automations] GET request received")
+  
+  // For Vercel Cron, GET requests are sent with the CRON_SECRET in Authorization header
+  if (!validateCronSecret(request)) {
+    // Also check for Vercel's internal cron header as fallback
+    const isVercelCron = request.headers.get("x-vercel-cron") === "1"
+    if (!isVercelCron) {
+      console.log("[Automations] Unauthorized - no valid cron secret or header")
+      return successResponse({ 
+        message: "Automations execution endpoint. Cron runs every 5 minutes.",
+        types: ["recurring", "meeting_trigger", "scheduled"]
+      })
     }
   }
+
+  console.log("[Automations] Authorized cron request, executing all automations...")
   
-  return successResponse({ 
-    message: "Automations execution endpoint. Cron runs every 5 minutes.",
-    types: ["recurring", "meeting_trigger", "scheduled"]
-  })
+  // Execute all automation types
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  try {
+    const results = {
+      recurring: await executeRecurringAutomations(supabase),
+      meeting_trigger: await executeMeetingTriggerAutomations(supabase),
+      scheduled: await executeScheduledAutomations(supabase),
+    }
+    
+    console.log("[Automations] Cron execution complete:", results)
+    return successResponse({ success: true, executed: results, timestamp: new Date().toISOString() })
+  } catch (error) {
+    console.error("[Automations] Error executing automations:", error)
+    return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
+  }
 }
