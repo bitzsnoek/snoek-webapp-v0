@@ -69,7 +69,7 @@ interface Automation {
     conversation_id: string
     conversation_name?: string
   }
-  key_results?: { id: string; title: string; type: string; target: number; owner: string | null }[]
+  key_results?: { id: string; title: string; type: string; target: number }[]
   founders?: { member_id: string; name: string }[]
   conversations?: { id: string; name: string; is_group: boolean }[]
 }
@@ -253,7 +253,7 @@ export function AutomationsSection() {
         let recurring_config = undefined
 
         let scheduled_config = undefined
-        let key_results: { id: string; title: string; type: string; target: number; owner: string | null }[] = []
+        let key_results: { id: string; title: string; type: string; target: number }[] = []
 
         if (auto.type === "recurring") {
           const { data: rc } = await supabase
@@ -299,7 +299,7 @@ export function AutomationsSection() {
           const krIds = akrs.map((akr) => akr.quarterly_key_result_id)
           const { data: krs } = await supabase
             .from("quarterly_key_results")
-            .select("id, title, type, target, owner")
+            .select("id, title, type, target")
             .in("id", krIds)
           key_results = krs || []
         }
@@ -829,7 +829,7 @@ export function AutomationsSection() {
                             )}
                           >
                             <Target className="h-3 w-3" />
-                            {kr.title}{kr.owner ? ` · ${kr.owner}` : ""}
+                            {kr.title}
                           </span>
                         )
                       })}

@@ -169,13 +169,10 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               id,
               title,
               type,
-              target,
-              owner
+              target
             )
           `)
           .in("message_id", messageIds)
-        
-        console.log("[v0] message_key_results with join result:", { mkrs, mkrError })
         
         if (mkrError) {
           console.error("Error fetching message_key_results:", mkrError)
@@ -183,8 +180,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
         // Build messageKeyResultsMap from joined data
         for (const mkr of (mkrs ?? [])) {
-          console.log("[v0] Processing mkr:", mkr)
-          const kr = mkr.quarterly_key_results as { id: string; title: string; type: string; target: number; owner: string | null } | null
+          const kr = mkr.quarterly_key_results as { id: string; title: string; type: string; target: number } | null
           if (kr) {
             if (!messageKeyResultsMap[mkr.message_id]) {
               messageKeyResultsMap[mkr.message_id] = []
@@ -194,7 +190,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               title: kr.title,
               type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
               target: kr.target,
-              owner: kr.owner,
             })
           }
         }
@@ -204,7 +199,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         if (legacyKrIds.length > 0) {
           const { data: legacyKrs } = await supabase
             .from("quarterly_key_results")
-            .select("id, title, type, target, owner")
+            .select("id, title, type, target")
             .in("id", legacyKrIds)
           
           const legacyKrMap = Object.fromEntries((legacyKrs ?? []).map((kr) => [kr.id, kr]))
@@ -216,7 +211,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                 id: kr.id,
                 title: kr.title,
                 type: (kr.type === "input" ? "input" : kr.type === "project" ? "project" : "output") as "input" | "output" | "project",
-                owner: kr.owner,
                 target: kr.target,
               }
               // Add to list if not already present from junction table
@@ -525,7 +519,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                                       : "text-muted-foreground"
                                   )}
                                 >
-                                  {typeConfig[kr.type].label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
+                                  {typeConfig[kr.type].label} · Target {kr.target}
                                 </p>
                               </div>
                             ))}
