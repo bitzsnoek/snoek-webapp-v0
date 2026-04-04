@@ -593,13 +593,18 @@ export function AutomationsSection() {
         }
 
         // Update key results - delete and re-insert
-        await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
+        console.log("[v0] Updating key results for automation:", editingId)
+        console.log("[v0] selectedKeyResults:", selectedKeyResults)
+        const deleteResult = await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
+        console.log("[v0] Delete result:", deleteResult)
         if (selectedKeyResults.length > 0) {
           const inserts = selectedKeyResults.map((kr) => ({
             automation_id: editingId,
             quarterly_key_result_id: kr.id,
           }))
-          await supabase.from("automation_key_results").insert(inserts)
+          console.log("[v0] Inserting key results:", inserts)
+          const insertResult = await supabase.from("automation_key_results").insert(inserts)
+          console.log("[v0] Insert result:", insertResult)
         }
 
         // Update founders - delete and re-insert
