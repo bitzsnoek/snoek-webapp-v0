@@ -22,6 +22,7 @@ import {
   FolderKanban,
   Target,
   X,
+  Reply,
 } from "lucide-react"
 
 // Types
@@ -40,9 +41,15 @@ interface Message {
   content: string
   key_result_id: string | null // Legacy single key result
   created_at: string
+  reply_to_message_id?: string | null // Reply to another message
   sender_name?: string
   key_result?: KeyResultDisplay | null // Legacy single key result
   key_results?: KeyResultDisplay[] // Multiple key results from junction table
+  reply_to_message?: {
+    id: string
+    content: string
+    sender_name: string
+  } | null
 }
 
 interface Conversation {
@@ -109,6 +116,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
   const [creatingConversation, setCreatingConversation] = useState(false)
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -224,11 +232,28 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
       }
 
-      const enrichedMessages: Message[] = (msgs ?? []).map((m) => ({
-        ...m,
-        sender_name: profileMap[m.sender_id] || "Unknown",
-        key_results: messageKeyResultsMap[m.id] || [],
-      }))
+      // Build a map of message id to message for reply lookups
+      const messageMap = Object.fromEntries((msgs ?? []).map((m) => [m.id, m]))
+
+      const enrichedMessages: Message[] = (msgs ?? []).map((m) => {
+        // Look up the replied-to message if it exists
+        let replyToMessage = null
+        if (m.reply_to_message_id && messageMap[m.reply_to_message_id]) {
+          const repliedMsg = messageMap[m.reply_to_message_id]
+          replyToMessage = {
+            id: repliedMsg.id,
+            content: repliedMsg.content,
+            sender_name: profileMap[repliedMsg.sender_id] || "Unknown",
+          }
+        }
+
+        return {
+          ...m,
+          sender_name: profileMap[m.sender_id] || "Unknown",
+          key_results: messageKeyResultsMap[m.id] || [],
+          reply_to_message: replyToMessage,
+        }
+      })
 
       setMessages(enrichedMessages)
     } catch (err) {
@@ -251,6 +276,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         sender_id: currentUser.id,
         content: messageContent,
         key_result_id: null,
+        reply_to_message_id: replyToMessage?.id || null,
       }).select("id").single()
 
       if (error) throw error
@@ -273,6 +299,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
       setNewMessage("")
       setSelectedKeyResults([])
+      setReplyToMessage(null)
       
       // Refresh messages
       await fetchMessages(selectedTab.conversationId)
@@ -470,25 +497,55 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                     <div
                       key={message.id}
                       className={cn(
-                        "flex flex-col max-w-[85%]",
-                        isOwnMessage ? "ml-auto items-end" : "mr-auto items-start"
+                        "group flex items-start gap-2",
+                        isOwnMessage ? "flex-row-reverse" : "flex-row"
                       )}
                     >
-                      {/* Show sender name for group chats (only for other people's messages) */}
-                      {selectedTab?.isGroup && !isOwnMessage && message.sender_name && (
-                        <span className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                          {message.sender_name}
-                        </span>
-                      )}
                       <div
                         className={cn(
-                          "rounded-2xl px-4 py-2.5",
-                          isOwnMessage
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary text-secondary-foreground"
+                          "flex flex-col max-w-[85%]",
+                          isOwnMessage ? "items-end" : "items-start"
                         )}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        {/* Show sender name for group chats (only for other people's messages) */}
+                        {selectedTab?.isGroup && !isOwnMessage && message.sender_name && (
+                          <span className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+                            {message.sender_name}
+                          </span>
+                        )}
+                        <div
+                          className={cn(
+                            "rounded-2xl px-4 py-2.5",
+                            isOwnMessage
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-secondary-foreground"
+                          )}
+                        >
+                          {/* Reply Quote */}
+                          {message.reply_to_message && (
+                            <div
+                              className={cn(
+                                "mb-2 rounded-lg border-l-2 pl-2 py-1",
+                                isOwnMessage
+                                  ? "border-primary-foreground/50 bg-primary-foreground/10"
+                                  : "border-primary bg-background/50"
+                              )}
+                            >
+                              <p className={cn(
+                                "text-xs font-medium",
+                                isOwnMessage ? "text-primary-foreground" : "text-primary"
+                              )}>
+                                {message.reply_to_message.sender_name}
+                              </p>
+                              <p className={cn(
+                                "text-xs line-clamp-2",
+                                isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
+                              )}>
+                                {message.reply_to_message.content}
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         
                         {/* Attached Key Results */}
                         {message.key_results && message.key_results.length > 0 && (
@@ -525,10 +582,25 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                             ))}
                           </div>
                         )}
+                        </div>
+                        <span className="mt-1 px-2 text-[10px] text-muted-foreground">
+                          {formatTime(message.created_at)}
+                        </span>
                       </div>
-                      <span className="mt-1 px-2 text-[10px] text-muted-foreground">
-                        {formatTime(message.created_at)}
-                      </span>
+                      {/* Reply button - appears on hover */}
+                      <button
+                        onClick={() => {
+                          setReplyToMessage(message)
+                          inputRef.current?.focus()
+                        }}
+                        className={cn(
+                          "opacity-0 group-hover:opacity-100 transition-opacity",
+                          "mt-2 p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        )}
+                        title="Reply"
+                      >
+                        <Reply className="h-4 w-4" />
+                      </button>
                     </div>
                   )
                 })
@@ -537,8 +609,30 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
             </div>
           </ScrollArea>
 
-          {/* Bottom section - selected goals + input */}
+          {/* Bottom section - reply preview + selected goals + input */}
       <div className="shrink-0">
+        {/* Reply Preview */}
+        {replyToMessage && (
+          <div className="border-t border-border bg-secondary/30 px-4 py-2">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 border-l-2 border-primary pl-3">
+                <p className="text-xs font-medium text-primary">
+                  {replyToMessage.sender_name}
+                </p>
+                <p className="text-xs text-muted-foreground line-clamp-1">
+                  {replyToMessage.content}
+                </p>
+              </div>
+              <button
+                onClick={() => setReplyToMessage(null)}
+                className="p-1 rounded-full hover:bg-background/50 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        
         {/* Selected Goals Preview */}
         {selectedKeyResults.length > 0 && (
           <div className="border-t border-border bg-secondary/30 px-4 py-2">
