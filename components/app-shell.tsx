@@ -16,8 +16,6 @@ import { AutomationsSection } from "./automations-section"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
-import { CustomGoals } from "./custom-goals"
-
 import { Building2, Plus, Archive, Menu } from "lucide-react"
 import {
   Dialog,
@@ -40,12 +38,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-type GoalTabId = `year-${string}` | `quarter-${string}` | `custom-${string}` | "priorities"
+type GoalTabId = `year-${string}` | `quarter-${string}` | "priorities"
 
-type AddDialogType = "year" | "quarter" | "custom" | null
+type AddDialogType = "year" | "quarter" | null
 
 export function AppShell() {
-  const { activeCompany, companies, addYear, addQuarter, archiveTab, addCompany, isLoading, currentUser, addCustomGoalBoard, deleteCustomGoalBoard } = useApp()
+  const { activeCompany, companies, addYear, addQuarter, archiveTab, addCompany, isLoading, currentUser } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -199,18 +197,6 @@ export function AppShell() {
     [activeQuarters]
   )
   
-  // Custom goal boards (only active ones, sorted by year desc, period desc)
-  const sortedCustomBoards = useMemo(
-    () =>
-      [...(activeCompany.customGoalBoards ?? [])]
-        .filter((b) => b.isActive)
-        .sort((a, b) => {
-          if (b.year !== a.year) return b.year - a.year
-          return b.periodNumber - a.periodNumber
-        }),
-    [activeCompany.customGoalBoards]
-  )
-
   // Derive active content from tab id
   const activeYearId = activeTabId.startsWith("year-")
     ? activeTabId.replace("year-", "")
@@ -218,13 +204,9 @@ export function AppShell() {
   const activeQuarterId = activeTabId.startsWith("quarter-")
     ? activeTabId.replace("quarter-", "")
     : null
-  const activeCustomBoardId = activeTabId.startsWith("custom-")
-    ? activeTabId.replace("custom-", "")
-    : null
 
   const activeYear = sortedYears.find((y) => y.id === activeYearId) ?? null
   const activeQuarter = sortedQuarters.find((q) => q.id === activeQuarterId) ?? null
-  const activeCustomBoard = sortedCustomBoards.find((b) => b.id === activeCustomBoardId) ?? null
 
   function formatYearLabel(year: number) {
     return String(year)
@@ -235,18 +217,7 @@ export function AppShell() {
     return `${q} '${String(year).slice(-2)}`
   }
 
-  function handleArchive(type: "year" | "quarter" | "custom", id: string) {
-    if (type === "custom") {
-      // Delete custom board
-      deleteCustomGoalBoard(id)
-      const remaining = sortedCustomBoards.filter((b) => b.id !== id)
-      if (remaining.length > 0) setActiveTabId(`custom-${remaining[0].id}`)
-      else if (sortedQuarters.length > 0) setActiveTabId(`quarter-${sortedQuarters[0].id}`)
-      else if (sortedYears.length > 0) setActiveTabId(`year-${sortedYears[0].id}`)
-      else setActiveTabId("priorities")
-      return
-    }
-    
+  function handleArchive(type: "year" | "quarter", id: string) {
     archiveTab(type, id)
     // Switch to a still-active tab
     if (type === "year") {
@@ -263,7 +234,7 @@ export function AppShell() {
     }
   }
 
-  function openAddDialog(type: "year" | "quarter" | "custom") {
+  function openAddDialog(type: "year" | "quarter") {
     setAddDialog(type)
     setAddValue("")
     setAddError("")
@@ -314,67 +285,6 @@ export function AppShell() {
         const newQ = company.quarters.find((q) => q.label === label)
         if (newQ) setActiveTabId(`quarter-${newQ.id}`)
       }, 50)
-    } else if (addDialog === "custom") {
-      // Parse custom goals input: "Week 15" or "April" or "Apr 2026" or "Week 15 2026"
-      const raw = addValue.trim()
-      if (!raw) {
-        setAddError('Enter a period like "Week 15", "April", or "Apr 2026"')
-        return
-      }
-      
-      const now = new Date()
-      const currentYear = now.getFullYear()
-      
-      // Try to parse as week: "Week 15" or "W15" or "Week 15 2026"
-      const weekMatch = raw.match(/^(?:week\s*|w)(\d{1,2})(?:\s+(\d{4}))?$/i)
-      if (weekMatch) {
-        const weekNum = parseInt(weekMatch[1])
-        const year = weekMatch[2] ? parseInt(weekMatch[2]) : currentYear
-        if (weekNum < 1 || weekNum > 52) {
-          setAddError("Week number must be between 1 and 52")
-          return
-        }
-        const name = `Week ${weekNum}`
-        const exists = sortedCustomBoards.some(
-          (b) => b.cadence === "weekly" && b.year === year && b.periodNumber === weekNum
-        )
-        if (exists) {
-          setAddError(`A tab for Week ${weekNum}, ${year} already exists`)
-          return
-        }
-        const boardId = await addCustomGoalBoard(name, "weekly", year, weekNum)
-        setAddDialog(null)
-        if (boardId) setActiveTabId(`custom-${boardId}`)
-        return
-      }
-      
-      // Try to parse as month: "April", "Apr", "April 2026", "Apr 2026"
-      const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
-      const monthAbbrevs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-      const monthMatch = raw.match(/^([a-z]+)(?:\s+(\d{4}))?$/i)
-      if (monthMatch) {
-        const monthStr = monthMatch[1].toLowerCase()
-        let monthNum = monthNames.indexOf(monthStr) + 1
-        if (monthNum === 0) monthNum = monthAbbrevs.indexOf(monthStr) + 1
-        if (monthNum > 0) {
-          const year = monthMatch[2] ? parseInt(monthMatch[2]) : currentYear
-          const monthDisplayNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-          const name = monthDisplayNames[monthNum - 1]
-          const exists = sortedCustomBoards.some(
-            (b) => b.cadence === "monthly" && b.year === year && b.periodNumber === monthNum
-          )
-          if (exists) {
-            setAddError(`A tab for ${name} ${year} already exists`)
-            return
-          }
-          const boardId = await addCustomGoalBoard(name, "monthly", year, monthNum)
-          setAddDialog(null)
-          if (boardId) setActiveTabId(`custom-${boardId}`)
-          return
-        }
-      }
-      
-      setAddError('Enter a period like "Week 15", "April", or "Apr 2026"')
     }
   }
 
@@ -520,24 +430,6 @@ export function AppShell() {
                 )
               })}
 
-              {/* Custom goal board tabs */}
-              {sortedCustomBoards.map((board) => {
-                const tabId: GoalTabId = `custom-${board.id}`
-                const isActive = activeTabId === tabId
-                const label = board.cadence === "weekly" 
-                  ? `${board.name} '${String(board.year).slice(-2)}`
-                  : `${board.name} '${String(board.year).slice(-2)}`
-                return (
-                  <GoalTab
-                    key={board.id}
-                    label={label}
-                    isActive={isActive}
-                    onClick={() => setActiveTabId(tabId)}
-                    onArchive={() => handleArchive("custom", board.id)}
-                  />
-                )
-              })}
-
               {/* Priorities tab */}
               <GoalTab
                 label="Priorities"
@@ -546,45 +438,28 @@ export function AppShell() {
               />
 
               {/* Add tab button */}
-              {/* When only custom goals enabled (no OKR), directly open dialog */}
-              {/* When both or only OKR enabled, show dropdown */}
-              {activeCompany.customGoalsEnabled && !sortedYears.length && !sortedQuarters.length ? (
-                <button
-                  onClick={() => openAddDialog("custom")}
-                  className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                  aria-label="Add custom goals tab"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                      aria-label="Add new tab"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" sideOffset={8}>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Add new tab
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => openAddDialog("year")}>
-                      Yearly Goals
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openAddDialog("quarter")}>
-                      Quarterly Goals
-                    </DropdownMenuItem>
-                    {activeCompany.customGoalsEnabled && (
-                      <DropdownMenuItem onClick={() => openAddDialog("custom")}>
-                        Custom Goals
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                    aria-label="Add new tab"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={8}>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Add new tab
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => openAddDialog("year")}>
+                    Yearly Goals
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openAddDialog("quarter")}>
+                    Quarterly Goals
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
@@ -692,10 +567,9 @@ export function AppShell() {
                 <ActiveEditorsIndicator />
                 <RealtimeConnectionStatus />
               </div>
-              {activeTabId === "priorities" && <MonthlyPriorities />}
-              {activeYear && <YearlyGoals years={[activeYear]} />}
-              {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
-              {activeCustomBoard && <CustomGoals board={activeCustomBoard} />}
+{activeTabId === "priorities" && <MonthlyPriorities />}
+                {activeYear && <YearlyGoals years={[activeYear]} />}
+                {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
             </RealtimeGoalsProvider>
           )}
           {activeSection === "metrics" && <MonthlyMetrics />}

@@ -107,58 +107,15 @@ export interface CompanyMember {
   email: string
 }
 
-// ============================================================
-// Custom Goals Types
-// ============================================================
-
-export type CustomGoalType = "number" | "percentage" | "currency" | "boolean" | "text"
-export type CustomGoalBoardCadence = "weekly" | "monthly"
-
-export interface CustomGoalCheckin {
-  id: string
-  goalId: string
-  periodIndex: number // 1-13 for weekly, 1-4 for monthly (weeks in month)
-  value: number | null
-  textValue: string | null
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface CustomGoal {
-  id: string
-  boardId: string
-  title: string
-  description: string | null
-  type: CustomGoalType
-  target: number | null
-  currentValue: number | null
-  position: number
-  checkins: Record<number, { value: number | null; textValue: string | null }> // periodIndex -> checkin data
-}
-
-export interface CustomGoalBoard {
-  id: string
-  companyId: string
-  name: string
-  cadence: CustomGoalBoardCadence
-  year: number
-  periodNumber: number // week 1-52 or month 1-12
-  isActive: boolean
-  goals: CustomGoal[]
-  createdAt: Date
-}
-
 export interface Company {
   id: string
   name: string
   timezone?: string
-  customGoalsEnabled?: boolean
   founders: Founder[]
   members: CompanyMember[]
   years: Year[]
   quarters: Quarter[]
   metrics: Metric[]
-  customGoalBoards?: CustomGoalBoard[]
 }
 
 export interface Coach {
@@ -249,60 +206,6 @@ export function getCurrentWeekKey(): string {
   return `W${weekNum}`
 }
 
-// ============================================================
-// Custom Goals Helper Functions
-// ============================================================
 
-/** Get ISO week number (1-52) for a date */
-export function getISOWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-/** Get current period info for custom goals */
-export function getCurrentPeriodInfo(): { year: number; weekNumber: number; monthNumber: number } {
-  const now = new Date()
-  return {
-    year: now.getFullYear(),
-    weekNumber: getISOWeekNumber(now),
-    monthNumber: now.getMonth() + 1, // 1-12
-  }
-}
-
-/** Get number of periods in a board (13 for weekly = 13 weeks in quarter context, 4 for monthly = weeks in month) */
-export function getBoardPeriodCount(cadence: CustomGoalBoardCadence): number {
-  return cadence === "weekly" ? 13 : 4
-}
-
-/** Get period labels for a board */
-export function getBoardPeriodLabels(cadence: CustomGoalBoardCadence): string[] {
-  const count = getBoardPeriodCount(cadence)
-  return Array.from({ length: count }, (_, i) => 
-    cadence === "weekly" ? `W${i + 1}` : `Wk${i + 1}`
-  )
-}
-
-/** Get board display label */
-export function getBoardDisplayLabel(board: CustomGoalBoard): string {
-  if (board.cadence === "weekly") {
-    return `Week ${board.periodNumber}, ${board.year}`
-  }
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  return `${monthNames[board.periodNumber - 1]} ${board.year}`
-}
-
-/** Calculate progress for a custom goal */
-export function getCustomGoalProgress(goal: CustomGoal): number {
-  if (goal.type === "boolean") {
-    return goal.currentValue === 1 ? 100 : 0
-  }
-  if (goal.target && goal.target > 0 && goal.currentValue !== null) {
-    return Math.min(Math.round((goal.currentValue / goal.target) * 100), 100)
-  }
-  return 0
-}
 
 
