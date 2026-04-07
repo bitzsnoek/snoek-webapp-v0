@@ -14,7 +14,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe, Users } from "lucide-react"
+import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe, Users, ListChecks } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
 import { createClient } from "@/lib/supabase/client"
@@ -63,6 +64,7 @@ export function CompanySettings() {
     removeFounder,
     removeMember,
     deleteCompany,
+    setCustomGoalsEnabled,
   } = useApp()
 
   const isCoach = currentUser.role === "coach"
@@ -292,6 +294,39 @@ export function CompanySettings() {
           </p>
         </div>
       </section>
+
+      {/* Custom Goals Feature Toggle */}
+      {isCoach && (
+        <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
+              <ListChecks className="h-4 w-4 text-foreground" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Custom Goals</h2>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <Label htmlFor="custom-goals-toggle" className="text-sm font-medium text-foreground">
+                  Enable Custom Goals
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Track recurring weekly or monthly goals separate from OKRs
+                </p>
+              </div>
+              <Switch
+                id="custom-goals-toggle"
+                checked={activeCompany.customGoalsEnabled ?? false}
+                onCheckedChange={(checked) => setCustomGoalsEnabled(checked)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When enabled, a Custom Goals section will appear in the sidebar for this company.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Founders */}
       <section className="rounded-xl border border-border bg-card p-4 md:p-6">

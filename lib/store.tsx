@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, dbReorderYearlyGoals, dbReorderYearlyKeyResults, dbReorderQuarterlyGoals, dbReorderQuarterlyKeyResults, type Invitation, type UnconnectedFounder } from "./supabase-data"
-import type { Company, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
+import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, dbReorderYearlyGoals, dbReorderYearlyKeyResults, dbReorderQuarterlyGoals, dbReorderQuarterlyKeyResults, dbSetCompanyCustomGoalsEnabled, dbAddCustomGoalBoard, dbUpdateCustomGoalBoard, dbDeleteCustomGoalBoard, dbAddCustomGoal, dbUpdateCustomGoal, dbDeleteCustomGoal, dbUpsertCustomGoalCheckin, dbReorderCustomGoals, fetchCustomGoalBoards, type Invitation, type UnconnectedFounder } from "./supabase-data"
+import type { Company, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric, CustomGoalBoard, CustomGoal, CustomGoalType, CustomGoalBoardCadence } from "./mock-data"
 
 interface AppState {
   isLoading: boolean
@@ -50,6 +50,16 @@ interface AppState {
   reorderYearlyKeyResults: (yearId: string, goalId: string, fromIndex: number, toIndex: number) => void
   reorderQuarterlyGoals: (quarterId: string, fromIndex: number, toIndex: number) => void
   reorderQuarterlyKeyResults: (quarterId: string, goalId: string, fromIndex: number, toIndex: number) => void
+  // Custom Goals
+  setCustomGoalsEnabled: (enabled: boolean) => Promise<void>
+  addCustomGoalBoard: (name: string, cadence: CustomGoalBoardCadence, year: number, periodNumber: number) => Promise<string | null>
+  updateCustomGoalBoard: (boardId: string, updates: { name?: string; isActive?: boolean }) => void
+  deleteCustomGoalBoard: (boardId: string) => void
+  addCustomGoal: (boardId: string, title: string, type: CustomGoalType, target: number | null, description: string | null) => Promise<string | null>
+  updateCustomGoal: (boardId: string, goalId: string, updates: { title?: string; type?: CustomGoalType; target?: number | null; description?: string | null }) => void
+  deleteCustomGoal: (boardId: string, goalId: string) => void
+  updateCustomGoalCheckin: (boardId: string, goalId: string, periodIndex: number, value: number | null, textValue: string | null) => void
+  refreshCustomGoalBoards: () => Promise<void>
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -773,6 +783,175 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // =========== CUSTOM GOALS FUNCTIONS ===========
+
+  function patchCustomGoalBoards(fn: (boards: CustomGoalBoard[]) => CustomGoalBoard[]) {
+    setCompanies((prev) =>
+      prev.map((company) =>
+        company.id !== activeCompanyId
+          ? company
+          : { ...company, customGoalBoards: fn(company.customGoalBoards ?? []) }
+      )
+    )
+  }
+
+  async function setCustomGoalsEnabled(enabled: boolean) {
+    setCompanies((prev) =>
+      prev.map((c) => c.id === activeCompanyId ? { ...c, customGoalsEnabled: enabled } : c)
+    )
+    await dbSetCompanyCustomGoalsEnabled(activeCompanyId, enabled)
+    if (enabled) {
+      // Fetch boards when enabling
+      const boards = await fetchCustomGoalBoards(activeCompanyId)
+      setCompanies((prev) =>
+        prev.map((c) => c.id === activeCompanyId ? { ...c, customGoalBoards: boards } : c)
+      )
+    }
+  }
+
+  async function addCustomGoalBoard(
+    name: string,
+    cadence: CustomGoalBoardCadence,
+    year: number,
+    periodNumber: number
+  ): Promise<string | null> {
+    const tempId = `cgb-${Date.now()}`
+    const tempBoard: CustomGoalBoard = {
+      id: tempId,
+      companyId: activeCompanyId,
+      name,
+      cadence,
+      year,
+      periodNumber,
+      isActive: true,
+      goals: [],
+      createdAt: new Date(),
+    }
+    patchCustomGoalBoards((boards) => [tempBoard, ...boards])
+    
+    const realId = await dbAddCustomGoalBoard(activeCompanyId, name, cadence, year, periodNumber)
+    if (realId) {
+      patchCustomGoalBoards((boards) =>
+        boards.map((b) => b.id === tempId ? { ...b, id: realId } : b)
+      )
+      return realId
+    }
+    return tempId
+  }
+
+  function updateCustomGoalBoard(boardId: string, updates: { name?: string; isActive?: boolean }) {
+    patchCustomGoalBoards((boards) =>
+      boards.map((b) => b.id === boardId ? { ...b, ...updates } : b)
+    )
+    dbUpdateCustomGoalBoard(boardId, updates)
+  }
+
+  function deleteCustomGoalBoard(boardId: string) {
+    patchCustomGoalBoards((boards) => boards.filter((b) => b.id !== boardId))
+    dbDeleteCustomGoalBoard(boardId)
+  }
+
+  async function addCustomGoal(
+    boardId: string,
+    title: string,
+    type: CustomGoalType,
+    target: number | null,
+    description: string | null
+  ): Promise<string | null> {
+    const tempId = `cg-${Date.now()}`
+    const tempGoal: CustomGoal = {
+      id: tempId,
+      boardId,
+      title,
+      description,
+      type,
+      target,
+      currentValue: null,
+      position: 0,
+      checkins: {},
+    }
+    patchCustomGoalBoards((boards) =>
+      boards.map((b) =>
+        b.id === boardId ? { ...b, goals: [...b.goals, tempGoal] } : b
+      )
+    )
+    
+    const realId = await dbAddCustomGoal(boardId, title, type, target, description)
+    if (realId) {
+      patchCustomGoalBoards((boards) =>
+        boards.map((b) =>
+          b.id === boardId
+            ? { ...b, goals: b.goals.map((g) => g.id === tempId ? { ...g, id: realId } : g) }
+            : b
+        )
+      )
+      return realId
+    }
+    return tempId
+  }
+
+  function updateCustomGoal(
+    boardId: string,
+    goalId: string,
+    updates: { title?: string; type?: CustomGoalType; target?: number | null; description?: string | null }
+  ) {
+    patchCustomGoalBoards((boards) =>
+      boards.map((b) =>
+        b.id === boardId
+          ? { ...b, goals: b.goals.map((g) => g.id === goalId ? { ...g, ...updates } : g) }
+          : b
+      )
+    )
+    dbUpdateCustomGoal(goalId, updates)
+  }
+
+  function deleteCustomGoal(boardId: string, goalId: string) {
+    patchCustomGoalBoards((boards) =>
+      boards.map((b) =>
+        b.id === boardId ? { ...b, goals: b.goals.filter((g) => g.id !== goalId) } : b
+      )
+    )
+    dbDeleteCustomGoal(goalId)
+  }
+
+  function updateCustomGoalCheckin(
+    boardId: string,
+    goalId: string,
+    periodIndex: number,
+    value: number | null,
+    textValue: string | null
+  ) {
+    patchCustomGoalBoards((boards) =>
+      boards.map((b) =>
+        b.id === boardId
+          ? {
+              ...b,
+              goals: b.goals.map((g) => {
+                if (g.id !== goalId) return g
+                const newCheckins = { ...g.checkins, [periodIndex]: { value, textValue } }
+                // Calculate new current_value (sum of all numeric values for number/currency/percentage, latest for boolean)
+                let newCurrentValue: number | null = null
+                if (g.type === "boolean") {
+                  newCurrentValue = value
+                } else if (g.type !== "text") {
+                  newCurrentValue = Object.values(newCheckins).reduce((sum, ci) => sum + (ci.value ?? 0), 0)
+                }
+                return { ...g, checkins: newCheckins, currentValue: newCurrentValue }
+              }),
+            }
+          : b
+      )
+    )
+    dbUpsertCustomGoalCheckin(goalId, periodIndex, value, textValue)
+  }
+
+  async function refreshCustomGoalBoards() {
+    const boards = await fetchCustomGoalBoards(activeCompanyId)
+    setCompanies((prev) =>
+      prev.map((c) => c.id === activeCompanyId ? { ...c, customGoalBoards: boards } : c)
+    )
+  }
+
   if (loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -832,6 +1011,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reorderYearlyKeyResults,
         reorderQuarterlyGoals,
         reorderQuarterlyKeyResults,
+        // Custom Goals
+        setCustomGoalsEnabled,
+        addCustomGoalBoard,
+        updateCustomGoalBoard,
+        deleteCustomGoalBoard,
+        addCustomGoal,
+        updateCustomGoal,
+        deleteCustomGoal,
+        updateCustomGoalCheckin,
+        refreshCustomGoalBoards,
       }}
     >
       {children}

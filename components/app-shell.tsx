@@ -16,6 +16,7 @@ import { AutomationsSection } from "./automations-section"
 import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
+import { CustomGoals } from "./custom-goals"
 
 import { Building2, Plus, Archive, Menu } from "lucide-react"
 import {
@@ -538,8 +539,8 @@ export function AppShell() {
             </div>
           )}
 
-          {/* Section title for non-Goals/non-Chat sections */}
-          {activeSection !== "goals" && activeSection !== "chat" && (
+          {/* Section title for non-Goals/non-Chat/non-Custom-Goals sections */}
+          {activeSection !== "goals" && activeSection !== "chat" && activeSection !== "custom-goals" && (
             <h1 className="text-sm font-medium text-foreground">
               {activeSection === "metrics"
                   ? "Monthly Metrics"
@@ -573,6 +574,7 @@ export function AppShell() {
               {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
             </RealtimeGoalsProvider>
           )}
+          {activeSection === "custom-goals" && <CustomGoals />}
           {activeSection === "metrics" && <MonthlyMetrics />}
           {activeSection === "meetings" && <MeetingsSection />}
           {activeSection === "chat" && <ChatSection selectedTab={selectedChatTab} />}
