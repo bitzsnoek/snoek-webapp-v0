@@ -49,9 +49,10 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
   const supabase = createClient()
 
   // Phase 1: Fetch core data in parallel
+  // Note: get_company_members_with_email is a secure function that replaces the insecure view
   const [companyRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
-    supabase.from("company_members_with_email").select("*").eq("company_id", companyId),
+    supabase.rpc("get_company_members_with_email", { p_company_id: companyId }),
     supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
     supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
     supabase.from("metrics").select("*").eq("company_id", companyId),
