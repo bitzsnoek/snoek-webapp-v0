@@ -17,7 +17,6 @@ import { ArchiveView } from "./archive-view"
 import { CompanySettings } from "./company-settings"
 import { AccountSettings } from "./account-settings"
 import { CustomGoals } from "./custom-goals"
-import { getWeekStartDate, getWeekEndDate, getMonthStartDate, getMonthEndDate, getISOWeekNumber, getBoardDisplayLabel } from "@/lib/mock-data"
 
 import { Building2, Plus, Archive, Menu } from "lucide-react"
 import {
@@ -200,12 +199,15 @@ export function AppShell() {
     [activeQuarters]
   )
   
-  // Custom goal boards (only active ones, sorted by start_date desc)
+  // Custom goal boards (only active ones, sorted by year desc, period desc)
   const sortedCustomBoards = useMemo(
     () =>
       [...(activeCompany.customGoalBoards ?? [])]
         .filter((b) => b.isActive)
-        .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()),
+        .sort((a, b) => {
+          if (b.year !== a.year) return b.year - a.year
+          return b.periodNumber - a.periodNumber
+        }),
     [activeCompany.customGoalBoards]
   )
 
@@ -313,35 +315,15 @@ export function AppShell() {
         if (newQ) setActiveTabId(`quarter-${newQ.id}`)
       }, 50)
     } else if (addDialog === "custom") {
-      // Parse custom goals input: "Week 15" or "April" or "Apr 2026" or "Week 15 2026" or "Milestone: Name"
+      // Parse custom goals input: "Week 15" or "April" or "Apr 2026" or "Week 15 2026"
       const raw = addValue.trim()
       if (!raw) {
-        setAddError('Enter a period like "Week 15", "April", or "Milestone: Project Launch"')
+        setAddError('Enter a period like "Week 15", "April", or "Apr 2026"')
         return
       }
       
       const now = new Date()
       const currentYear = now.getFullYear()
-      
-      // Try to parse as milestone: "Milestone: Name" or just starts with "Milestone"
-      const milestoneMatch = raw.match(/^milestone[:\s]+(.+)$/i)
-      if (milestoneMatch) {
-        const name = milestoneMatch[1].trim()
-        if (!name) {
-          setAddError("Enter a name for the milestone")
-          return
-        }
-        // Default milestone: 30 days from today
-        const startDate = now.toISOString().split("T")[0]
-        const endDateObj = new Date(now)
-        endDateObj.setDate(endDateObj.getDate() + 30)
-        const endDate = endDateObj.toISOString().split("T")[0]
-        
-        const boardId = await addCustomGoalBoard(name, "milestone", startDate, endDate)
-        setAddDialog(null)
-        if (boardId) setActiveTabId(`custom-${boardId}`)
-        return
-      }
       
       // Try to parse as week: "Week 15" or "W15" or "Week 15 2026"
       const weekMatch = raw.match(/^(?:week\s*|w)(\d{1,2})(?:\s+(\d{4}))?$/i)
@@ -352,27 +334,15 @@ export function AppShell() {
           setAddError("Week number must be between 1 and 52")
           return
         }
-        // Calculate the start date of this ISO week
-        const jan4 = new Date(year, 0, 4) // Jan 4 is always in week 1
-        const startOfYear = new Date(jan4)
-        startOfYear.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7)) // Monday of week 1
-        const weekStartDate = new Date(startOfYear)
-        weekStartDate.setDate(weekStartDate.getDate() + (weekNum - 1) * 7)
-        const weekEndDate = new Date(weekStartDate)
-        weekEndDate.setDate(weekEndDate.getDate() + 6)
-        
-        const startDate = weekStartDate.toISOString().split("T")[0]
-        const endDate = weekEndDate.toISOString().split("T")[0]
         const name = `Week ${weekNum}`
-        
         const exists = sortedCustomBoards.some(
-          (b) => b.boardType === "weekly" && b.startDate === startDate
+          (b) => b.cadence === "weekly" && b.year === year && b.periodNumber === weekNum
         )
         if (exists) {
           setAddError(`A tab for Week ${weekNum}, ${year} already exists`)
           return
         }
-        const boardId = await addCustomGoalBoard(name, "weekly", startDate, endDate)
+        const boardId = await addCustomGoalBoard(name, "weekly", year, weekNum)
         setAddDialog(null)
         if (boardId) setActiveTabId(`custom-${boardId}`)
         return
@@ -390,25 +360,21 @@ export function AppShell() {
           const year = monthMatch[2] ? parseInt(monthMatch[2]) : currentYear
           const monthDisplayNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
           const name = monthDisplayNames[monthNum - 1]
-          
-          const startDate = new Date(year, monthNum - 1, 1).toISOString().split("T")[0]
-          const endDate = new Date(year, monthNum, 0).toISOString().split("T")[0] // Last day of month
-          
           const exists = sortedCustomBoards.some(
-            (b) => b.boardType === "monthly" && b.startDate === startDate
+            (b) => b.cadence === "monthly" && b.year === year && b.periodNumber === monthNum
           )
           if (exists) {
             setAddError(`A tab for ${name} ${year} already exists`)
             return
           }
-          const boardId = await addCustomGoalBoard(name, "monthly", startDate, endDate)
+          const boardId = await addCustomGoalBoard(name, "monthly", year, monthNum)
           setAddDialog(null)
           if (boardId) setActiveTabId(`custom-${boardId}`)
           return
         }
       }
       
-      setAddError('Enter a period like "Week 15", "April", or "Milestone: Project Launch"')
+      setAddError('Enter a period like "Week 15", "April", or "Apr 2026"')
     }
   }
 
@@ -554,11 +520,13 @@ export function AppShell() {
                 )
               })}
 
-{/* Custom goal board tabs */}
+              {/* Custom goal board tabs */}
               {sortedCustomBoards.map((board) => {
                 const tabId: GoalTabId = `custom-${board.id}`
                 const isActive = activeTabId === tabId
-                const label = getBoardDisplayLabel(board)
+                const label = board.cadence === "weekly" 
+                  ? `${board.name} '${String(board.year).slice(-2)}`
+                  : `${board.name} '${String(board.year).slice(-2)}`
                 return (
                   <GoalTab
                     key={board.id}
@@ -756,7 +724,7 @@ export function AppShell() {
                 ? "Enter the year for the new tab (e.g. 2026)."
                 : addDialog === "quarter"
                 ? 'Enter the quarter and year (e.g. "Q2" or "Q2 2026").'
-                : 'Enter "Week 15", "April", or "Milestone: Project Name".'}
+                : 'Enter a week (e.g. "Week 15") or month (e.g. "April" or "Apr 2026").'}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-2">
@@ -765,7 +733,7 @@ export function AppShell() {
             </Label>
             <Input
               id="add-tab-value"
-              placeholder={addDialog === "year" ? "2026" : addDialog === "quarter" ? "Q2 2026" : "Week 15, April, or Milestone: Name"}
+              placeholder={addDialog === "year" ? "2026" : addDialog === "quarter" ? "Q2 2026" : "Week 15 or April"}
               value={addValue}
               onChange={(e) => {
                 setAddValue(e.target.value)

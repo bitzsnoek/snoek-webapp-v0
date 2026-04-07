@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import type { Company, CompanyMember, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Founder, Confidence, CustomGoalBoard, CustomGoal, CustomGoalType, CustomGoalBoardType, CustomGoalGroup } from "./mock-data"
+import type { Company, CompanyMember, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Founder, Confidence, CustomGoalBoard, CustomGoal, CustomGoalType, CustomGoalBoardCadence } from "./mock-data"
 
 // ============================================================
 // Map DB confidence values to frontend Confidence type
@@ -833,9 +833,8 @@ function mapCustomGoalType(dbType: string): CustomGoalType {
   return validTypes.includes(dbType as CustomGoalType) ? (dbType as CustomGoalType) : "number"
 }
 
-function mapCustomGoalBoardType(dbType: string): CustomGoalBoardType {
-  const validTypes: CustomGoalBoardType[] = ["weekly", "monthly", "milestone"]
-  return validTypes.includes(dbType as CustomGoalBoardType) ? (dbType as CustomGoalBoardType) : "weekly"
+function mapCustomGoalCadence(dbCadence: string): CustomGoalBoardCadence {
+  return dbCadence === "monthly" ? "monthly" : "weekly"
 }
 
 export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGoalBoard[]> {
@@ -846,7 +845,8 @@ export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGo
     .from("custom_goal_boards")
     .select("*")
     .eq("company_id", companyId)
-    .order("start_date", { ascending: false })
+    .order("year", { ascending: false })
+    .order("period_number", { ascending: false })
   
   if (error || !boards) {
     console.error("[v0] fetchCustomGoalBoards error:", error)
@@ -856,19 +856,12 @@ export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGo
   const boardIds = boards.map((b: any) => b.id)
   if (boardIds.length === 0) return []
   
-  // Fetch all groups for these boards
-  const { data: groups } = await supabase
-    .from("custom_goal_groups")
-    .select("*")
-    .in("board_id", boardIds)
-    .order("position", { ascending: true })
-  
   // Fetch all goals for these boards
   const { data: goals } = await supabase
     .from("custom_goals")
     .select("*")
     .in("board_id", boardIds)
-    .order("sort_order", { ascending: true })
+    .order("position", { ascending: true })
   
   // Fetch all check-ins for these goals
   const goalIds = (goals ?? []).map((g: any) => g.id)
@@ -876,29 +869,15 @@ export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGo
     ? await supabase.from("custom_goal_checkins").select("*").in("goal_id", goalIds)
     : { data: [] }
   
-  // Build check-in lookup: goal_id -> { checkin_date: { value, textValue } }
-  const checkinMap = new Map<string, Record<string, { value: number | null; textValue: string | null }>>()
+  // Build check-in lookup: goal_id -> { periodIndex: { value, textValue } }
+  const checkinMap = new Map<string, Record<number, { value: number | null; textValue: string | null }>>()
   for (const ci of checkins ?? []) {
     const goalId = ci.goal_id
     if (!checkinMap.has(goalId)) checkinMap.set(goalId, {})
-    checkinMap.get(goalId)![ci.checkin_date] = {
+    checkinMap.get(goalId)![ci.period_index] = {
       value: ci.value,
       textValue: ci.text_value,
     }
-  }
-  
-  // Build groups by board
-  const groupsByBoard = new Map<string, CustomGoalGroup[]>()
-  for (const g of groups ?? []) {
-    const boardId = g.board_id
-    if (!groupsByBoard.has(boardId)) groupsByBoard.set(boardId, [])
-    groupsByBoard.get(boardId)!.push({
-      id: g.id,
-      boardId: g.board_id,
-      name: g.name,
-      position: g.position,
-      isCollapsed: g.is_collapsed ?? false,
-    })
   }
   
   // Build goals by board
@@ -909,15 +888,12 @@ export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGo
     goalsByBoard.get(boardId)!.push({
       id: g.id,
       boardId: g.board_id,
-      groupId: g.group_id,
       title: g.title,
       description: g.description,
-      type: mapCustomGoalType(g.goal_type),
-      target: g.target_value,
+      type: mapCustomGoalType(g.type),
+      target: g.target,
       currentValue: g.current_value,
-      unit: g.unit,
-      position: g.sort_order,
-      ownerId: g.owner_id,
+      position: g.position,
       checkins: checkinMap.get(g.id) ?? {},
     })
   }
@@ -927,12 +903,11 @@ export async function fetchCustomGoalBoards(companyId: string): Promise<CustomGo
     id: b.id,
     companyId: b.company_id,
     name: b.name,
-    boardType: mapCustomGoalBoardType(b.board_type),
-    startDate: b.start_date,
-    endDate: b.end_date,
+    cadence: mapCustomGoalCadence(b.cadence),
+    year: b.year,
+    periodNumber: b.period_number,
     isActive: b.is_active ?? true,
     goals: goalsByBoard.get(b.id) ?? [],
-    groups: groupsByBoard.get(b.id) ?? [],
     createdAt: new Date(b.created_at),
   }))
 }
@@ -955,9 +930,9 @@ export async function dbSetCompanyCustomGoalsEnabled(companyId: string, enabled:
 export async function dbAddCustomGoalBoard(
   companyId: string,
   name: string,
-  boardType: CustomGoalBoardType,
-  startDate: string,
-  endDate: string
+  cadence: CustomGoalBoardCadence,
+  year: number,
+  periodNumber: number
 ): Promise<string | null> {
   const supabase = createClient()
   const id = crypto.randomUUID()
@@ -965,9 +940,9 @@ export async function dbAddCustomGoalBoard(
     id,
     company_id: companyId,
     name,
-    board_type: boardType,
-    start_date: startDate,
-    end_date: endDate,
+    cadence,
+    year,
+    period_number: periodNumber,
     is_active: true,
   })
   if (error) {
@@ -1004,33 +979,29 @@ export async function dbAddCustomGoal(
   title: string,
   type: CustomGoalType,
   target: number | null,
-  description: string | null,
-  groupId: string | null = null,
-  unit: string | null = null
+  description: string | null
 ): Promise<string | null> {
   const supabase = createClient()
   const id = crypto.randomUUID()
   
-  // Get max sort_order
+  // Get max position
   const { data: existing } = await supabase
     .from("custom_goals")
-    .select("sort_order")
+    .select("position")
     .eq("board_id", boardId)
-    .order("sort_order", { ascending: false })
+    .order("position", { ascending: false })
     .limit(1)
-  const sortOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0
+  const position = existing && existing.length > 0 ? existing[0].position + 1 : 0
   
   const { error } = await supabase.from("custom_goals").insert({
     id,
     board_id: boardId,
-    group_id: groupId,
     title,
-    goal_type: type,
-    target_value: target,
+    type,
+    target,
     description,
-    sort_order: sortOrder,
+    position,
     current_value: null,
-    unit,
   })
   if (error) {
     console.error("[v0] dbAddCustomGoal error:", error)
@@ -1041,16 +1012,14 @@ export async function dbAddCustomGoal(
 
 export async function dbUpdateCustomGoal(
   goalId: string,
-  updates: { title?: string; type?: CustomGoalType; target?: number | null; description?: string | null; groupId?: string | null; unit?: string | null }
+  updates: { title?: string; type?: CustomGoalType; target?: number | null; description?: string | null }
 ) {
   const supabase = createClient()
   const dbUpdates: any = {}
   if (updates.title !== undefined) dbUpdates.title = updates.title
-  if (updates.type !== undefined) dbUpdates.goal_type = updates.type
-  if (updates.target !== undefined) dbUpdates.target_value = updates.target
+  if (updates.type !== undefined) dbUpdates.type = updates.type
+  if (updates.target !== undefined) dbUpdates.target = updates.target
   if (updates.description !== undefined) dbUpdates.description = updates.description
-  if (updates.groupId !== undefined) dbUpdates.group_id = updates.groupId
-  if (updates.unit !== undefined) dbUpdates.unit = updates.unit
   await supabase.from("custom_goals").update(dbUpdates).eq("id", goalId)
 }
 
@@ -1062,7 +1031,7 @@ export async function dbDeleteCustomGoal(goalId: string) {
 
 export async function dbUpsertCustomGoalCheckin(
   goalId: string,
-  checkinDate: string,
+  periodIndex: number,
   value: number | null,
   textValue: string | null
 ) {
@@ -1070,8 +1039,8 @@ export async function dbUpsertCustomGoalCheckin(
   const { error } = await supabase
     .from("custom_goal_checkins")
     .upsert(
-      { goal_id: goalId, checkin_date: checkinDate, value, text_value: textValue },
-      { onConflict: "goal_id,checkin_date" }
+      { goal_id: goalId, period_index: periodIndex, value, text_value: textValue },
+      { onConflict: "goal_id,period_index" }
     )
   if (error) console.error("[v0] dbUpsertCustomGoalCheckin error:", error)
 }
@@ -1079,66 +1048,6 @@ export async function dbUpsertCustomGoalCheckin(
 export async function dbReorderCustomGoals(goalIds: string[]) {
   const supabase = createClient()
   for (let i = 0; i < goalIds.length; i++) {
-    await supabase.from("custom_goals").update({ sort_order: i }).eq("id", goalIds[i])
-  }
-}
-
-// ============================================================
-// Custom Goal Groups Functions
-// ============================================================
-
-export async function dbAddCustomGoalGroup(
-  boardId: string,
-  name: string
-): Promise<string | null> {
-  const supabase = createClient()
-  const id = crypto.randomUUID()
-  
-  // Get max position
-  const { data: existing } = await supabase
-    .from("custom_goal_groups")
-    .select("position")
-    .eq("board_id", boardId)
-    .order("position", { ascending: false })
-    .limit(1)
-  const position = existing && existing.length > 0 ? existing[0].position + 1 : 0
-  
-  const { error } = await supabase.from("custom_goal_groups").insert({
-    id,
-    board_id: boardId,
-    name,
-    position,
-    is_collapsed: false,
-  })
-  if (error) {
-    console.error("[v0] dbAddCustomGoalGroup error:", error)
-    return null
-  }
-  return id
-}
-
-export async function dbUpdateCustomGoalGroup(
-  groupId: string,
-  updates: { name?: string; isCollapsed?: boolean }
-) {
-  const supabase = createClient()
-  const dbUpdates: any = {}
-  if (updates.name !== undefined) dbUpdates.name = updates.name
-  if (updates.isCollapsed !== undefined) dbUpdates.is_collapsed = updates.isCollapsed
-  await supabase.from("custom_goal_groups").update(dbUpdates).eq("id", groupId)
-}
-
-export async function dbDeleteCustomGoalGroup(groupId: string) {
-  const supabase = createClient()
-  // First, ungroup all goals in this group
-  await supabase.from("custom_goals").update({ group_id: null }).eq("group_id", groupId)
-  // Then delete the group
-  await supabase.from("custom_goal_groups").delete().eq("id", groupId)
-}
-
-export async function dbReorderCustomGoalGroups(groupIds: string[]) {
-  const supabase = createClient()
-  for (let i = 0; i < groupIds.length; i++) {
-    await supabase.from("custom_goal_groups").update({ position: i }).eq("id", groupIds[i])
+    await supabase.from("custom_goals").update({ position: i }).eq("id", goalIds[i])
   }
 }
