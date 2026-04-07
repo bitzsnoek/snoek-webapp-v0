@@ -262,36 +262,74 @@ export function getISOWeekNumber(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
 }
 
-/** Get current period info for custom goals */
-export function getCurrentPeriodInfo(): { year: number; weekNumber: number; monthNumber: number } {
-  const now = new Date()
-  return {
-    year: now.getFullYear(),
-    weekNumber: getISOWeekNumber(now),
-    monthNumber: now.getMonth() + 1, // 1-12
+/** Get check-in columns for a board based on type and date range */
+export function getBoardCheckinColumns(board: CustomGoalBoard): { key: string; label: string }[] {
+  const start = new Date(board.startDate)
+  const end = new Date(board.endDate)
+  
+  if (board.boardType === "weekly") {
+    // Single week: 7 days (Mon-Sun)
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    return days.map((day, i) => {
+      const date = new Date(start)
+      date.setDate(date.getDate() + i)
+      return { key: date.toISOString().split("T")[0], label: day }
+    })
+  } else if (board.boardType === "monthly") {
+    // Month: 4-5 weeks
+    const weeks: { key: string; label: string }[] = []
+    let weekNum = 1
+    const current = new Date(start)
+    while (current <= end) {
+      weeks.push({ key: current.toISOString().split("T")[0], label: `W${weekNum}` })
+      current.setDate(current.getDate() + 7)
+      weekNum++
+    }
+    return weeks
+  } else {
+    // Milestone: flexible columns based on duration
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    if (daysDiff <= 14) {
+      // 2 weeks or less: show individual days
+      const columns: { key: string; label: string }[] = []
+      const current = new Date(start)
+      while (current <= end) {
+        const dayLabel = current.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        columns.push({ key: current.toISOString().split("T")[0], label: dayLabel })
+        current.setDate(current.getDate() + 1)
+      }
+      return columns
+    } else {
+      // Longer: show weeks
+      const weeks: { key: string; label: string }[] = []
+      let weekNum = 1
+      const current = new Date(start)
+      while (current <= end) {
+        weeks.push({ key: current.toISOString().split("T")[0], label: `W${weekNum}` })
+        current.setDate(current.getDate() + 7)
+        weekNum++
+      }
+      return weeks
+    }
   }
-}
-
-/** Get number of periods in a board (13 for weekly = 13 weeks in quarter context, 4 for monthly = weeks in month) */
-export function getBoardPeriodCount(cadence: CustomGoalBoardCadence): number {
-  return cadence === "weekly" ? 13 : 4
-}
-
-/** Get period labels for a board */
-export function getBoardPeriodLabels(cadence: CustomGoalBoardCadence): string[] {
-  const count = getBoardPeriodCount(cadence)
-  return Array.from({ length: count }, (_, i) => 
-    cadence === "weekly" ? `W${i + 1}` : `Wk${i + 1}`
-  )
 }
 
 /** Get board display label */
 export function getBoardDisplayLabel(board: CustomGoalBoard): string {
-  if (board.cadence === "weekly") {
-    return `Week ${board.periodNumber}, ${board.year}`
+  const start = new Date(board.startDate)
+  const year = start.getFullYear()
+  const yearShort = String(year).slice(-2)
+  
+  if (board.boardType === "weekly") {
+    const weekNum = getISOWeekNumber(start)
+    return `W${weekNum} '${yearShort}`
+  } else if (board.boardType === "monthly") {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return `${monthNames[start.getMonth()]} '${yearShort}`
+  } else {
+    // Milestone: use the board name
+    return board.name
   }
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  return `${monthNames[board.periodNumber - 1]} ${board.year}`
 }
 
 /** Calculate progress for a custom goal */
@@ -303,6 +341,34 @@ export function getCustomGoalProgress(goal: CustomGoal): number {
     return Math.min(Math.round((goal.currentValue / goal.target) * 100), 100)
   }
   return 0
+}
+
+/** Get week start date (Monday) for a given date */
+export function getWeekStartDate(date: Date): string {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  d.setDate(diff)
+  return d.toISOString().split("T")[0]
+}
+
+/** Get week end date (Sunday) for a given date */
+export function getWeekEndDate(date: Date): string {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? 0 : 7)
+  d.setDate(diff)
+  return d.toISOString().split("T")[0]
+}
+
+/** Get month start date for a given date */
+export function getMonthStartDate(date: Date): string {
+  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split("T")[0]
+}
+
+/** Get month end date for a given date */
+export function getMonthEndDate(date: Date): string {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split("T")[0]
 }
 
 

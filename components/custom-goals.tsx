@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
-import { getBoardDisplayLabel, getBoardPeriodLabels, getCustomGoalProgress } from "@/lib/mock-data"
+import { getBoardDisplayLabel, getBoardCheckinColumns, getCustomGoalProgress } from "@/lib/mock-data"
 import type { CustomGoalBoard, CustomGoal, CustomGoalType } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Plus, MoreHorizontal, Pencil, Trash2, Target } from "lucide-react"
@@ -49,7 +49,7 @@ export function CustomGoals({ board }: CustomGoalsProps) {
   const [goalTarget, setGoalTarget] = useState("")
   const [goalDescription, setGoalDescription] = useState("")
   
-  const periodLabels = getBoardPeriodLabels(board.cadence)
+  const checkinColumns = getBoardCheckinColumns(board)
   
   async function handleAddGoal() {
     if (!goalTitle.trim()) return
@@ -110,7 +110,7 @@ export function CustomGoals({ board }: CustomGoalsProps) {
         <div>
           <h1 className="text-xl font-semibold text-foreground">{board.name}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {getBoardDisplayLabel(board)} - {board.cadence === "weekly" ? "Weekly goals" : "Monthly goals"}
+            {board.boardType === "milestone" ? `${board.startDate} to ${board.endDate}` : getBoardDisplayLabel(board)} - {board.boardType === "weekly" ? "Weekly goals" : board.boardType === "monthly" ? "Monthly goals" : "Milestone goals"}
           </p>
         </div>
         <Button onClick={() => setShowAddGoalDialog(true)} size="sm">
@@ -138,11 +138,11 @@ export function CustomGoals({ board }: CustomGoalsProps) {
             <GoalCard
               key={goal.id}
               goal={goal}
-              periodLabels={periodLabels}
+              checkinColumns={checkinColumns}
               onEdit={() => handleEditGoal(goal)}
               onDelete={() => deleteCustomGoal(board.id, goal.id)}
-              onUpdateCheckin={(periodIndex, value, textValue) => 
-                updateCustomGoalCheckin(board.id, goal.id, periodIndex, value, textValue)
+              onUpdateCheckin={(checkinDate, value, textValue) => 
+                updateCustomGoalCheckin(board.id, goal.id, checkinDate, value, textValue)
               }
             />
           ))}
@@ -191,16 +191,16 @@ export function CustomGoals({ board }: CustomGoalsProps) {
 // Goal card with inline check-in grid
 function GoalCard({
   goal,
-  periodLabels,
+  checkinColumns,
   onEdit,
   onDelete,
   onUpdateCheckin,
 }: {
   goal: CustomGoal
-  periodLabels: string[]
+  checkinColumns: { key: string; label: string }[]
   onEdit: () => void
   onDelete: () => void
-  onUpdateCheckin: (periodIndex: number, value: number | null, textValue: string | null) => void
+  onUpdateCheckin: (checkinDate: string, value: number | null, textValue: string | null) => void
 }) {
   const progress = getCustomGoalProgress(goal)
   
@@ -212,20 +212,20 @@ function GoalCard({
     return value.toString()
   }
   
-  function handleCellChange(periodIndex: number, inputValue: string) {
+  function handleCellChange(checkinDate: string, inputValue: string) {
     let numValue: number | null = null
     
     if (goal.type === "boolean") {
       numValue = inputValue.toLowerCase() === "yes" || inputValue === "1" ? 1 : 0
     } else if (goal.type === "text") {
-      onUpdateCheckin(periodIndex, null, inputValue)
+      onUpdateCheckin(checkinDate, null, inputValue)
       return
     } else {
       const parsed = parseFloat(inputValue.replace(/[$%,]/g, ""))
       numValue = isNaN(parsed) ? null : parsed
     }
     
-    onUpdateCheckin(periodIndex, numValue, null)
+    onUpdateCheckin(checkinDate, numValue, null)
   }
   
   return (
@@ -278,23 +278,22 @@ function GoalCard({
       {/* Check-in grid */}
       <div className="border-t border-border overflow-x-auto">
         <div className="flex min-w-max">
-          {periodLabels.map((label, index) => {
-            const periodIndex = index + 1
-            const checkin = goal.checkins[periodIndex]
+          {checkinColumns.map((col) => {
+            const checkin = goal.checkins[col.key]
             const displayValue = goal.type === "text" 
               ? (checkin?.textValue ?? "")
               : formatValue(checkin?.value ?? null, goal.type)
             
             return (
-              <div key={periodIndex} className="flex flex-col border-r border-border last:border-r-0">
+              <div key={col.key} className="flex flex-col border-r border-border last:border-r-0">
                 <div className="px-2 py-1 text-center text-xs font-medium text-muted-foreground bg-muted/30">
-                  {label}
+                  {col.label}
                 </div>
                 <div className="p-1">
                   <input
                     type="text"
                     value={displayValue}
-                    onChange={(e) => handleCellChange(periodIndex, e.target.value)}
+                    onChange={(e) => handleCellChange(col.key, e.target.value)}
                     placeholder={goal.type === "boolean" ? "Yes/No" : "-"}
                     className={cn(
                       "w-16 rounded border-0 bg-transparent px-2 py-1.5 text-center text-sm focus:bg-muted focus:outline-none focus:ring-1 focus:ring-primary",
