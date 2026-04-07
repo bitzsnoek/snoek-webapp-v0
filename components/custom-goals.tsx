@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useApp } from "@/lib/store"
-import { getCurrentPeriodInfo, getBoardDisplayLabel, getBoardPeriodLabels, getCustomGoalProgress } from "@/lib/mock-data"
-import type { CustomGoalBoard, CustomGoal, CustomGoalType, CustomGoalBoardCadence } from "@/lib/mock-data"
+import { getBoardDisplayLabel, getBoardPeriodLabels, getCustomGoalProgress } from "@/lib/mock-data"
+import type { CustomGoalBoard, CustomGoal, CustomGoalType } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
-import { Plus, Calendar, ChevronRight, MoreHorizontal, Pencil, Trash2, Target } from "lucide-react"
+import { Plus, MoreHorizontal, Pencil, Trash2, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,136 +31,76 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function CustomGoals() {
-  const { activeCompany, addCustomGoalBoard, deleteCustomGoalBoard, addCustomGoal, updateCustomGoal, deleteCustomGoal, updateCustomGoalCheckin } = useApp()
-  
-  const [cadenceFilter, setCadenceFilter] = useState<"all" | "weekly" | "monthly">("all")
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+interface CustomGoalsProps {
+  board: CustomGoalBoard
+}
+
+export function CustomGoals({ board }: CustomGoalsProps) {
+  const { addCustomGoal, updateCustomGoal, deleteCustomGoal, updateCustomGoalCheckin } = useApp()
   
   // Dialog states
-  const [showAddBoardDialog, setShowAddBoardDialog] = useState(false)
   const [showAddGoalDialog, setShowAddGoalDialog] = useState(false)
-  const [editingGoal, setEditingGoal] = useState<{ boardId: string; goal: CustomGoal } | null>(null)
+  const [editingGoal, setEditingGoal] = useState<CustomGoal | null>(null)
   
-  // New board form state
-  const [newBoardName, setNewBoardName] = useState("")
-  const [newBoardCadence, setNewBoardCadence] = useState<CustomGoalBoardCadence>("weekly")
+  // Goal form state
+  const [goalTitle, setGoalTitle] = useState("")
+  const [goalType, setGoalType] = useState<CustomGoalType>("number")
+  const [goalTarget, setGoalTarget] = useState("")
+  const [goalDescription, setGoalDescription] = useState("")
   
-  // New goal form state
-  const [newGoalTitle, setNewGoalTitle] = useState("")
-  const [newGoalType, setNewGoalType] = useState<CustomGoalType>("number")
-  const [newGoalTarget, setNewGoalTarget] = useState("")
-  const [newGoalDescription, setNewGoalDescription] = useState("")
-  
-  const boards = activeCompany.customGoalBoards ?? []
-  const currentPeriod = getCurrentPeriodInfo()
-  
-  // Filter boards by cadence
-  const filteredBoards = useMemo(() => {
-    let filtered = boards
-    if (cadenceFilter === "weekly") {
-      filtered = boards.filter((b) => b.cadence === "weekly")
-    } else if (cadenceFilter === "monthly") {
-      filtered = boards.filter((b) => b.cadence === "monthly")
-    }
-    return filtered.sort((a, b) => {
-      if (b.year !== a.year) return b.year - a.year
-      return b.periodNumber - a.periodNumber
-    })
-  }, [boards, cadenceFilter])
-  
-  // Find or auto-create current period boards
-  const currentWeeklyBoard = boards.find(
-    (b) => b.cadence === "weekly" && b.year === currentPeriod.year && b.periodNumber === currentPeriod.weekNumber
-  )
-  const currentMonthlyBoard = boards.find(
-    (b) => b.cadence === "monthly" && b.year === currentPeriod.year && b.periodNumber === currentPeriod.monthNumber
-  )
-  
-  const selectedBoard = selectedBoardId ? boards.find((b) => b.id === selectedBoardId) : null
-  
-  async function handleAddBoard() {
-    if (!newBoardName.trim()) return
-    
-    const periodNumber = newBoardCadence === "weekly" ? currentPeriod.weekNumber : currentPeriod.monthNumber
-    const id = await addCustomGoalBoard(newBoardName.trim(), newBoardCadence, currentPeriod.year, periodNumber)
-    
-    setShowAddBoardDialog(false)
-    setNewBoardName("")
-    setNewBoardCadence("weekly")
-    
-    if (id) {
-      setSelectedBoardId(id)
-    }
-  }
+  const periodLabels = getBoardPeriodLabels(board.cadence)
   
   async function handleAddGoal() {
-    if (!selectedBoardId || !newGoalTitle.trim()) return
+    if (!goalTitle.trim()) return
     
-    const target = newGoalType === "boolean" || newGoalType === "text" 
+    const target = goalType === "boolean" || goalType === "text" 
       ? null 
-      : parseFloat(newGoalTarget) || null
+      : parseFloat(goalTarget) || null
     
     await addCustomGoal(
-      selectedBoardId,
-      newGoalTitle.trim(),
-      newGoalType,
+      board.id,
+      goalTitle.trim(),
+      goalType,
       target,
-      newGoalDescription.trim() || null
+      goalDescription.trim() || null
     )
     
-    setShowAddGoalDialog(false)
-    setNewGoalTitle("")
-    setNewGoalType("number")
-    setNewGoalTarget("")
-    setNewGoalDescription("")
+    closeGoalDialog()
   }
   
-  function handleEditGoal(boardId: string, goal: CustomGoal) {
-    setEditingGoal({ boardId, goal })
-    setNewGoalTitle(goal.title)
-    setNewGoalType(goal.type)
-    setNewGoalTarget(goal.target?.toString() ?? "")
-    setNewGoalDescription(goal.description ?? "")
+  function handleEditGoal(goal: CustomGoal) {
+    setEditingGoal(goal)
+    setGoalTitle(goal.title)
+    setGoalType(goal.type)
+    setGoalTarget(goal.target?.toString() ?? "")
+    setGoalDescription(goal.description ?? "")
   }
   
   async function handleSaveEditGoal() {
-    if (!editingGoal || !newGoalTitle.trim()) return
+    if (!editingGoal || !goalTitle.trim()) return
     
-    const target = newGoalType === "boolean" || newGoalType === "text"
+    const target = goalType === "boolean" || goalType === "text"
       ? null
-      : parseFloat(newGoalTarget) || null
+      : parseFloat(goalTarget) || null
     
-    updateCustomGoal(editingGoal.boardId, editingGoal.goal.id, {
-      title: newGoalTitle.trim(),
-      type: newGoalType,
+    updateCustomGoal(board.id, editingGoal.id, {
+      title: goalTitle.trim(),
+      type: goalType,
       target,
-      description: newGoalDescription.trim() || null,
+      description: goalDescription.trim() || null,
     })
     
-    setEditingGoal(null)
-    setNewGoalTitle("")
-    setNewGoalType("number")
-    setNewGoalTarget("")
-    setNewGoalDescription("")
+    closeGoalDialog()
   }
   
-  // If a board is selected, show the board detail view
-  if (selectedBoard) {
-    return (
-      <BoardDetailView
-        board={selectedBoard}
-        onBack={() => setSelectedBoardId(null)}
-        onAddGoal={() => setShowAddGoalDialog(true)}
-        onEditGoal={(goal) => handleEditGoal(selectedBoard.id, goal)}
-        onDeleteGoal={(goalId) => deleteCustomGoal(selectedBoard.id, goalId)}
-        onUpdateCheckin={(goalId, periodIndex, value, textValue) => 
-          updateCustomGoalCheckin(selectedBoard.id, goalId, periodIndex, value, textValue)
-        }
-      />
-    )
+  function closeGoalDialog() {
+    setShowAddGoalDialog(false)
+    setEditingGoal(null)
+    setGoalTitle("")
+    setGoalType("number")
+    setGoalTarget("")
+    setGoalDescription("")
   }
   
   return (
@@ -168,292 +108,12 @@ export function CustomGoals() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Custom Goals</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Track recurring goals on a weekly or monthly basis
-          </p>
-        </div>
-        <Button onClick={() => setShowAddBoardDialog(true)} size="sm">
-          <Plus className="h-4 w-4 mr-1.5" />
-          New Board
-        </Button>
-      </div>
-      
-      {/* Cadence filter */}
-      <Tabs value={cadenceFilter} onValueChange={(v) => setCadenceFilter(v as typeof cadenceFilter)}>
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="weekly">Weekly</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      
-      {/* Current period boards */}
-      {(cadenceFilter === "all" || cadenceFilter === "weekly") && !currentWeeklyBoard && (
-        <QuickCreateCard
-          cadence="weekly"
-          periodLabel={`Week ${currentPeriod.weekNumber}, ${currentPeriod.year}`}
-          onCreate={async () => {
-            const id = await addCustomGoalBoard(
-              `Week ${currentPeriod.weekNumber}`,
-              "weekly",
-              currentPeriod.year,
-              currentPeriod.weekNumber
-            )
-            if (id) setSelectedBoardId(id)
-          }}
-        />
-      )}
-      
-      {(cadenceFilter === "all" || cadenceFilter === "monthly") && !currentMonthlyBoard && (
-        <QuickCreateCard
-          cadence="monthly"
-          periodLabel={new Date(currentPeriod.year, currentPeriod.monthNumber - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          onCreate={async () => {
-            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-            const id = await addCustomGoalBoard(
-              monthNames[currentPeriod.monthNumber - 1],
-              "monthly",
-              currentPeriod.year,
-              currentPeriod.monthNumber
-            )
-            if (id) setSelectedBoardId(id)
-          }}
-        />
-      )}
-      
-      {/* Board list */}
-      {filteredBoards.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-8 text-center">
-          <Target className="mx-auto h-10 w-10 text-muted-foreground/50" />
-          <h3 className="mt-3 text-sm font-medium text-foreground">No boards yet</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first board to start tracking custom goals
-          </p>
-          <Button onClick={() => setShowAddBoardDialog(true)} variant="outline" size="sm" className="mt-4">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Create Board
-          </Button>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredBoards.map((board) => (
-            <BoardCard
-              key={board.id}
-              board={board}
-              onClick={() => setSelectedBoardId(board.id)}
-              onDelete={() => deleteCustomGoalBoard(board.id)}
-            />
-          ))}
-        </div>
-      )}
-      
-      {/* Add Board Dialog */}
-      <Dialog open={showAddBoardDialog} onOpenChange={setShowAddBoardDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Board</DialogTitle>
-            <DialogDescription>
-              Create a board to track goals for a specific time period
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="board-name">Board Name</Label>
-              <Input
-                id="board-name"
-                placeholder="e.g., Week 15, April Goals"
-                value={newBoardName}
-                onChange={(e) => setNewBoardName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddBoard()}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Cadence</Label>
-              <Select value={newBoardCadence} onValueChange={(v) => setNewBoardCadence(v as CustomGoalBoardCadence)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Weekly (13 check-ins)</SelectItem>
-                  <SelectItem value="monthly">Monthly (4 check-ins)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {newBoardCadence === "weekly" 
-                  ? "Weekly boards have 13 check-in slots (like quarterly key results)"
-                  : "Monthly boards have 4 check-in slots (one per week)"}
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddBoardDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddBoard} disabled={!newBoardName.trim()}>Create Board</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Add Goal Dialog */}
-      <GoalFormDialog
-        open={showAddGoalDialog}
-        onOpenChange={setShowAddGoalDialog}
-        title="Add Goal"
-        description="Add a new goal to track on this board"
-        goalTitle={newGoalTitle}
-        setGoalTitle={setNewGoalTitle}
-        goalType={newGoalType}
-        setGoalType={setNewGoalType}
-        goalTarget={newGoalTarget}
-        setGoalTarget={setNewGoalTarget}
-        goalDescription={newGoalDescription}
-        setGoalDescription={setNewGoalDescription}
-        onSubmit={handleAddGoal}
-        submitLabel="Add Goal"
-      />
-      
-      {/* Edit Goal Dialog */}
-      <GoalFormDialog
-        open={!!editingGoal}
-        onOpenChange={(open) => !open && setEditingGoal(null)}
-        title="Edit Goal"
-        description="Update the goal details"
-        goalTitle={newGoalTitle}
-        setGoalTitle={setNewGoalTitle}
-        goalType={newGoalType}
-        setGoalType={setNewGoalType}
-        goalTarget={newGoalTarget}
-        setGoalTarget={setNewGoalTarget}
-        goalDescription={newGoalDescription}
-        setGoalDescription={setNewGoalDescription}
-        onSubmit={handleSaveEditGoal}
-        submitLabel="Save Changes"
-      />
-    </div>
-  )
-}
-
-// Quick create card for current period
-function QuickCreateCard({ 
-  cadence, 
-  periodLabel, 
-  onCreate 
-}: { 
-  cadence: CustomGoalBoardCadence
-  periodLabel: string
-  onCreate: () => void 
-}) {
-  return (
-    <button
-      onClick={onCreate}
-      className="flex w-full items-center gap-3 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4 text-left transition-colors hover:border-primary hover:bg-primary/10"
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-        <Calendar className="h-5 w-5 text-primary" />
-      </div>
-      <div className="flex-1">
-        <p className="text-sm font-medium text-foreground">Start tracking {periodLabel}</p>
-        <p className="text-xs text-muted-foreground">
-          Click to create a {cadence} board for the current period
-        </p>
-      </div>
-      <Plus className="h-5 w-5 text-primary" />
-    </button>
-  )
-}
-
-// Board card in the list view
-function BoardCard({ 
-  board, 
-  onClick,
-  onDelete,
-}: { 
-  board: CustomGoalBoard
-  onClick: () => void 
-  onDelete: () => void
-}) {
-  const goalCount = board.goals.length
-  const completedGoals = board.goals.filter((g) => getCustomGoalProgress(g) >= 100).length
-  
-  return (
-    <div
-      className="group relative flex flex-col rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50 cursor-pointer"
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md",
-            board.cadence === "weekly" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
-          )}>
-            <Calendar className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-foreground">{board.name}</h3>
-            <p className="text-xs text-muted-foreground capitalize">{board.cadence}</p>
-          </div>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <button className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-secondary">
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem 
-              onClick={(e) => { e.stopPropagation(); onDelete() }}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Board
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      
-      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{getBoardDisplayLabel(board)}</span>
-        <span>{completedGoals}/{goalCount} goals</span>
-      </div>
-      
-      <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
-    </div>
-  )
-}
-
-// Board detail view with goals and check-in grid
-function BoardDetailView({
-  board,
-  onBack,
-  onAddGoal,
-  onEditGoal,
-  onDeleteGoal,
-  onUpdateCheckin,
-}: {
-  board: CustomGoalBoard
-  onBack: () => void
-  onAddGoal: () => void
-  onEditGoal: (goal: CustomGoal) => void
-  onDeleteGoal: (goalId: string) => void
-  onUpdateCheckin: (goalId: string, periodIndex: number, value: number | null, textValue: string | null) => void
-}) {
-  const periodLabels = getBoardPeriodLabels(board.cadence)
-  
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-        >
-          <ChevronRight className="h-4 w-4 rotate-180" />
-        </button>
-        <div className="flex-1">
           <h1 className="text-xl font-semibold text-foreground">{board.name}</h1>
-          <p className="text-sm text-muted-foreground">{getBoardDisplayLabel(board)}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {getBoardDisplayLabel(board)} - {board.cadence === "weekly" ? "Weekly goals" : "Monthly goals"}
+          </p>
         </div>
-        <Button onClick={onAddGoal} size="sm">
+        <Button onClick={() => setShowAddGoalDialog(true)} size="sm">
           <Plus className="h-4 w-4 mr-1.5" />
           Add Goal
         </Button>
@@ -467,7 +127,7 @@ function BoardDetailView({
           <p className="mt-1 text-sm text-muted-foreground">
             Add your first goal to start tracking progress
           </p>
-          <Button onClick={onAddGoal} variant="outline" size="sm" className="mt-4">
+          <Button onClick={() => setShowAddGoalDialog(true)} variant="outline" size="sm" className="mt-4">
             <Plus className="h-4 w-4 mr-1.5" />
             Add Goal
           </Button>
@@ -479,15 +139,51 @@ function BoardDetailView({
               key={goal.id}
               goal={goal}
               periodLabels={periodLabels}
-              onEdit={() => onEditGoal(goal)}
-              onDelete={() => onDeleteGoal(goal.id)}
+              onEdit={() => handleEditGoal(goal)}
+              onDelete={() => deleteCustomGoal(board.id, goal.id)}
               onUpdateCheckin={(periodIndex, value, textValue) => 
-                onUpdateCheckin(goal.id, periodIndex, value, textValue)
+                updateCustomGoalCheckin(board.id, goal.id, periodIndex, value, textValue)
               }
             />
           ))}
         </div>
       )}
+      
+      {/* Add Goal Dialog */}
+      <GoalFormDialog
+        open={showAddGoalDialog}
+        onOpenChange={(open) => !open && closeGoalDialog()}
+        title="Add Goal"
+        description="Add a new goal to track on this board"
+        goalTitle={goalTitle}
+        setGoalTitle={setGoalTitle}
+        goalType={goalType}
+        setGoalType={setGoalType}
+        goalTarget={goalTarget}
+        setGoalTarget={setGoalTarget}
+        goalDescription={goalDescription}
+        setGoalDescription={setGoalDescription}
+        onSubmit={handleAddGoal}
+        submitLabel="Add Goal"
+      />
+      
+      {/* Edit Goal Dialog */}
+      <GoalFormDialog
+        open={!!editingGoal}
+        onOpenChange={(open) => !open && closeGoalDialog()}
+        title="Edit Goal"
+        description="Update the goal details"
+        goalTitle={goalTitle}
+        setGoalTitle={setGoalTitle}
+        goalType={goalType}
+        setGoalType={setGoalType}
+        goalTarget={goalTarget}
+        setGoalTarget={setGoalTarget}
+        goalDescription={goalDescription}
+        setGoalDescription={setGoalDescription}
+        onSubmit={handleSaveEditGoal}
+        submitLabel="Save Changes"
+      />
     </div>
   )
 }
@@ -596,7 +292,7 @@ function GoalCard({
                 </div>
                 <div className="p-1">
                   <input
-                    type={goal.type === "text" ? "text" : "text"}
+                    type="text"
                     value={displayValue}
                     onChange={(e) => handleCellChange(periodIndex, e.target.value)}
                     placeholder={goal.type === "boolean" ? "Yes/No" : "-"}

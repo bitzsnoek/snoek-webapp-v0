@@ -322,7 +322,7 @@ export function CompanySettings() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              When enabled, a Custom Goals section will appear in the sidebar for this company.
+              When enabled, you can add Custom Goals tabs from the + button in the Goals section.
             </p>
           </div>
         </section>
