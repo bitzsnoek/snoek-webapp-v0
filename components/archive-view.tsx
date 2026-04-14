@@ -2,17 +2,18 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
-import { getArchivedYears, getArchivedQuarters, getProgressPercent } from "@/lib/mock-data"
+import { getArchivedYears, getArchivedQuarters, getArchivedBoards, getProgressPercent, getStandardGoalProgress } from "@/lib/mock-data"
 import { Archive, Target, TrendingUp, CheckCircle2, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
-type ArchiveTabId = `year-${string}` | `quarter-${string}`
+type ArchiveTabId = `year-${string}` | `quarter-${string}` | `board-${string}`
 
 export function ArchiveView() {
-  const { activeCompany, unarchiveTab } = useApp()
-  const archivedYears = getArchivedYears(activeCompany)
-  const archivedQuarters = getArchivedQuarters(activeCompany)
+  const { activeClient, unarchiveTab, unarchiveBoard } = useApp()
+  const archivedYears = getArchivedYears(activeClient)
+  const archivedQuarters = getArchivedQuarters(activeClient)
+  const archivedBoards = getArchivedBoards(activeClient)
 
   const allTabs: { id: ArchiveTabId; label: string }[] = [
     ...archivedYears
@@ -31,6 +32,10 @@ export function ArchiveView() {
         id: `quarter-${q.id}` as ArchiveTabId,
         label: `${q.label.split(" ")[0]} '${String(q.year).slice(-2)}`,
       })),
+    ...archivedBoards.map((b) => ({
+      id: `board-${b.id}` as ArchiveTabId,
+      label: b.title,
+    })),
   ]
 
   const [activeTabId, setActiveTabId] = useState<ArchiveTabId | null>(
@@ -48,8 +53,10 @@ export function ArchiveView() {
   function handleUnarchive(tabId: ArchiveTabId) {
     if (tabId.startsWith("year-")) {
       unarchiveTab("year", tabId.replace("year-", ""))
-    } else {
+    } else if (tabId.startsWith("quarter-")) {
       unarchiveTab("quarter", tabId.replace("quarter-", ""))
+    } else {
+      unarchiveBoard(tabId.replace("board-", ""))
     }
     // Switch to next available tab
     const remaining = allTabs.filter((t) => t.id !== tabId)
@@ -65,8 +72,12 @@ export function ArchiveView() {
   const activeQuarterId = validActiveTabId?.startsWith("quarter-")
     ? validActiveTabId.replace("quarter-", "")
     : null
+  const activeBoardId = validActiveTabId?.startsWith("board-")
+    ? validActiveTabId.replace("board-", "")
+    : null
   const activeYear = archivedYears.find((y) => y.id === activeYearId) ?? null
   const activeQuarter = archivedQuarters.find((q) => q.id === activeQuarterId) ?? null
+  const activeBoard = archivedBoards.find((b) => b.id === activeBoardId) ?? null
 
   return (
     <div className="flex flex-col">
@@ -75,7 +86,7 @@ export function ArchiveView() {
           <Archive className="mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">No archived items yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Archive a year or quarter tab from the Goals section
+            Archive a board from the Goals section
           </p>
         </div>
       ) : (
@@ -138,6 +149,12 @@ export function ArchiveView() {
               <ArchivedQuarterContent
                 quarter={activeQuarter}
                 onUnarchive={() => handleUnarchive(`quarter-${activeQuarter.id}`)}
+              />
+            )}
+            {activeBoard && (
+              <ArchivedBoardContent
+                board={activeBoard}
+                onUnarchive={() => handleUnarchive(`board-${activeBoard.id}`)}
               />
             )}
           </div>
@@ -253,6 +270,66 @@ function ArchivedQuarterContent({
         ))}
         {quarter.goals.length === 0 && (
           <p className="text-sm text-muted-foreground">No goals in this quarter.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ArchivedBoardContent({
+  board,
+  onUnarchive,
+}: {
+  board: ReturnType<typeof getArchivedBoards>[number]
+  onUnarchive: () => void
+}) {
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-foreground opacity-70">{board.title}</h2>
+          <p className="text-sm text-muted-foreground">Goals board — archived</p>
+        </div>
+        <button
+          onClick={onUnarchive}
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Unarchive
+        </button>
+      </div>
+      <div className="flex flex-col gap-4 opacity-75">
+        {board.goals.map((goal) => {
+          const progress = getStandardGoalProgress(goal)
+          return (
+            <div key={goal.id} className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{goal.title}</h3>
+                    {goal.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{goal.description}</p>
+                    )}
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "tabular-nums",
+                    progress >= 75 ? "border-primary/30 text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {progress}%
+                </Badge>
+              </div>
+            </div>
+          )
+        })}
+        {board.goals.length === 0 && (
+          <p className="text-sm text-muted-foreground">No goals on this board.</p>
         )}
       </div>
     </div>

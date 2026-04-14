@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
-import { getMonthlyPriorities } from "@/lib/mock-data"
+import { getAllPriorities, type AnyPriority } from "@/lib/mock-data"
 import { KeyResultCard } from "@/components/key-result-card"
+import { StandardGoalCard } from "@/components/standard-goal-card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -18,28 +19,32 @@ import { Button } from "@/components/ui/button"
 import { Filter, Flame, X } from "lucide-react"
 
 export function MonthlyPriorities() {
-  const { activeCompany, currentUser } = useApp()
-  const priorities = getMonthlyPriorities(activeCompany)
+  const { activeClient, currentUser } = useApp()
+  const priorities = getAllPriorities(activeClient)
 
   // Get unique owners from all priorities
   const allOwners = Array.from(
-    new Set(priorities.map((p) => p.keyResult.owner).filter(Boolean))
-  ).sort()
+    new Set(priorities.map((p) =>
+      p.type === "okr" ? p.keyResult.owner : p.goal.owner
+    ).filter(Boolean))
+  ).sort() as string[]
 
-  // Auto-filter for founders: default to showing only their own priorities
-  const isFounder = currentUser.role === "founder"
-  const defaultFilter = isFounder ? currentUser.name : null
-  const [selectedFounder, setSelectedFounder] = useState<string | null>(defaultFilter)
+  // Auto-filter for members: default to showing only their own priorities
+  const isMember = currentUser.role === "founder"
+  const defaultFilter = isMember ? currentUser.name : null
+  const [selectedMember, setSelectedMember] = useState<string | null>(defaultFilter)
 
-  // Optionally filter by selected founder
-  const filteredPriorities = selectedFounder
-    ? priorities.filter((p) => p.keyResult.owner === selectedFounder)
+  // Optionally filter by selected member
+  const filteredPriorities = selectedMember
+    ? priorities.filter((p) =>
+        p.type === "okr" ? p.keyResult.owner === selectedMember : p.goal.owner === selectedMember
+      )
     : priorities
 
   // Group by owner
-  const byOwner: Record<string, typeof filteredPriorities> = {}
+  const byOwner: Record<string, AnyPriority[]> = {}
   for (const p of filteredPriorities) {
-    const owner = p.keyResult.owner!
+    const owner = (p.type === "okr" ? p.keyResult.owner : p.goal.owner)!
     if (!byOwner[owner]) byOwner[owner] = []
     byOwner[owner].push(p)
   }
@@ -50,11 +55,11 @@ export function MonthlyPriorities() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Priorities</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Key results being actively worked on and reported weekly
+            Goals and key results being actively worked on
           </p>
         </div>
 
-        {/* Founder filter dropdown with clear button */}
+        {/* Member filter dropdown with clear button */}
         <div className="flex items-center gap-2 shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -64,9 +69,9 @@ export function MonthlyPriorities() {
                 className="gap-2"
               >
                 <Filter className="h-4 w-4" />
-                {selectedFounder ? (
+                {selectedMember ? (
                   <>
-                    {selectedFounder}
+                    {selectedMember}
                   </>
                 ) : (
                   "All members"
@@ -78,10 +83,10 @@ export function MonthlyPriorities() {
                 Filter by owner
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {selectedFounder && (
+              {selectedMember && (
                 <>
                   <DropdownMenuItem
-                    onClick={() => setSelectedFounder(null)}
+                    onClick={() => setSelectedMember(null)}
                     className="gap-2"
                   >
                     <X className="h-4 w-4" />
@@ -91,12 +96,12 @@ export function MonthlyPriorities() {
                 </>
               )}
               {allOwners.map((owner) => {
-                const memberObj = activeCompany.members?.find((m) => m.name === owner)
-                const isSelected = selectedFounder === owner
+                const memberObj = activeClient.allMembers?.find((m) => m.name === owner)
+                const isSelected = selectedMember === owner
                 return (
                   <DropdownMenuItem
                     key={owner}
-                    onClick={() => setSelectedFounder(owner)}
+                    onClick={() => setSelectedMember(owner)}
                     className="gap-2"
                   >
                     <Avatar className="h-5 w-5">
@@ -119,11 +124,11 @@ export function MonthlyPriorities() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {selectedFounder && (
+          {selectedMember && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedFounder(null)}
+              onClick={() => setSelectedMember(null)}
               className="h-8 w-8 p-0"
               title="Clear filter"
             >
@@ -141,7 +146,7 @@ export function MonthlyPriorities() {
 
       {Object.entries(byOwner).length > 0 ? (
         Object.entries(byOwner).map(([owner, items]) => {
-          const memberObj = activeCompany.members?.find((m) => m.name === owner)
+          const memberObj = activeClient.allMembers?.find((m) => m.name === owner)
           const initials = owner.split(" ").map((n) => n[0]).join("")
 
           return (
@@ -149,7 +154,7 @@ export function MonthlyPriorities() {
               key={owner}
               className="mb-8 rounded-lg border border-border/60 bg-card/40 p-5"
             >
-              {/* Founder header with clear visual hierarchy */}
+              {/* Member header with clear visual hierarchy */}
               <div className="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -172,29 +177,45 @@ export function MonthlyPriorities() {
               </div>
 
               <div className="flex flex-col gap-4">
-                {items.map(({ quarter, goal, keyResult: kr }) => (
-                  <div key={kr.id}>
-                    {/* Objective context label */}
-                    <p className="mb-1.5 ml-1 text-xs text-muted-foreground/60">
-                      {goal.objective}
-                    </p>
-                    <KeyResultCard
-                      kr={kr}
-                      quarterId={quarter.id}
-                      goalId={goal.id}
-                    />
-                  </div>
-                ))}
+                {items.map((item) =>
+                  item.type === "okr" ? (
+                    <div key={item.keyResult.id}>
+                      {/* Objective context label */}
+                      <p className="mb-1.5 ml-1 text-xs text-muted-foreground/60">
+                        {item.goal.objective}
+                      </p>
+                      <KeyResultCard
+                        kr={item.keyResult}
+                        quarterId={item.quarter.id}
+                        goalId={item.goal.id}
+                      />
+                    </div>
+                  ) : (
+                    <div key={item.goal.id}>
+                      <p className="mb-1.5 ml-1 text-xs text-muted-foreground/60">
+                        {item.board.title}
+                      </p>
+                      <StandardGoalCard
+                        goal={item.goal}
+                        boardId={item.board.id}
+                        index={0}
+                        totalGoals={1}
+                        onMoveUp={() => {}}
+                        onMoveDown={() => {}}
+                      />
+                    </div>
+                  )
+                )}
               </div>
             </div>
           )
         })
-      ) : selectedFounder ? (
+      ) : selectedMember ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
           <Filter className="mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">No priorities for {selectedFounder}</p>
+          <p className="text-sm text-muted-foreground">No priorities for {selectedMember}</p>
           <button
-            onClick={() => setSelectedFounder(null)}
+            onClick={() => setSelectedMember(null)}
             className="mt-3 text-xs text-primary hover:underline"
           >
             Clear filter to see all priorities
@@ -205,7 +226,7 @@ export function MonthlyPriorities() {
           <Flame className="mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">No priorities set yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Mark key results as monthly priorities in the quarterly goals view
+            Mark goals or key results as priorities to see them here
           </p>
         </div>
       )}

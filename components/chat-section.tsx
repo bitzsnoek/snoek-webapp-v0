@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useApp } from "@/lib/store"
+import { isCoachOrAdmin, getActiveJournals, getCurrentPeriodKey, formatPeriodKey, getJournalFrequencyLabel, type GoalFrequency } from "@/lib/mock-data"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,8 @@ import {
   Target,
   X,
   Reply,
+  BookOpen,
+  Check,
 } from "lucide-react"
 
 // Types
@@ -32,6 +35,14 @@ interface KeyResultDisplay {
   type: "input" | "output" | "project"
   target: number
   owner?: string | null
+}
+
+interface JournalEntryDisplay {
+  id: string
+  journalTitle: string
+  periodKey: string
+  content: string
+  frequency: string
 }
 
 interface Message {
@@ -45,6 +56,7 @@ interface Message {
   sender_name?: string
   key_result?: KeyResultDisplay | null // Legacy single key result
   key_results?: KeyResultDisplay[] // Multiple key results from junction table
+  journal_entries?: JournalEntryDisplay[] // Attached journal entries
   reply_to_message?: {
     id: string
     content: string
@@ -54,11 +66,11 @@ interface Message {
 
 interface Conversation {
   id: string
-  company_id: string
+  client_id: string
   coach_id: string
-  founder_id: string
+  member_id: string
   created_at: string
-  founder_name?: string
+  member_name?: string
   coach_name?: string
 }
 
@@ -69,6 +81,7 @@ interface KeyResultOption {
   target: number
   goalObjective: string
   owner: string | null
+  source?: "okr" | "standard"  // distinguish OKR vs standard goals in picker
 }
 
 export interface ChatTab {
@@ -109,19 +122,20 @@ interface ChatSectionProps {
 }
 
 export function ChatSection({ selectedTab }: ChatSectionProps) {
-  const { activeCompany, currentUser } = useApp()
+  const { activeClient, currentUser } = useApp()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [goalPickerOpen, setGoalPickerOpen] = useState(false)
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
+  const [selectedJournalEntries, setSelectedJournalEntries] = useState<JournalEntryDisplay[]>([])
   const [creatingConversation, setCreatingConversation] = useState(false)
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Get all key results from the active company for goal picker
-  const allKeyResults: KeyResultOption[] = activeCompany.quarters.flatMap((quarter) =>
+  // Get all key results from OKR + standard goals for goal picker
+  const okrKeyResults: KeyResultOption[] = activeClient.quarters.flatMap((quarter) =>
     quarter.goals.flatMap((goal) =>
       goal.keyResults.map((kr) => ({
         id: kr.id,
@@ -130,9 +144,38 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         target: kr.target,
         goalObjective: goal.objective,
         owner: kr.owner,
+        source: "okr" as const,
       }))
     )
   )
+  const standardGoalOptions: KeyResultOption[] = (activeClient.boards ?? [])
+    .filter((b) => b.isActive)
+    .flatMap((board) =>
+      board.goals.map((g) => ({
+        id: g.id,
+        title: g.title,
+        type: "output" as const, // display as output-style
+        target: g.targetValue,
+        goalObjective: board.title,
+        owner: g.owner,
+        source: "standard" as const,
+      }))
+    )
+  const allKeyResults: KeyResultOption[] = [...okrKeyResults, ...standardGoalOptions]
+
+  // Build journal entry options for the picker (current period entries only)
+  const journalEntryOptions: JournalEntryDisplay[] = getActiveJournals(activeClient).flatMap((journal) => {
+    const currentKey = getCurrentPeriodKey(journal.frequency as GoalFrequency)
+    const entry = journal.entries[currentKey]
+    if (!entry || !entry.content.trim()) return []
+    return [{
+      id: entry.id,
+      journalTitle: journal.title,
+      periodKey: entry.periodKey,
+      content: entry.content,
+      frequency: journal.frequency,
+    }]
+  })
 
   // Fetch messages for current conversation
   const fetchMessages = useCallback(async (conversationId: string) => {
@@ -202,6 +245,79 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           }
         }
 
+        // Fetch standard goals from message_standard_goals
+        const { data: msgs_sg, error: sgError } = await supabase
+          .from("message_standard_goals")
+          .select(`
+            message_id,
+            standard_goal_id,
+            standard_goals (
+              id,
+              title,
+              target_value
+            )
+          `)
+          .in("message_id", messageIds)
+
+        if (sgError) {
+          console.error("Error fetching message_standard_goals:", sgError)
+        }
+
+        for (const msg_sg of (msgs_sg ?? [])) {
+          const sg = msg_sg.standard_goals as { id: string; title: string; target_value: number } | null
+          if (sg) {
+            if (!messageKeyResultsMap[msg_sg.message_id]) {
+              messageKeyResultsMap[msg_sg.message_id] = []
+            }
+            messageKeyResultsMap[msg_sg.message_id].push({
+              id: sg.id,
+              title: sg.title,
+              type: "output",
+              target: sg.target_value,
+            })
+          }
+        }
+
+        // Fetch journal entries from message_journal_entries
+        let messageJournalEntriesMap: Record<string, JournalEntryDisplay[]> = {}
+        const { data: mjes, error: mjeError } = await supabase
+          .from("message_journal_entries")
+          .select(`
+            message_id,
+            journal_entry_id,
+            journal_entries (
+              id,
+              journal_id,
+              period_key,
+              content,
+              journals (
+                title,
+                frequency
+              )
+            )
+          `)
+          .in("message_id", messageIds)
+
+        if (mjeError) {
+          console.error("Error fetching message_journal_entries:", mjeError)
+        }
+
+        for (const mje of (mjes ?? [])) {
+          const je = mje.journal_entries as { id: string; journal_id: string; period_key: string; content: string; journals: { title: string; frequency: string } | null } | null
+          if (je && je.journals) {
+            if (!messageJournalEntriesMap[mje.message_id]) {
+              messageJournalEntriesMap[mje.message_id] = []
+            }
+            messageJournalEntriesMap[mje.message_id].push({
+              id: je.id,
+              journalTitle: je.journals.title,
+              periodKey: je.period_key,
+              content: je.content,
+              frequency: je.journals.frequency,
+            })
+          }
+        }
+
         // Also handle legacy key_result_id - fetch separately if needed
         const legacyKrIds = (msgs ?? []).filter((m) => m.key_result_id).map((m) => m.key_result_id).filter(Boolean)
         if (legacyKrIds.length > 0) {
@@ -251,6 +367,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           ...m,
           sender_name: profileMap[m.sender_id] || "Unknown",
           key_results: messageKeyResultsMap[m.id] || [],
+          journal_entries: messageJournalEntriesMap[m.id] || [],
           reply_to_message: replyToMessage,
         }
       })
@@ -281,24 +398,61 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
       if (error) throw error
 
-      // Insert key results into junction table
+      // Insert key results into junction tables
       if (selectedKeyResults.length > 0 && newMsg) {
-        const keyResultInserts = selectedKeyResults.map((kr) => ({
+        const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
+        const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
+
+        if (okrItems.length > 0) {
+          const keyResultInserts = okrItems.map((kr) => ({
+            message_id: newMsg.id,
+            quarterly_key_result_id: kr.id,
+          }))
+
+          const { error: krError } = await supabase
+            .from("message_key_results")
+            .insert(keyResultInserts)
+
+          if (krError) {
+            console.error("Error inserting key results:", krError)
+          }
+        }
+
+        if (standardItems.length > 0) {
+          const standardInserts = standardItems.map((g) => ({
+            message_id: newMsg.id,
+            standard_goal_id: g.id,
+          }))
+
+          const { error: sgError } = await supabase
+            .from("message_standard_goals")
+            .insert(standardInserts)
+
+          if (sgError) {
+            console.error("Error inserting standard goals:", sgError)
+          }
+        }
+      }
+
+      // Insert journal entries into junction table
+      if (selectedJournalEntries.length > 0 && newMsg) {
+        const journalInserts = selectedJournalEntries.map((je) => ({
           message_id: newMsg.id,
-          quarterly_key_result_id: kr.id,
+          journal_entry_id: je.id,
         }))
-        
-        const { error: krError } = await supabase
-          .from("message_key_results")
-          .insert(keyResultInserts)
-        
-        if (krError) {
-          console.error("Error inserting key results:", krError)
+
+        const { error: jeError } = await supabase
+          .from("message_journal_entries")
+          .insert(journalInserts)
+
+        if (jeError) {
+          console.error("Error inserting journal entries:", jeError)
         }
       }
 
       setNewMessage("")
       setSelectedKeyResults([])
+      setSelectedJournalEntries([])
       setReplyToMessage(null)
       
       // Refresh messages
@@ -401,15 +555,15 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
 
   // Create a new 1-on-1 conversation
   const createConversation = async () => {
-    if (!selectedTab || !activeCompany.id || !currentUser.id) return
+    if (!selectedTab || !activeClient.id || !currentUser.id) return
     
     setCreatingConversation(true)
     const supabase = createClient()
 
     try {
-      // Determine coach_id and founder_id based on current user's role
-      const coachId = currentUser.role === "coach" ? currentUser.id : selectedTab.supabaseUserId
-      const founderId = currentUser.role === "founder" ? currentUser.id : selectedTab.supabaseUserId
+      // Determine coach_id and member_id based on current user's role
+      const coachId = isCoachOrAdmin(currentUser.role) ? currentUser.id : selectedTab.supabaseUserId
+      const memberId = !isCoachOrAdmin(currentUser.role) ? currentUser.id : selectedTab.supabaseUserId
 
       // We need to find the supabase user ID for the other person
       // Look up the member's user_id from company_members
@@ -427,15 +581,15 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         return
       }
 
-      const finalCoachId = currentUser.role === "coach" ? currentUser.id : otherUserId
-      const finalFounderId = currentUser.role === "founder" ? currentUser.id : otherUserId
+      const finalCoachId = isCoachOrAdmin(currentUser.role) ? currentUser.id : otherUserId
+      const finalMemberId = !isCoachOrAdmin(currentUser.role) ? currentUser.id : otherUserId
 
       const { data: newConvo, error } = await supabase
         .from("conversations")
         .insert({
-          company_id: activeCompany.id,
+          client_id: activeClient.id,
           coach_id: finalCoachId,
-          founder_id: finalFounderId,
+          member_id: finalMemberId,
           is_group: false,
         })
         .select()
@@ -582,6 +736,42 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                             ))}
                           </div>
                         )}
+
+                        {/* Attached Journal Entries */}
+                        {message.journal_entries && message.journal_entries.length > 0 && (
+                          <div className="mt-2 flex flex-col gap-2">
+                            {message.journal_entries.map((je) => (
+                              <div
+                                key={je.id}
+                                className={cn(
+                                  "rounded-lg border p-3",
+                                  isOwnMessage
+                                    ? "border-primary-foreground/20 bg-primary-foreground/10"
+                                    : "border-border bg-background/50"
+                                )}
+                              >
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <BookOpen className={cn(
+                                    "h-3.5 w-3.5",
+                                    isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
+                                  )} />
+                                  <p className={cn(
+                                    "text-xs font-medium",
+                                    isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
+                                  )}>
+                                    {je.journalTitle} · {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
+                                  </p>
+                                </div>
+                                <p className={cn(
+                                  "text-sm line-clamp-3 whitespace-pre-wrap",
+                                  isOwnMessage ? "text-primary-foreground" : "text-foreground"
+                                )}>
+                                  {je.content}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         </div>
                         <span className="mt-1 px-2 text-[10px] text-muted-foreground">
                           {formatTime(message.created_at)}
@@ -633,8 +823,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           </div>
         )}
         
-        {/* Selected Goals Preview */}
-        {selectedKeyResults.length > 0 && (
+        {/* Selected Goals & Journal Entries Preview */}
+        {(selectedKeyResults.length > 0 || selectedJournalEntries.length > 0) && (
           <div className="border-t border-border bg-secondary/30 px-4 py-2">
             <div className="flex flex-wrap items-center gap-2">
               {selectedKeyResults.map((kr) => (
@@ -650,6 +840,27 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                     onClick={() =>
                       setSelectedKeyResults((prev) =>
                         prev.filter((k) => k.id !== kr.id)
+                      )
+                    }
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
+                  >
+                    <X className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
+              {selectedJournalEntries.map((je) => (
+                <div
+                  key={je.id}
+                  className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"
+                >
+                  <BookOpen className="h-3 w-3 text-primary" />
+                  <span className="max-w-[150px] truncate text-xs text-foreground">
+                    {je.journalTitle}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setSelectedJournalEntries((prev) =>
+                        prev.filter((j) => j.id !== je.id)
                       )
                     }
                     className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
@@ -703,72 +914,128 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       <Dialog open={goalPickerOpen} onOpenChange={setGoalPickerOpen}>
         <DialogContent className="max-h-[80vh] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Attach Goals</DialogTitle>
+            <DialogTitle>Attach Goals & Journal Entries</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="flex flex-col gap-2 pr-4">
-              {allKeyResults.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  No goals available to attach.
-                </p>
-              ) : (
-                allKeyResults.map((kr) => {
-                  const config = typeConfig[kr.type]
-                  const TypeIcon = config.icon
-                  const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
-                  return (
-                    <button
-                      key={kr.id}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedKeyResults((prev) =>
-                            prev.filter((k) => k.id !== kr.id)
-                          )
-                        } else {
-                          setSelectedKeyResults((prev) => [...prev, kr])
-                        }
-                      }}
-                      className={cn(
-                        "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border"
-                      )}
-                    >
-                      <div className="flex w-full items-start gap-2">
-                        <div className={cn("mt-0.5 rounded p-1", config.bgColor)}>
-                          <TypeIcon className={cn("h-3 w-3", config.color)} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{kr.title}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground/70">
-                            {kr.goalObjective}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                            <span className="text-xs font-medium text-primary-foreground">
-                              {selectedKeyResults.findIndex((k) => k.id === kr.id) + 1}
-                            </span>
-                          </div>
+              {/* Goals section */}
+              {allKeyResults.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-1">Goals</p>
+                  {allKeyResults.map((kr) => {
+                    const config = typeConfig[kr.type]
+                    const TypeIcon = config.icon
+                    const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
+                    return (
+                      <button
+                        key={kr.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedKeyResults((prev) =>
+                              prev.filter((k) => k.id !== kr.id)
+                            )
+                          } else {
+                            setSelectedKeyResults((prev) => [...prev, kr])
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border"
                         )}
-                      </div>
-                    </button>
-                  )
-                })
+                      >
+                        <div className="flex w-full items-start gap-2">
+                          <div className={cn("mt-0.5 rounded p-1", config.bgColor)}>
+                            <TypeIcon className={cn("h-3 w-3", config.color)} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{kr.title}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground/70">
+                              {kr.goalObjective}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                              <span className="text-xs font-medium text-primary-foreground">
+                                {selectedKeyResults.findIndex((k) => k.id === kr.id) + 1}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* Journal entries section */}
+              {journalEntryOptions.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-3">Journal Entries</p>
+                  {journalEntryOptions.map((je) => {
+                    const isSelected = selectedJournalEntries.some((j) => j.id === je.id)
+                    return (
+                      <button
+                        key={je.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedJournalEntries((prev) =>
+                              prev.filter((j) => j.id !== je.id)
+                            )
+                          } else {
+                            setSelectedJournalEntries((prev) => [...prev, je])
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border"
+                        )}
+                      >
+                        <div className="flex w-full items-start gap-2">
+                          <div className="mt-0.5 rounded p-1 bg-chart-4/10">
+                            <BookOpen className="h-3 w-3 text-chart-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{je.journalTitle}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {getJournalFrequencyLabel(je.frequency as any)} · {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground/70 line-clamp-2">
+                              {je.content}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {allKeyResults.length === 0 && journalEntryOptions.length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No goals or journal entries available to attach.
+                </p>
               )}
             </div>
           </ScrollArea>
-          {selectedKeyResults.length > 0 && (
+          {(selectedKeyResults.length > 0 || selectedJournalEntries.length > 0) && (
             <div className="flex justify-end border-t pt-4">
               <Button onClick={() => {
                 setGoalPickerOpen(false)
                 inputRef.current?.focus()
               }}>
-                Done ({selectedKeyResults.length} selected)
+                Done ({selectedKeyResults.length + selectedJournalEntries.length} selected)
               </Button>
             </div>
           )}

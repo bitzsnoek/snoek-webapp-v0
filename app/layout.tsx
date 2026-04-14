@@ -18,7 +18,7 @@ const notoSerif = Noto_Serif({
 
 export const metadata: Metadata = {
   title: 'Snoek - Strategy Coaching Dashboard',
-  description: 'Track goals, OKRs, and company metrics for the founders you coach',
+  description: 'Track goals, OKRs, and client metrics for the members you coach',
   icons: {
     icon: '/favicon.png',
     apple: '/favicon.png',

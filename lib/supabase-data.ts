@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import type { Company, CompanyMember, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Founder, Confidence } from "./mock-data"
+import type { Client, ClientMember, Year, YearlyGoal, YearlyKeyResult, Quarter, QuarterlyGoal, KeyResult, KeyResultType, Metric, Member, Confidence, GoalBoard, StandardGoal, GoalType, ValueType, GoalFrequency, BoardType } from "./mock-data"
 
 // ============================================================
 // Map DB confidence values to frontend Confidence type
@@ -43,37 +43,45 @@ function mapKRTypeToDb(feType: KeyResultType): string {
 }
 
 // ============================================================
-// Fetch a single company with all nested data
+// Fetch a single client with all nested data
 // ============================================================
-export async function fetchCompanyData(companyId: string): Promise<Company | null> {
+export async function fetchClientData(clientId: string): Promise<Client | null> {
   const supabase = createClient()
 
   // Phase 1: Fetch core data in parallel
-  const [companyRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes] = await Promise.all([
-    supabase.from("companies").select("*").eq("id", companyId).single(),
-    supabase.from("company_members_with_email").select("*").eq("company_id", companyId),
-    supabase.from("yearly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
-    supabase.from("quarterly_goals").select("*").eq("company_id", companyId).order("year", { ascending: false }).order("position", { ascending: true }),
-    supabase.from("metrics").select("*").eq("company_id", companyId),
+  const [clientRes, membersRes, yearlyGoalsRes, quarterlyGoalsRes, metricsRes, boardsRes, journalsRes] = await Promise.all([
+    supabase.from("clients").select("*").eq("id", clientId).single(),
+    supabase.rpc("get_client_members_with_email", { p_client_id: clientId }),
+    supabase.from("yearly_goals").select("*").eq("client_id", clientId).order("year", { ascending: false }).order("position", { ascending: true }),
+    supabase.from("quarterly_goals").select("*").eq("client_id", clientId).order("year", { ascending: false }).order("position", { ascending: true }),
+    supabase.from("metrics").select("*").eq("client_id", clientId),
+    supabase.from("goal_boards").select("*").eq("client_id", clientId).order("position", { ascending: true }),
+    supabase.from("journals").select("*").eq("client_id", clientId).order("position", { ascending: true }),
   ])
 
-  const company = companyRes.data
+  const client = clientRes.data
   const members = membersRes.data
   const yearlyGoals = yearlyGoalsRes.data
   const quarterlyGoals = quarterlyGoalsRes.data
   const metrics = metricsRes.data
+  const boards = boardsRes.data
+  const journals = journalsRes.data
 
-  if (!company) return null
+  if (!client) return null
 
   // Phase 2: Fetch related data using IDs from phase 1
   const yearlyGoalIds = (yearlyGoals ?? []).map((g: any) => g.id)
   const quarterlyGoalIds = (quarterlyGoals ?? []).map((g: any) => g.id)
   const metricIds = (metrics ?? []).map((m: any) => m.id)
+  const boardIds = (boards ?? []).map((b: any) => b.id)
+  const journalIds = (journals ?? []).map((j: any) => j.id)
 
   const [
     { data: yearlyKRs },
     { data: quarterlyKRs },
     { data: metricVals },
+    { data: standardGoals },
+    { data: journalEntries },
   ] = await Promise.all([
     yearlyGoalIds.length > 0
       ? supabase.from("yearly_key_results").select("*").in("yearly_goal_id", yearlyGoalIds).order("position", { ascending: true })
@@ -84,20 +92,35 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     metricIds.length > 0
       ? supabase.from("metric_values").select("*").in("metric_id", metricIds)
       : Promise.resolve({ data: [] }),
+    boardIds.length > 0
+      ? supabase.from("standard_goals").select("*").in("board_id", boardIds).order("position", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    journalIds.length > 0
+      ? supabase.from("journal_entries").select("*").in("journal_id", journalIds)
+      : Promise.resolve({ data: [] }),
   ])
 
-  // Phase 3: Fetch weekly values for all quarterly KRs
+  // Phase 3: Fetch weekly values for all quarterly KRs + standard goal values
   const qkrIds = (quarterlyKRs ?? []).map((kr: any) => kr.id)
-  const { data: weeklyVals } = qkrIds.length > 0
-    ? await supabase.from("weekly_values").select("*").in("quarterly_key_result_id", qkrIds)
-    : { data: [] }
+  const stdGoalIds = (standardGoals ?? []).map((g: any) => g.id)
 
-  // Build founder lookup by member id
+  const [weeklyValsRes, stdGoalValsRes] = await Promise.all([
+    qkrIds.length > 0
+      ? supabase.from("weekly_values").select("*").in("quarterly_key_result_id", qkrIds)
+      : Promise.resolve({ data: [] }),
+    stdGoalIds.length > 0
+      ? supabase.from("standard_goal_values").select("*").in("standard_goal_id", stdGoalIds)
+      : Promise.resolve({ data: [] }),
+  ])
+  const weeklyVals = weeklyValsRes.data
+  const stdGoalVals = stdGoalValsRes.data
+
+  // Build member lookup by member id
   const memberMap = new Map((members ?? []).map((m: any) => [m.id, m]))
 
-  // Build founders (backwards compat)
-  const founders: Founder[] = (members ?? [])
-    .filter((m: any) => m.role === "founder")
+  // Build members (role === "member")
+  const clientMembers: Member[] = (members ?? [])
+    .filter((m: any) => m.role === "member")
     .map((m: any) => ({
       id: m.id,
       name: m.name ?? "",
@@ -107,11 +130,11 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
       userEmail: m.user_email ?? undefined,
     }))
 
-  // Build all members (coaches + founders) for owner assignment
-  const allMembers: CompanyMember[] = (members ?? []).map((m: any) => ({
+  // Build all members (coaches + members) for owner assignment
+  const allMembers: ClientMember[] = (members ?? []).map((m: any) => ({
     id: m.id,
     name: m.name ?? "",
-    role: m.role ?? "founder",
+    role: m.role ?? "member",
     roleTitle: m.role_title ?? m.role ?? "",
     avatar: m.avatar_url ?? "",
     email: m.user_email ?? "",
@@ -217,49 +240,347 @@ export async function fetchCompanyData(companyId: string): Promise<Company | nul
     values: metricValMap.get(m.id) ?? {},
   }))
 
+  // Build standard goal values lookup: goal_id -> { periodKey: value }
+  const stdValMap = new Map<string, Record<string, number>>()
+  for (const sv of stdGoalVals ?? []) {
+    const gId = sv.standard_goal_id
+    if (!stdValMap.has(gId)) stdValMap.set(gId, {})
+    stdValMap.get(gId)![sv.period_key] = sv.value
+  }
+
+  // Build standard goals by board_id
+  const stdGoalsByBoard = new Map<string, StandardGoal[]>()
+  for (const sg of standardGoals ?? []) {
+    const boardId = sg.board_id
+    if (!stdGoalsByBoard.has(boardId)) stdGoalsByBoard.set(boardId, [])
+    const owner = sg.owner_id ? memberMap.get(sg.owner_id)?.name ?? null : null
+    stdGoalsByBoard.get(boardId)!.push({
+      id: sg.id,
+      goalType: sg.goal_type as GoalType,
+      title: sg.title,
+      description: sg.description ?? undefined,
+      targetValue: sg.target_value ?? 0,
+      valueType: (sg.value_type ?? "number") as ValueType,
+      targetDate: sg.target_date ?? undefined,
+      checkInFrequency: sg.check_in_frequency as GoalFrequency | undefined,
+      period: sg.period as GoalFrequency | undefined,
+      owner,
+      isPriority: sg.is_priority ?? false,
+      confidence: mapConfidence(sg.confidence),
+      values: stdValMap.get(sg.id) ?? {},
+    })
+  }
+
+  // Build journal entries lookup: journal_id -> { period_key -> JournalEntry }
+  // For entries with same journal_id + period_key but different authors, we need a member-aware key
+  // We use a simple map keyed by "journal_id" → Record<"periodKey-authorId", entry>
+  // Then flatten per journal using just periodKey (for single-member journals) or periodKey+author
+  const journalEntryMap = new Map<string, Record<string, import("./mock-data").JournalEntry>>()
+  // Also build a user lookup from client_members (user_id → name)
+  const userNameMap = new Map<string, string>()
+  for (const m of members ?? []) {
+    if (m.user_id) userNameMap.set(m.user_id, m.name ?? "")
+  }
+  for (const je of journalEntries ?? []) {
+    const jId = je.journal_id
+    if (!journalEntryMap.has(jId)) journalEntryMap.set(jId, {})
+    // Use period_key as map key — if journal is assigned to a single member, there's one entry per period
+    // For "all members" journals, coach sees all entries; we key by periodKey+authorId to avoid collisions
+    const mapKey = je.period_key
+    journalEntryMap.get(jId)![mapKey] = {
+      id: je.id,
+      journalId: jId,
+      periodKey: je.period_key,
+      authorId: je.author_id,
+      authorName: userNameMap.get(je.author_id) ?? "",
+      content: je.content ?? "",
+      updatedAt: je.updated_at ?? je.created_at,
+    }
+  }
+
+  // Build journals
+  const journalList: import("./mock-data").Journal[] = (journals ?? []).map((j: any) => {
+    const assignedMemberName = j.assigned_member_id ? memberMap.get(j.assigned_member_id)?.name ?? null : null
+    return {
+      id: j.id,
+      title: j.title,
+      description: j.description ?? undefined,
+      frequency: j.frequency as import("./mock-data").JournalFrequency,
+      assignedMember: assignedMemberName,
+      assignedMemberId: j.assigned_member_id ?? null,
+      archived: j.archived ?? false,
+      createdAt: j.created_at ?? null,
+      entries: journalEntryMap.get(j.id) ?? {},
+    }
+  })
+
+  // Build goal boards
+  const boardList: GoalBoard[] = (boards ?? []).map((b: any) => ({
+    id: b.id,
+    title: b.title,
+    boardType: b.board_type as BoardType,
+    isActive: !(b.archived ?? false),
+    goals: stdGoalsByBoard.get(b.id) ?? [],
+  }))
+
   return {
-    id: company.id,
-    name: company.name,
-    timezone: company.timezone || "UTC",
-    founders,
-    members: allMembers,
+    id: client.id,
+    name: client.name,
+    timezone: client.timezone || "UTC",
+    features: client.features ?? [],
+    members: clientMembers,
+    allMembers,
     years: Array.from(yearMap.values()),
     quarters: Array.from(quarterMap.values()),
+    boards: boardList,
     metrics: metricList,
+    journals: journalList,
   }
 }
 
 // ============================================================
-// Fetch all companies for a user (via company_members)
+// Fetch all clients for a user (via client_members)
 // ============================================================
-export async function fetchUserCompanies(userId: string): Promise<Company[]> {
+export async function fetchUserClients(userId: string): Promise<Client[]> {
   const supabase = createClient()
 
-  // Get companies where user is a member
+  // Get clients where user is a member
   const { data: memberships } = await supabase
-    .from("company_members")
-    .select("company_id")
+    .from("client_members")
+    .select("client_id")
     .eq("user_id", userId)
 
-  // Also get companies where user is the coach (owner)
+  // Also get clients where user is the coach (owner)
   const { data: coached } = await supabase
-    .from("companies")
+    .from("clients")
     .select("id")
     .eq("coach_id", userId)
 
-  // Deduplicate company IDs
-  const companyIds = new Set<string>()
-  for (const m of memberships ?? []) companyIds.add(m.company_id)
-  for (const c of coached ?? []) companyIds.add(c.id)
+  // Deduplicate client IDs
+  const clientIds = new Set<string>()
+  for (const m of memberships ?? []) clientIds.add(m.client_id)
+  for (const c of coached ?? []) clientIds.add(c.id)
 
-  if (companyIds.size === 0) return []
+  if (clientIds.size === 0) return []
 
-  const companies: Company[] = []
-  for (const id of companyIds) {
-    const company = await fetchCompanyData(id)
-    if (company) companies.push(company)
+  const clients: Client[] = []
+  for (const id of clientIds) {
+    const client = await fetchClientData(id)
+    if (client) clients.push(client)
   }
-  return companies
+  return clients
+}
+
+// ============================================================
+// Fetch all clients (for super admins)
+// ============================================================
+export async function fetchAllClients(): Promise<Client[]> {
+  const supabase = createClient()
+  const { data: allClients } = await supabase
+    .from("clients")
+    .select("id")
+
+  if (!allClients || allClients.length === 0) return []
+
+  const clients: Client[] = []
+  for (const c of allClients) {
+    const client = await fetchClientData(c.id)
+    if (client) clients.push(client)
+  }
+  return clients
+}
+
+// ============================================================
+// Goal boards & standard goals mutations
+// ============================================================
+
+export async function dbUpdateClientFeatures(clientId: string, features: string[]) {
+  const supabase = createClient()
+  const { error } = await supabase.from("clients").update({ features }).eq("id", clientId)
+  if (error) console.error("[v0] dbUpdateClientFeatures error:", error)
+}
+
+export async function dbAddGoalBoard(clientId: string, title: string, boardType: BoardType): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("goal_boards")
+    .insert({ client_id: clientId, title, board_type: boardType })
+    .select()
+    .single()
+  if (error || !data) { console.error("[v0] dbAddGoalBoard error:", error); return null }
+  return data.id as string
+}
+
+export async function dbUpdateGoalBoard(boardId: string, title: string) {
+  const supabase = createClient()
+  const { error } = await supabase.from("goal_boards").update({ title }).eq("id", boardId)
+  if (error) console.error("[v0] dbUpdateGoalBoard error:", error)
+}
+
+export async function dbArchiveGoalBoard(boardId: string, archived: boolean) {
+  const supabase = createClient()
+  const { error } = await supabase.from("goal_boards").update({ archived }).eq("id", boardId)
+  if (error) console.error("[v0] dbArchiveGoalBoard error:", error)
+}
+
+export async function dbDeleteGoalBoard(boardId: string) {
+  const supabase = createClient()
+  const { error } = await supabase.from("goal_boards").delete().eq("id", boardId)
+  if (error) console.error("[v0] dbDeleteGoalBoard error:", error)
+}
+
+export async function dbAddStandardGoal(boardId: string, goal: {
+  goalType: GoalType
+  title: string
+  description?: string
+  targetValue: number
+  valueType: ValueType
+  targetDate?: string
+  checkInFrequency?: GoalFrequency
+  period?: GoalFrequency
+  ownerMemberId?: string | null
+  isPriority?: boolean
+}): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("standard_goals")
+    .insert({
+      board_id: boardId,
+      goal_type: goal.goalType,
+      title: goal.title,
+      description: goal.description || null,
+      target_value: goal.targetValue,
+      value_type: goal.valueType,
+      target_date: goal.targetDate || null,
+      check_in_frequency: goal.checkInFrequency || null,
+      period: goal.period || null,
+      owner_id: goal.ownerMemberId || null,
+      is_priority: goal.isPriority ?? false,
+    })
+    .select()
+    .single()
+  if (error || !data) { console.error("[v0] dbAddStandardGoal error:", error); return null }
+  return data.id as string
+}
+
+export async function dbUpdateStandardGoal(goalId: string, updates: {
+  title?: string
+  description?: string | null
+  targetValue?: number
+  valueType?: ValueType
+  targetDate?: string | null
+  checkInFrequency?: GoalFrequency | null
+  period?: GoalFrequency | null
+  isPriority?: boolean
+  confidence?: Confidence
+}) {
+  const supabase = createClient()
+  const dbUpdates: Record<string, unknown> = {}
+  if (updates.title !== undefined) dbUpdates.title = updates.title
+  if (updates.description !== undefined) dbUpdates.description = updates.description
+  if (updates.targetValue !== undefined) dbUpdates.target_value = updates.targetValue
+  if (updates.valueType !== undefined) dbUpdates.value_type = updates.valueType
+  if (updates.targetDate !== undefined) dbUpdates.target_date = updates.targetDate
+  if (updates.checkInFrequency !== undefined) dbUpdates.check_in_frequency = updates.checkInFrequency
+  if (updates.period !== undefined) dbUpdates.period = updates.period
+  if (updates.isPriority !== undefined) dbUpdates.is_priority = updates.isPriority
+  if (updates.confidence !== undefined) dbUpdates.confidence = mapConfidenceToDb(updates.confidence)
+  const { error } = await supabase.from("standard_goals").update(dbUpdates).eq("id", goalId)
+  if (error) console.error("[v0] dbUpdateStandardGoal error:", error)
+}
+
+export async function dbDeleteStandardGoal(goalId: string) {
+  const supabase = createClient()
+  const { error } = await supabase.from("standard_goals").delete().eq("id", goalId)
+  if (error) console.error("[v0] dbDeleteStandardGoal error:", error)
+}
+
+export async function dbAssignStandardGoalOwner(goalId: string, ownerMemberId: string | null) {
+  const supabase = createClient()
+  const { error } = await supabase.from("standard_goals").update({ owner_id: ownerMemberId }).eq("id", goalId)
+  if (error) console.error("[v0] dbAssignStandardGoalOwner error:", error)
+}
+
+export async function dbUpdateStandardGoalValue(goalId: string, periodKey: string, value: number) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("standard_goal_values")
+    .upsert({ standard_goal_id: goalId, period_key: periodKey, value }, { onConflict: "standard_goal_id,period_key" })
+  if (error) console.error("[v0] dbUpdateStandardGoalValue error:", error)
+}
+
+export async function dbReorderStandardGoals(goalIds: string[]) {
+  const supabase = createClient()
+  for (let i = 0; i < goalIds.length; i++) {
+    await supabase.from("standard_goals").update({ position: i }).eq("id", goalIds[i])
+  }
+}
+
+export async function dbReorderGoalBoards(boardIds: string[]) {
+  const supabase = createClient()
+  for (let i = 0; i < boardIds.length; i++) {
+    await supabase.from("goal_boards").update({ position: i }).eq("id", boardIds[i])
+  }
+}
+
+// ============================================================
+// Journal mutations
+// ============================================================
+
+export async function dbAddJournal(clientId: string, journal: {
+  title: string
+  description?: string
+  frequency: string
+  assignedMemberId: string | null
+  createdBy: string
+}): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("journals").insert({
+    client_id: clientId,
+    title: journal.title,
+    description: journal.description || null,
+    frequency: journal.frequency,
+    assigned_member_id: journal.assignedMemberId,
+    created_by: journal.createdBy,
+  }).select("id").single()
+  if (error) { console.error("[v0] dbAddJournal error:", error); return null }
+  return data.id
+}
+
+export async function dbUpdateJournal(journalId: string, updates: {
+  title?: string
+  description?: string
+  frequency?: string
+  assignedMemberId?: string | null
+  archived?: boolean
+}) {
+  const supabase = createClient()
+  const row: Record<string, any> = {}
+  if (updates.title !== undefined) row.title = updates.title
+  if (updates.description !== undefined) row.description = updates.description || null
+  if (updates.frequency !== undefined) row.frequency = updates.frequency
+  if (updates.assignedMemberId !== undefined) row.assigned_member_id = updates.assignedMemberId
+  if (updates.archived !== undefined) row.archived = updates.archived
+  const { error } = await supabase.from("journals").update(row).eq("id", journalId)
+  if (error) console.error("[v0] dbUpdateJournal error:", error)
+}
+
+export async function dbDeleteJournal(journalId: string) {
+  const supabase = createClient()
+  const { error } = await supabase.from("journals").delete().eq("id", journalId)
+  if (error) console.error("[v0] dbDeleteJournal error:", error)
+}
+
+export async function dbUpsertJournalEntry(journalId: string, periodKey: string, authorId: string, content: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from("journal_entries").upsert({
+    journal_id: journalId,
+    period_key: periodKey,
+    author_id: authorId,
+    content,
+  }, { onConflict: "journal_id,period_key,author_id" }).select("id").single()
+  if (error) { console.error("[v0] dbUpsertJournalEntry error:", error); return null }
+  return data.id
 }
 
 // ============================================================
@@ -274,11 +595,11 @@ export async function dbUpdateWeeklyValue(krId: string, week: number, value: num
   if (error) console.error("[v0] dbUpdateWeeklyValue error:", error)
 }
 
-export async function dbAddYearlyGoal(companyId: string, year: number, objective: string, keyResults: string[]) {
+export async function dbAddYearlyGoal(clientId: string, year: number, objective: string, keyResults: string[]) {
   const supabase = createClient()
   const { data: goal, error } = await supabase
     .from("yearly_goals")
-    .insert({ company_id: companyId, year, objective, archived: false })
+    .insert({ client_id: clientId, year, objective, archived: false })
     .select()
     .single()
   if (error || !goal) { console.error("[v0] dbAddYearlyGoal error:", error); return null }
@@ -319,12 +640,12 @@ export async function dbUpdateYearlyKRConfidence(krId: string, confidence: Confi
   await supabase.from("yearly_key_results").update({ confidence: mapConfidenceToDb(confidence) }).eq("id", krId)
 }
 
-export async function dbAddQuarterlyGoal(companyId: string, year: number, quarter: number, yearlyGoalId: string, objective: string) {
+export async function dbAddQuarterlyGoal(clientId: string, year: number, quarter: number, yearlyGoalId: string, objective: string) {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("quarterly_goals")
     .insert({
-      company_id: companyId,
+      client_id: clientId,
       year,
       quarter,
       yearly_goal_id: yearlyGoalId || null,
@@ -399,11 +720,11 @@ export async function dbAssignKROwner(krId: string, ownerMemberId: string | null
   await supabase.from("quarterly_key_results").update({ owner_id: ownerMemberId }).eq("id", krId)
 }
 
-export async function dbAddCompany(name: string, userId: string): Promise<string | null> {
+export async function dbAddClient(name: string, userId: string): Promise<string | null> {
   const supabase = createClient()
   // Generate ID client-side to avoid the SELECT RLS chicken-and-egg issue:
   // The INSERT succeeds but .select() is blocked because the user isn't a member yet.
-  const companyId = crypto.randomUUID()
+  const clientId = crypto.randomUUID()
 
   // Fetch the coach's actual name from their profile
   const { data: profile } = await supabase
@@ -414,25 +735,25 @@ export async function dbAddCompany(name: string, userId: string): Promise<string
   const coachName = profile?.full_name || "Coach"
 
   const { error } = await supabase
-    .from("companies")
-    .insert({ id: companyId, name, coach_id: userId })
-  if (error) { console.error("dbAddCompany company error:", error); return null }
+    .from("clients")
+    .insert({ id: clientId, name, coach_id: userId })
+  if (error) { console.error("dbAddClient client error:", error); return null }
 
   // Now add the user as a member so RLS grants full access
   const { error: memberError } = await supabase
-    .from("company_members")
-    .insert({ company_id: companyId, user_id: userId, role: "coach", name: coachName })
-  if (memberError) { console.error("dbAddCompany member error:", memberError); return null }
+    .from("client_members")
+    .insert({ client_id: clientId, user_id: userId, role: "coach", name: coachName })
+  if (memberError) { console.error("dbAddClient member error:", memberError); return null }
 
-  return companyId
+  return clientId
 }
 
-export async function dbDeleteCompany(companyId: string) {
+export async function dbDeleteClient(clientId: string) {
   const supabase = createClient()
 
   // Cascade delete all related data (child-first)
   // 1. weekly_values via quarterly_key_results via quarterly_goals
-  const { data: qGoals } = await supabase.from("quarterly_goals").select("id").eq("company_id", companyId)
+  const { data: qGoals } = await supabase.from("quarterly_goals").select("id").eq("client_id", clientId)
   const qGoalIds = (qGoals ?? []).map((g: any) => g.id)
   if (qGoalIds.length > 0) {
     const { data: qKrs } = await supabase.from("quarterly_key_results").select("id").in("quarterly_goal_id", qGoalIds)
@@ -442,34 +763,34 @@ export async function dbDeleteCompany(companyId: string) {
     }
     await supabase.from("quarterly_key_results").delete().in("quarterly_goal_id", qGoalIds)
   }
-  await supabase.from("quarterly_goals").delete().eq("company_id", companyId)
+  await supabase.from("quarterly_goals").delete().eq("client_id", clientId)
 
   // 2. yearly_key_results via yearly_goals
-  const { data: yGoals } = await supabase.from("yearly_goals").select("id").eq("company_id", companyId)
+  const { data: yGoals } = await supabase.from("yearly_goals").select("id").eq("client_id", clientId)
   const yGoalIds = (yGoals ?? []).map((g: any) => g.id)
   if (yGoalIds.length > 0) {
     await supabase.from("yearly_key_results").delete().in("yearly_goal_id", yGoalIds)
   }
-  await supabase.from("yearly_goals").delete().eq("company_id", companyId)
+  await supabase.from("yearly_goals").delete().eq("client_id", clientId)
 
   // 3. metric_values via metrics
-  const { data: mets } = await supabase.from("metrics").select("id").eq("company_id", companyId)
+  const { data: mets } = await supabase.from("metrics").select("id").eq("client_id", clientId)
   const metIds = (mets ?? []).map((m: any) => m.id)
   if (metIds.length > 0) {
     await supabase.from("metric_values").delete().in("metric_id", metIds)
   }
-  await supabase.from("metrics").delete().eq("company_id", companyId)
+  await supabase.from("metrics").delete().eq("client_id", clientId)
 
-  // 4. company_members
-  await supabase.from("company_members").delete().eq("company_id", companyId)
+  // 4. client_members
+  await supabase.from("client_members").delete().eq("client_id", clientId)
 
-  // 5. company itself
-  await supabase.from("companies").delete().eq("id", companyId)
+  // 5. client itself
+  await supabase.from("clients").delete().eq("id", clientId)
 }
 
-export async function dbUpdateCompanyName(companyId: string, name: string) {
+export async function dbUpdateClientName(clientId: string, name: string) {
   const supabase = createClient()
-  await supabase.from("companies").update({ name }).eq("id", companyId)
+  await supabase.from("clients").update({ name }).eq("id", clientId)
 }
 
 // ============================================================
@@ -478,9 +799,9 @@ export async function dbUpdateCompanyName(companyId: string, name: string) {
 
 export interface Invitation {
   id: string
-  company_id: string
+  client_id: string
   email: string
-  role: "founder" | "coach"
+  role: "member" | "coach"
   token: string
   invited_by: string
   status: "pending" | "accepted"
@@ -490,11 +811,11 @@ export interface Invitation {
 }
 
 export async function dbInviteUser(
-  companyId: string,
+  clientId: string,
   email: string,
-  role: "founder" | "coach",
+  role: "member" | "coach",
   invitedBy: string,
-  founderName?: string,
+  memberName?: string,
   memberId?: string
 ): Promise<Invitation | null> {
   const supabase = createClient()
@@ -506,7 +827,7 @@ export async function dbInviteUser(
 
   const insertData: Record<string, unknown> = {
     id,
-    company_id: companyId,
+    client_id: clientId,
     email,
     role,
     token,
@@ -529,7 +850,7 @@ export async function dbInviteUser(
   // Build the invitation object locally since we can't read it back via RLS
   const invitation: Invitation = {
     id,
-    company_id: companyId,
+    client_id: clientId,
     email,
     role,
     token,
@@ -555,10 +876,10 @@ export async function dbInviteUser(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email,
-        founderName: founderName || email.split("@")[0],
+        memberName: memberName || email.split("@")[0],
         invitationToken: token,
         senderName,
-        companyId, // Required for authorization check
+        clientId, // Required for authorization check
       }),
     })
     
@@ -574,12 +895,12 @@ export async function dbInviteUser(
   return invitation
 }
 
-export async function dbGetInvitations(companyId: string): Promise<Invitation[]> {
+export async function dbGetInvitations(clientId: string): Promise<Invitation[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("invitations")
     .select("*")
-    .eq("company_id", companyId)
+    .eq("client_id", clientId)
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -598,7 +919,7 @@ export async function dbCancelInvitation(invitationId: string) {
 export async function dbAcceptInvitation(
   token: string,
   userId: string
-): Promise<{ success: boolean; companyId?: string; error?: string }> {
+): Promise<{ success: boolean; clientId?: string; error?: string }> {
   const supabase = createClient()
 
   // Get the invitation
@@ -620,41 +941,41 @@ export async function dbAcceptInvitation(
     return { success: false, error: "Invitation has expired" }
   }
 
-  // Check if user is already a member of this company
+  // Check if user is already a member of this client
   const { data: alreadyMember } = await supabase
-    .from("company_members")
+    .from("client_members")
     .select("id")
-    .eq("company_id", inv.company_id)
+    .eq("client_id", inv.client_id)
     .eq("user_id", userId)
     .limit(1)
     .maybeSingle()
 
   if (!alreadyMember) {
-    // Check if an unconnected founder with matching name exists in this company
+    // Check if an unconnected member with matching name exists in this client
     const nameFromEmail = inv.email.split("@")[0]
     const { data: existingMember } = await supabase
-      .from("company_members")
+      .from("client_members")
       .select("id")
-      .eq("company_id", inv.company_id)
+      .eq("client_id", inv.client_id)
       .is("user_id", null)
       .ilike("name", nameFromEmail)
       .single()
 
     if (existingMember) {
-      // Link the auth user to the existing unconnected founder
+      // Link the auth user to the existing unconnected member
       const { error: linkError } = await supabase
-        .from("company_members")
+        .from("client_members")
         .update({ user_id: userId })
         .eq("id", existingMember.id)
 
       if (linkError) {
         console.error("dbAcceptInvitation link error:", linkError)
-        return { success: false, error: "Failed to link user to founder" }
+        return { success: false, error: "Failed to link user to member" }
       }
     } else {
-      // Create a new company member for this user
-      const { error: memberError } = await supabase.from("company_members").insert({
-        company_id: inv.company_id,
+      // Create a new client member for this user
+      const { error: memberError } = await supabase.from("client_members").insert({
+        client_id: inv.client_id,
         user_id: userId,
         role: inv.role,
         name: nameFromEmail,
@@ -662,7 +983,7 @@ export async function dbAcceptInvitation(
 
       if (memberError) {
         console.error("dbAcceptInvitation member error:", memberError)
-        return { success: false, error: "Failed to add user to company" }
+        return { success: false, error: "Failed to add user to client" }
       }
     }
   }
@@ -678,61 +999,61 @@ export async function dbAcceptInvitation(
     return { success: false, error: "Failed to accept invitation" }
   }
 
-  return { success: true, companyId: inv.company_id }
+  return { success: true, clientId: inv.client_id }
 }
 
-export interface UnconnectedFounder {
+export interface UnconnectedMember {
   id: string
-  company_id: string
+  client_id: string
   name: string
   role_title: string
   role: string
 }
 
-export async function dbGetUnconnectedFounders(companyId: string): Promise<UnconnectedFounder[]> {
+export async function dbGetUnconnectedMembers(clientId: string): Promise<UnconnectedMember[]> {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from("company_members")
-    .select("id, company_id, name, role_title, role")
-    .eq("company_id", companyId)
+    .from("client_members")
+    .select("id, client_id, name, role_title, role")
+    .eq("client_id", clientId)
     .is("user_id", null)
     .order("name", { ascending: true })
 
   if (error) {
-    console.error("dbGetUnconnectedFounders error:", error)
+    console.error("dbGetUnconnectedMembers error:", error)
     return []
   }
-  return (data ?? []) as UnconnectedFounder[]
+  return (data ?? []) as UnconnectedMember[]
 }
 
-export async function dbAddFounder(companyId: string, name: string, roleTitle: string) {
+export async function dbAddMember(clientId: string, name: string, roleTitle: string) {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from("company_members")
-    .insert({ company_id: companyId, role: "founder", name, role_title: roleTitle })
+    .from("client_members")
+    .insert({ client_id: clientId, role: "member", name, role_title: roleTitle })
     .select()
     .single()
-  if (error) { console.error("[v0] dbAddFounder error:", error); return null }
+  if (error) { console.error("[v0] dbAddMember error:", error); return null }
   return data.id as string
 }
 
-export async function dbUpdateFounder(memberId: string, name: string, roleTitle: string, emails?: string[]) {
-  console.log("[v0] dbUpdateFounder called:", { memberId, name, roleTitle, emails })
+export async function dbUpdateMember(memberId: string, name: string, roleTitle: string, emails?: string[]) {
+  console.log("[v0] dbUpdateMember called:", { memberId, name, roleTitle, emails })
   const supabase = createClient()
   const updates: Record<string, any> = { name, role_title: roleTitle }
   if (emails !== undefined) updates.emails = emails
-  console.log("[v0] Updating company_members with:", updates)
-  const { error } = await supabase.from("company_members").update(updates).eq("id", memberId)
+  console.log("[v0] Updating client_members with:", updates)
+  const { error } = await supabase.from("client_members").update(updates).eq("id", memberId)
   if (error) {
-    console.error("[v0] dbUpdateFounder error:", error)
+    console.error("[v0] dbUpdateMember error:", error)
   } else {
-    console.log("[v0] dbUpdateFounder success")
+    console.log("[v0] dbUpdateMember success")
   }
 }
 
-export async function dbRemoveFounder(memberId: string) {
+export async function dbRemoveMember(memberId: string) {
   const supabase = createClient()
-  await supabase.from("company_members").delete().eq("id", memberId)
+  await supabase.from("client_members").delete().eq("id", memberId)
 }
 
 export async function dbUpdateMetricValue(metricId: string, month: number, value: number) {
@@ -742,11 +1063,11 @@ export async function dbUpdateMetricValue(metricId: string, month: number, value
     .upsert({ metric_id: metricId, month, value }, { onConflict: "metric_id,month" })
 }
 
-export async function dbAddMetric(companyId: string, metric: Omit<Metric, "id">) {
+export async function dbAddMetric(clientId: string, metric: Omit<Metric, "id">) {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("metrics")
-    .insert({ company_id: companyId, name: metric.name, description: metric.description, category: metric.category })
+    .insert({ client_id: clientId, name: metric.name, description: metric.description, category: metric.category })
     .select()
     .single()
   if (error) { console.error("[v0] dbAddMetric error:", error); return null }
@@ -759,24 +1080,24 @@ export async function dbDeleteMetric(metricId: string) {
   await supabase.from("metrics").delete().eq("id", metricId)
 }
 
-export async function dbArchiveQuarter(companyId: string, quarterKey: string, archived: boolean) {
+export async function dbArchiveQuarter(clientId: string, quarterKey: string, archived: boolean) {
   const supabase = createClient()
   // quarterKey = "2025-1" -> year=2025, quarter=1
   const [yearStr, qStr] = quarterKey.split("-")
-  await supabase.from("quarterly_goals").update({ archived }).eq("company_id", companyId).eq("year", parseInt(yearStr)).eq("quarter", parseInt(qStr))
+  await supabase.from("quarterly_goals").update({ archived }).eq("client_id", clientId).eq("year", parseInt(yearStr)).eq("quarter", parseInt(qStr))
 }
 
-export async function dbArchiveYear(companyId: string, year: number, archived: boolean) {
+export async function dbArchiveYear(clientId: string, year: number, archived: boolean) {
   const supabase = createClient()
-  await supabase.from("yearly_goals").update({ archived }).eq("company_id", companyId).eq("year", year)
+  await supabase.from("yearly_goals").update({ archived }).eq("client_id", clientId).eq("year", year)
 }
 
-export async function dbAddYear(companyId: string, year: number) {
+export async function dbAddYear(clientId: string, year: number) {
   // No-op for DB - yearly_goals handles this. The "year" is just a grouping.
   return `y-${year}`
 }
 
-export async function dbAddQuarter(companyId: string, label: string, year: number) {
+export async function dbAddQuarter(clientId: string, label: string, year: number) {
   // No-op for DB - quarterly_goals handles this. The "quarter" is just a grouping.
   const match = label.match(/Q(\d)/)
   const q = match ? parseInt(match[1]) : 1

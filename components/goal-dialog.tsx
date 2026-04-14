@@ -37,7 +37,7 @@ const emptyKr = (): Omit<KeyResult, "id"> => ({
 })
 
 export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps) {
-  const { activeCompany, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal, refreshData } = useApp()
+  const { activeClient, addQuarterlyGoal, updateQuarterlyGoal, addKeyResult, updateKeyResult, deleteKeyResult, deleteQuarterlyGoal, refreshData } = useApp()
   const realtimeContext = useOptionalRealtimeGoals()
 
   const [objective, setObjective] = useState(goal?.objective ?? "")
@@ -242,7 +242,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="_unassigned">Unassigned</SelectItem>
-                        {activeCompany.members.map((member) => (
+                        {activeClient.allMembers.map((member) => (
                           <SelectItem key={member.id} value={member.name}>
                             {member.name}
                             <span className="ml-1 text-muted-foreground capitalize">({member.role})</span>

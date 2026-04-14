@@ -2,13 +2,13 @@ import { createClient } from "@/lib/supabase/client"
 
 export interface Meeting {
   id: string
-  company_id: string
+  client_id: string
   title: string
   description?: string
   start_time: string
   end_time: string
   attendee_emails: string[]
-  founder_ids: string[]
+  member_ids: string[]
   status: "scheduled" | "deleted_in_calendar" | "rescheduled"
   has_documents: boolean
   documents_count?: number
@@ -24,7 +24,7 @@ export interface MeetingDocument {
   created_at: string
 }
 
-export async function fetchMeetings(companyId: string): Promise<Meeting[]> {
+export async function fetchMeetings(clientId: string): Promise<Meeting[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("meetings")
@@ -34,7 +34,7 @@ export async function fetchMeetings(companyId: string): Promise<Meeting[]> {
       meeting_documents:meeting_documents(id)
     `
     )
-    .eq("company_id", companyId)
+    .eq("client_id", clientId)
     .order("start_time", { ascending: false })
 
   if (error) {
@@ -109,12 +109,12 @@ export async function deleteMeetingDocument(documentId: string): Promise<boolean
   return true
 }
 
-export async function manualSyncMeetings(companyId: string): Promise<{ success: boolean; synced?: number }> {
+export async function manualSyncMeetings(clientId: string): Promise<{ success: boolean; synced?: number }> {
   try {
     const response = await fetch("/api/meetings/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company_id: companyId }),
+      body: JSON.stringify({ client_id: clientId }),
     })
 
     if (!response.ok) return { success: false }

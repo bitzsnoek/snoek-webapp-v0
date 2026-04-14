@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
+import { isCoachOrAdmin, hasFeature } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import {
@@ -19,6 +20,7 @@ import {
   Calendar,
   MessageCircle,
   Zap,
+  BookOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,19 +43,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 
-export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "automations" | "archive" | "settings" | "account"
+export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "journals" | "automations" | "archive" | "settings" | "account"
 
-const mainNavItems: { id: MainSection; label: string; icon: typeof Target; coachOnly?: boolean }[] = [
+const mainNavItems: { id: MainSection; label: string; icon: typeof Target; coachOnly?: boolean; feature?: string }[] = [
   { id: "goals", label: "Goals", icon: Target },
-  { id: "metrics", label: "Monthly Metrics", icon: BarChart3 },
-  { id: "meetings", label: "Meetings", icon: Calendar },
+  { id: "metrics", label: "Monthly Metrics", icon: BarChart3, feature: "metrics" },
+  { id: "meetings", label: "Meetings", icon: Calendar, feature: "meetings" },
   { id: "chat", label: "Chat", icon: MessageCircle },
-  { id: "automations", label: "Automations", icon: Zap, coachOnly: true },
+  { id: "journals", label: "Journals", icon: BookOpen, feature: "journals" },
+  { id: "automations", label: "Automations", icon: Zap, coachOnly: true, feature: "automations" },
 ]
 
 const bottomNavItems: { id: MainSection; label: string; icon: typeof Target }[] = [
   { id: "archive", label: "Archive", icon: Archive },
-  { id: "settings", label: "Company Settings", icon: Settings },
+  { id: "settings", label: "Client Settings", icon: Settings },
 ]
 
 interface SidebarProps {
@@ -73,11 +76,11 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
 }: SidebarProps) {
-  const { currentUser, companies, activeCompany, setActiveCompanyId, addCompany } = useApp()
+  const { currentUser, clients, activeClient, setActiveClientId, addClient } = useApp()
   const router = useRouter()
-  const [addCompanyOpen, setAddCompanyOpen] = useState(false)
-  const [newCompanyName, setNewCompanyName] = useState("")
-  const [addingCompany, setAddingCompany] = useState(false)
+  const [addClientOpen, setAddClientOpen] = useState(false)
+  const [newClientName, setNewClientName] = useState("")
+  const [addingClient, setAddingClient] = useState(false)
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -90,14 +93,14 @@ export function Sidebar({
     onMobileClose()
   }
 
-  async function handleAddCompany() {
-    const name = newCompanyName.trim()
+  async function handleAddClient() {
+    const name = newClientName.trim()
     if (!name) return
-    setAddingCompany(true)
-    await addCompany(name)
-    setAddingCompany(false)
-    setNewCompanyName("")
-    setAddCompanyOpen(false)
+    setAddingClient(true)
+    await addClient(name)
+    setAddingClient(false)
+    setNewClientName("")
+    setAddClientOpen(false)
   }
 
   const sidebarContent = (
@@ -126,7 +129,7 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Company switcher */}
+      {/* Client switcher */}
       <div className="border-b border-border p-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -143,10 +146,10 @@ export function Sidebar({
                 <>
                   <div className="flex-1 truncate">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {activeCompany.name}
+                      {activeClient.name}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {activeCompany.founders.length} founder{activeCompany.founders.length !== 1 ? "s" : ""}
+                      {activeClient.members.length} member{activeClient.members.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -155,22 +158,22 @@ export function Sidebar({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            {companies.map((company) => (
+            {clients.map((client) => (
               <DropdownMenuItem
-                key={company.id}
-                onClick={() => setActiveCompanyId(company.id)}
+                key={client.id}
+                onClick={() => setActiveClientId(client.id)}
                 className={cn(
-                  activeCompany.id === company.id && "bg-secondary"
+                  activeClient.id === client.id && "bg-secondary"
                 )}
               >
                 <Building2 className="mr-2 h-4 w-4" />
-                {company.name}
+                {client.name}
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setAddCompanyOpen(true)}>
+            <DropdownMenuItem onClick={() => setAddClientOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Add company
+              Add client
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -181,7 +184,8 @@ export function Sidebar({
         <nav className="flex flex-1 flex-col overflow-y-auto p-3">
           <div className="flex flex-col gap-0.5">
             {mainNavItems
-              .filter((item) => !item.coachOnly || currentUser.role === "coach")
+              .filter((item) => !item.coachOnly || isCoachOrAdmin(currentUser.role))
+              .filter((item) => !item.feature || hasFeature(activeClient, item.feature))
               .map((item) => {
               const Icon = item.icon
               const isActive = activeSection === item.id
@@ -231,7 +235,8 @@ export function Sidebar({
       {collapsed && (
         <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
           {mainNavItems
-            .filter((item) => !item.coachOnly || currentUser.role === "coach")
+            .filter((item) => !item.coachOnly || isCoachOrAdmin(currentUser.role))
+            .filter((item) => !item.feature || hasFeature(activeClient, item.feature))
             .map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
@@ -323,32 +328,32 @@ className={cn(
 
   return (
     <>
-      {/* Add company dialog */}
-      <Dialog open={addCompanyOpen} onOpenChange={(open) => { if (!open) { setAddCompanyOpen(false); setNewCompanyName("") } }}>
+      {/* Add client dialog */}
+      <Dialog open={addClientOpen} onOpenChange={(open) => { if (!open) { setAddClientOpen(false); setNewClientName("") } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Add Company</DialogTitle>
-            <DialogDescription>Add a new company to coach.</DialogDescription>
+            <DialogTitle>Add Client</DialogTitle>
+            <DialogDescription>Add a new client to coach.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="new-company-name">Company name</Label>
+              <Label htmlFor="new-client-name">Client name</Label>
               <Input
-                id="new-company-name"
+                id="new-client-name"
                 placeholder="Acme Inc."
-                value={newCompanyName}
-                onChange={(e) => setNewCompanyName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddCompany()}
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddClient()}
                 autoFocus
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddCompanyOpen(false); setNewCompanyName("") }}>
+            <Button variant="outline" onClick={() => { setAddClientOpen(false); setNewClientName("") }}>
               Cancel
             </Button>
-            <Button onClick={handleAddCompany} disabled={!newCompanyName.trim() || addingCompany}>
-              {addingCompany ? "Adding..." : "Add"}
+            <Button onClick={handleAddClient} disabled={!newClientName.trim() || addingClient}>
+              {addingClient ? "Adding..." : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>

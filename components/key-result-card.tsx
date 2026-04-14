@@ -251,8 +251,8 @@ function OwnerPicker({
   quarterId: string
   goalId: string
 }) {
-  const { activeCompany, assignKROwner } = useApp()
-  const members = activeCompany.members ?? []
+  const { activeClient, assignKROwner } = useApp()
+  const members = activeClient.allMembers ?? []
 
   return (
     <DropdownMenu>

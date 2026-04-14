@@ -2,14 +2,12 @@
 -- This script addresses security vulnerabilities in the database
 
 -- ============================================================
--- 1. Fix company_members_with_email view
--- The view needs security_invoker = false to access auth.users,
--- but the underlying company_members table has RLS enabled, which
--- already restricts access. We strengthen company_members RLS below.
+-- 1. company_members_with_email — replaced by SECURITY DEFINER function
+-- The old view was replaced with get_company_members_with_email(uuid)
+-- which enforces access control in the function body (checks company
+-- membership or coach ownership) before returning results.
+-- See 010_add_members_email_view.sql for the function definition.
 -- ============================================================
-
--- Note: The view already exists with proper structure from 010_add_members_email_view.sql
--- The security is enforced via RLS on company_members table which it queries
 
 -- ============================================================
 -- 2. Profiles - already has good RLS, just verify enabled

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/lib/store"
+import { isCoachOrAdmin } from "@/lib/mock-data"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +15,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe, Users } from "lucide-react"
+import { hasFeature } from "@/lib/mock-data"
+import { AlertTriangle, Building2, Pencil, Trash2, UserPlus, Mail, Globe, Users, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InvitationsManager } from "./invitations-manager"
 import { createClient } from "@/lib/supabase/client"
@@ -53,30 +55,30 @@ const TIMEZONES = [
   { value: "Pacific/Auckland", label: "Auckland (NZST/NZDT)" },
 ]
 
-export function CompanySettings() {
+export function ClientSettings() {
   const {
-    activeCompany,
+    activeClient,
     companies,
     currentUser,
-    updateCompanyName,
-    updateFounder,
-    removeFounder,
+    updateClientName,
+    updateMember,
     removeMember,
-    deleteCompany,
+    deleteClient,
+    updateClientFeatures,
   } = useApp()
 
-  const isCoach = currentUser.role === "coach"
+  const isCoach = isCoachOrAdmin(currentUser.role)
 
-  const [companyName, setCompanyName] = useState(activeCompany.name)
+  const [clientName, setClientName] = useState(activeClient.name)
   const [nameEditing, setNameEditing] = useState(false)
-  const [timezone, setTimezone] = useState(activeCompany.timezone || "UTC")
+  const [timezone, setTimezone] = useState(activeClient.timezone || "UTC")
   const [savingTimezone, setSavingTimezone] = useState(false)
 
-  // Founder dialog state
-  const [founderDialog, setFounderDialog] = useState<{
+  // Member dialog state
+  const [memberDialog, setMemberDialog] = useState<{
     open: boolean
     mode: "edit"
-    founderId?: string
+    memberId?: string
     name: string
     role: string
     emails: string[]
@@ -84,30 +86,30 @@ export function CompanySettings() {
     userEmail?: string
   }>({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
 
-  // Confirm delete founder state
+  // Confirm delete member state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  
+
   // Confirm delete coach state
   const [deleteCoachConfirm, setDeleteCoachConfirm] = useState<string | null>(null)
 
-  // Danger zone: delete company
-  const [deleteCompanyDialog, setDeleteCompanyDialog] = useState(false)
-  const [deleteCompanyConfirm, setDeleteCompanyConfirm] = useState("")
-  const [deletingCompany, setDeletingCompany] = useState(false)
+  // Danger zone: delete client
+  const [deleteClientDialog, setDeleteClientDialog] = useState(false)
+  const [deleteClientConfirm, setDeleteClientConfirm] = useState("")
+  const [deletingClient, setDeletingClient] = useState(false)
 
-  async function handleDeleteCompany() {
-    if (deleteCompanyConfirm !== activeCompany.name) return
-    setDeletingCompany(true)
-    await deleteCompany(activeCompany.id)
-    setDeletingCompany(false)
-    setDeleteCompanyDialog(false)
-    setDeleteCompanyConfirm("")
+  async function handleDeleteClient() {
+    if (deleteClientConfirm !== activeClient.name) return
+    setDeletingClient(true)
+    await deleteClient(activeClient.id)
+    setDeletingClient(false)
+    setDeleteClientDialog(false)
+    setDeleteClientConfirm("")
   }
 
   function handleSaveName() {
-    const trimmed = companyName.trim()
-    if (trimmed && trimmed !== activeCompany.name) {
-      updateCompanyName(trimmed)
+    const trimmed = clientName.trim()
+    if (trimmed && trimmed !== activeClient.name) {
+      updateClientName(trimmed)
     }
     setNameEditing(false)
   }
@@ -119,51 +121,51 @@ export function CompanySettings() {
     try {
       const supabase = createClient()
       await supabase
-        .from("companies")
+        .from("clients")
         .update({ timezone: newTimezone })
-        .eq("id", activeCompany.id)
+        .eq("id", activeClient.id)
     } catch (err) {
       console.error("Error saving timezone:", err)
       // Revert on error
-      setTimezone(activeCompany.timezone || "UTC")
+      setTimezone(activeClient.timezone || "UTC")
     } finally {
       setSavingTimezone(false)
     }
   }
 
-  function openEditFounder(founder: { id: string; name: string; role: string; emails?: string[]; userEmail?: string }) {
-    setFounderDialog({
+  function openEditMember(member: { id: string; name: string; role: string; emails?: string[]; userEmail?: string }) {
+    setMemberDialog({
       open: true,
       mode: "edit",
-      founderId: founder.id,
-      name: founder.name,
-      role: founder.role,
-      emails: founder.emails || [],
+      memberId: member.id,
+      name: member.name,
+      role: member.role,
+      emails: member.emails || [],
       emailInput: "",
-      userEmail: founder.userEmail,
+      userEmail: member.userEmail,
     })
   }
 
-  function handleSaveFounder() {
-    const name = founderDialog.name.trim()
-    const role = founderDialog.role.trim()
-    if (!name || !founderDialog.founderId) return
+  function handleSaveMember() {
+    const name = memberDialog.name.trim()
+    const role = memberDialog.role.trim()
+    if (!name || !memberDialog.memberId) return
 
     // Auto-add any email that's still in the input field
-    let emailsToSave = [...founderDialog.emails]
-    const pendingEmail = founderDialog.emailInput.trim()
+    let emailsToSave = [...memberDialog.emails]
+    const pendingEmail = memberDialog.emailInput.trim()
     if (pendingEmail && !emailsToSave.includes(pendingEmail)) {
       emailsToSave.push(pendingEmail)
     }
 
-    updateFounder(founderDialog.founderId, name, role, emailsToSave)
-    setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
+    updateMember(memberDialog.memberId, name, role, emailsToSave)
+    setMemberDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
   }
 
   function addEmail() {
-    const email = founderDialog.emailInput.trim()
-    if (email && !founderDialog.emails.includes(email)) {
-      setFounderDialog((prev) => ({
+    const email = memberDialog.emailInput.trim()
+    if (email && !memberDialog.emails.includes(email)) {
+      setMemberDialog((prev) => ({
         ...prev,
         emails: [...prev.emails, email],
         emailInput: "",
@@ -172,14 +174,14 @@ export function CompanySettings() {
   }
 
   function removeEmail(email: string) {
-    setFounderDialog((prev) => ({
+    setMemberDialog((prev) => ({
       ...prev,
       emails: prev.emails.filter((e) => e !== email),
     }))
   }
 
-  function handleDeleteFounder(id: string) {
-    removeFounder(id)
+  function handleDeleteMember(id: string) {
+    removeMember(id)
     setDeleteConfirm(null)
   }
 
@@ -188,33 +190,33 @@ export function CompanySettings() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage company details and team members
+          Manage client details and team members
         </p>
       </div>
 
-      {/* Company Name */}
+      {/* Client Name */}
       <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
         <div className="mb-4 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
             <Building2 className="h-4 w-4 text-foreground" />
           </div>
-          <h2 className="text-base font-semibold text-foreground">Company</h2>
+          <h2 className="text-base font-semibold text-foreground">Client</h2>
         </div>
 
         <div className="flex flex-col gap-3">
-          <Label htmlFor="company-name" className="text-sm text-muted-foreground">
-            Company name
+          <Label htmlFor="client-name" className="text-sm text-muted-foreground">
+            Client name
           </Label>
           {nameEditing ? (
             <div className="flex items-center gap-2">
               <Input
-                id="company-name"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
+                id="client-name"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSaveName()
                   if (e.key === "Escape") {
-                    setCompanyName(activeCompany.name)
+                    setClientName(activeClient.name)
                     setNameEditing(false)
                   }
                 }}
@@ -228,7 +230,7 @@ export function CompanySettings() {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setCompanyName(activeCompany.name)
+                  setClientName(activeClient.name)
                   setNameEditing(false)
                 }}
               >
@@ -238,16 +240,16 @@ export function CompanySettings() {
           ) : (
             <div className="flex items-center gap-3">
               <p className="text-sm font-medium text-foreground">
-                {activeCompany.name}
+                {activeClient.name}
               </p>
               {isCoach && (
                 <button
                   onClick={() => {
-                    setCompanyName(activeCompany.name)
+                    setClientName(activeClient.name)
                     setNameEditing(true)
                   }}
                   className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-secondary hover:text-foreground"
-                  title="Edit company name"
+                  title="Edit client name"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -293,37 +295,82 @@ export function CompanySettings() {
         </div>
       </section>
 
-      {/* Founders */}
+      {/* Features (super admin only) */}
+      {currentUser.role === "super_admin" && (
+        <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
+              <Target className="h-4 w-4 text-foreground" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">Features</h2>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Enable or disable optional features for this client.
+            </p>
+
+            {[
+              { key: "okr", label: "OKR (Objectives & Key Results)", description: "Yearly objectives with quarterly key results and weekly tracking" },
+              { key: "metrics", label: "Monthly Metrics", description: "Track monthly metrics and KPIs" },
+              { key: "meetings", label: "Meetings", description: "Meeting scheduling, notes, and Google Calendar sync" },
+              { key: "journals", label: "Journals", description: "Periodic reflection prompts and journal entries" },
+              { key: "automations", label: "Automations", description: "Automated check-ins and reminders" },
+            ].map((feat) => (
+              <label key={feat.key} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-secondary/50 transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasFeature(activeClient, feat.key)}
+                  onChange={(e) => {
+                    const current = activeClient.features ?? []
+                    const updated = e.target.checked
+                      ? [...current, feat.key]
+                      : current.filter((f) => f !== feat.key)
+                    updateClientFeatures(updated)
+                  }}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{feat.label}</p>
+                  <p className="text-xs text-muted-foreground">{feat.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Members */}
       <section className="rounded-xl border border-border bg-card p-4 md:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
               <UserPlus className="h-4 w-4 text-foreground" />
             </div>
-            <h2 className="text-base font-semibold text-foreground">Founders</h2>
+            <h2 className="text-base font-semibold text-foreground">Members</h2>
           </div>
 
         </div>
 
-        {activeCompany.founders.length === 0 ? (
+        {activeClient.members.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
             <UserPlus className="mb-2 h-8 w-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">No founders added yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">Invite founders using the invitations section below</p>
+            <p className="text-sm text-muted-foreground">No members added yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">Invite members using the invitations section below</p>
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {activeCompany.founders.map((founder) => {
-              const initials = founder.name.split(" ").map((n) => n[0]).join("")
+            {activeClient.members.map((member) => {
+              const initials = member.name.split(" ").map((n) => n[0]).join("")
               return (
                 <div
-                  key={founder.id}
+                  key={member.id}
                   className="group flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-secondary/50"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
-                      {founder.avatar && (
-                        <AvatarImage src={founder.avatar} alt={founder.name} />
+                      {member.avatar && (
+                        <AvatarImage src={member.avatar} alt={member.name} />
                       )}
                       <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">
                         {initials}
@@ -331,10 +378,10 @@ export function CompanySettings() {
                     </Avatar>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {founder.name}
+                        {member.name}
                       </p>
-                      {founder.role && (
-                        <p className="text-xs text-muted-foreground">{founder.role}</p>
+                      {member.role && (
+                        <p className="text-xs text-muted-foreground">{member.role}</p>
                       )}
                     </div>
                   </div>
@@ -342,19 +389,19 @@ export function CompanySettings() {
                   {isCoach && (
                     <div className="flex items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100">
                       <button
-                        onClick={() => openEditFounder(founder)}
+                        onClick={() => openEditMember(member)}
                         className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                        title="Edit founder"
+                        title="Edit member"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      {deleteConfirm === founder.id ? (
+                      {deleteConfirm === member.id ? (
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
                             variant="destructive"
                             className="h-7 text-xs"
-                            onClick={() => handleDeleteFounder(founder.id)}
+                            onClick={() => handleDeleteMember(member.id)}
                           >
                             Remove
                           </Button>
@@ -369,9 +416,9 @@ export function CompanySettings() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => setDeleteConfirm(founder.id)}
+                          onClick={() => setDeleteConfirm(member.id)}
                           className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                          title="Remove founder"
+                          title="Remove member"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -397,7 +444,7 @@ export function CompanySettings() {
         </div>
 
         {(() => {
-          const coaches = activeCompany.members?.filter((m) => m.role === "coach") ?? []
+          const coaches = activeClient.allMembers?.filter((m) => m.role === "coach") ?? []
           if (coaches.length === 0) {
             return (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
@@ -495,121 +542,121 @@ export function CompanySettings() {
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-foreground">Delete this company</p>
+            <p className="text-sm font-medium text-foreground">Delete this client</p>
             <p className="text-xs text-muted-foreground">
-              Permanently remove this company and all its data. This cannot be undone.
+              Permanently remove this client and all its data. This cannot be undone.
             </p>
           </div>
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => setDeleteCompanyDialog(true)}
+            onClick={() => setDeleteClientDialog(true)}
           >
-            Delete company
+            Delete client
           </Button>
         </div>
       </section>}
 
-      {/* Delete Company Confirmation Dialog */}
-      <Dialog open={deleteCompanyDialog} onOpenChange={(open) => { if (!open) { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") } }}>
+      {/* Delete Client Confirmation Dialog */}
+      <Dialog open={deleteClientDialog} onOpenChange={(open) => { if (!open) { setDeleteClientDialog(false); setDeleteClientConfirm("") } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete {activeCompany.name}?</DialogTitle>
+            <DialogTitle>Delete {activeClient.name}?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the company, all goals, key results, metrics, and founder data. This action cannot be undone.
+              This will permanently delete the client, all goals, key results, metrics, and member data. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="delete-confirm" className="text-sm text-muted-foreground">
-                Type <span className="font-semibold text-foreground">{activeCompany.name}</span> to confirm
+                Type <span className="font-semibold text-foreground">{activeClient.name}</span> to confirm
               </Label>
               <Input
                 id="delete-confirm"
-                placeholder={activeCompany.name}
-                value={deleteCompanyConfirm}
-                onChange={(e) => setDeleteCompanyConfirm(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleDeleteCompany()}
+                placeholder={activeClient.name}
+                value={deleteClientConfirm}
+                onChange={(e) => setDeleteClientConfirm(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleDeleteClient()}
                 autoFocus
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDeleteCompanyDialog(false); setDeleteCompanyConfirm("") }}>
+            <Button variant="outline" onClick={() => { setDeleteClientDialog(false); setDeleteClientConfirm("") }}>
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDeleteCompany}
-              disabled={deleteCompanyConfirm !== activeCompany.name || deletingCompany}
+              onClick={handleDeleteClient}
+              disabled={deleteClientConfirm !== activeClient.name || deletingClient}
             >
-              {deletingCompany ? "Deleting..." : "Delete permanently"}
+              {deletingClient ? "Deleting..." : "Delete permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add/Edit Founder Dialog */}
+      {/* Add/Edit Member Dialog */}
       <Dialog
-        open={founderDialog.open}
+        open={memberDialog.open}
         onOpenChange={(open) =>
-          !open && setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
+          !open && setMemberDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
         }
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Founder</DialogTitle>
+            <DialogTitle>Edit Member</DialogTitle>
             <DialogDescription>
-              {"Update this founder's details and email addresses for meeting sync."}
+              {"Update this member's details and email addresses for meeting sync."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             {/* Connected user email */}
-            {founderDialog.userEmail && (
+            {memberDialog.userEmail && (
               <div className="flex flex-col gap-2">
                 <Label className="text-muted-foreground">Connected account</Label>
                 <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2 text-sm text-foreground">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{founderDialog.userEmail}</span>
+                  <span>{memberDialog.userEmail}</span>
                 </div>
               </div>
             )}
-            
+
             <div className="flex flex-col gap-2">
-              <Label htmlFor="founder-name">Name</Label>
+              <Label htmlFor="member-name">Name</Label>
               <Input
-                id="founder-name"
+                id="member-name"
                 placeholder="Jane Smith"
-                value={founderDialog.name}
+                value={memberDialog.name}
                 onChange={(e) =>
-                  setFounderDialog((prev) => ({ ...prev, name: e.target.value }))
+                  setMemberDialog((prev) => ({ ...prev, name: e.target.value }))
                 }
                 autoFocus
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="founder-role">Role</Label>
+              <Label htmlFor="member-role">Role</Label>
               <Input
-                id="founder-role"
+                id="member-role"
                 placeholder="CEO, CTO, COO..."
-                value={founderDialog.role}
+                value={memberDialog.role}
                 onChange={(e) =>
-                  setFounderDialog((prev) => ({ ...prev, role: e.target.value }))
+                  setMemberDialog((prev) => ({ ...prev, role: e.target.value }))
                 }
-                onKeyDown={(e) => e.key === "Enter" && handleSaveFounder()}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveMember()}
               />
             </div>
-            
+
             {/* Email addresses section */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="founder-email">Email addresses for meeting sync</Label>
+              <Label htmlFor="member-email">Email addresses for meeting sync</Label>
               <div className="flex gap-2">
                 <Input
-                  id="founder-email"
+                  id="member-email"
                   placeholder="name@example.com"
-                  value={founderDialog.emailInput}
+                  value={memberDialog.emailInput}
                   onChange={(e) =>
-                    setFounderDialog((prev) => ({ ...prev, emailInput: e.target.value }))
+                    setMemberDialog((prev) => ({ ...prev, emailInput: e.target.value }))
                   }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -623,16 +670,16 @@ export function CompanySettings() {
                   size="sm"
                   variant="outline"
                   onClick={addEmail}
-                  disabled={!founderDialog.emailInput.trim()}
+                  disabled={!memberDialog.emailInput.trim()}
                 >
                   Add
                 </Button>
               </div>
-              
+
               {/* List of added emails */}
-              {founderDialog.emails.length > 0 && (
+              {memberDialog.emails.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {founderDialog.emails.map((email) => (
+                  {memberDialog.emails.map((email) => (
                     <div
                       key={email}
                       className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"
@@ -648,8 +695,8 @@ export function CompanySettings() {
                   ))}
                 </div>
               )}
-              
-              {founderDialog.emails.length === 0 && (
+
+              {memberDialog.emails.length === 0 && (
                 <p className="text-xs text-muted-foreground italic">
                   No emails added. Add email addresses to match meetings from Google Calendar.
                 </p>
@@ -660,14 +707,14 @@ export function CompanySettings() {
             <Button
               variant="outline"
               onClick={() =>
-                setFounderDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
+                setMemberDialog({ open: false, mode: "edit", name: "", role: "", emails: [], emailInput: "", userEmail: undefined })
               }
             >
               Cancel
             </Button>
             <Button
-              onClick={handleSaveFounder}
-              disabled={!founderDialog.name.trim()}
+              onClick={handleSaveMember}
+              disabled={!memberDialog.name.trim()}
             >
               Save
             </Button>

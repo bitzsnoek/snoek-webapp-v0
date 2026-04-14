@@ -8,7 +8,8 @@ import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
 import { EditingIndicator } from "@/components/editing-indicator"
 import { KeyResultCard } from "./key-result-card"
 import { GoalDialog } from "./goal-dialog"
-import { TrendingUp, Plus, Target, Pencil, ChevronUp, ChevronDown } from "lucide-react"
+import { ReorderHandle } from "./reorder-handle"
+import { TrendingUp, Plus, Target, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -240,29 +241,19 @@ function YearlyGoalGroup({
           // Find the index in the full list of quarterly goals
           const goalIndex = allGoals.findIndex((g) => g.id === goal.id)
           return (
-            <div key={goal.id} className="group/goal relative rounded-xl border border-border bg-card p-4 md:p-5">
+            <div key={goal.id} className="group/reorder group/goal relative rounded-xl border border-border bg-card p-4 md:p-5">
               {/* Editing indicator */}
               <EditingIndicator itemId={goal.id} className="absolute right-4 top-4" />
               <div className="mb-4 flex items-start justify-between gap-2">
                 <div className="flex items-start gap-3">
-                  {/* Goal reorder controls */}
-                  <div className="flex flex-col gap-0.5 -ml-1 mr-1">
-                    <button
-                      onClick={() => onReorderGoal(goalIndex, goalIndex - 1)}
-                      disabled={goalIndex === 0}
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
-                      title="Move up"
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => onReorderGoal(goalIndex, goalIndex + 1)}
-                      disabled={goalIndex === allGoals.length - 1}
-                      className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
-                      title="Move down"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
+                  {/* Goal reorder handle */}
+                  <div className="pt-1">
+                    <ReorderHandle
+                      onMoveUp={() => onReorderGoal(goalIndex, goalIndex - 1)}
+                      onMoveDown={() => onReorderGoal(goalIndex, goalIndex + 1)}
+                      isFirst={goalIndex === 0}
+                      isLast={goalIndex === allGoals.length - 1}
+                    />
                   </div>
                   <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-chart-2/10">
                     <TrendingUp className="h-3.5 w-3.5 text-chart-2" />
@@ -281,25 +272,16 @@ function YearlyGoalGroup({
 
               <div className="flex flex-col gap-3">
                 {goal.keyResults.map((kr, krIndex) => (
-                  <div key={kr.id} className="flex items-start gap-2">
-                    {/* KR reorder controls */}
-                    <div className="flex flex-col gap-0.5 pt-3">
-                      <button
-                        onClick={() => onReorderKeyResult(goal.id, krIndex, krIndex - 1)}
-                        disabled={krIndex === 0}
-                        className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
-                        title="Move up"
-                      >
-                        <ChevronUp className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => onReorderKeyResult(goal.id, krIndex, krIndex + 1)}
-                        disabled={krIndex === goal.keyResults.length - 1}
-                        className="flex h-4 w-4 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground disabled:opacity-20 disabled:pointer-events-none"
-                        title="Move down"
-                      >
-                        <ChevronDown className="h-3 w-3" />
-                      </button>
+                  <div key={kr.id} className="group/reorder flex items-start gap-2">
+                    {/* KR reorder handle */}
+                    <div className="pt-3">
+                      <ReorderHandle
+                        onMoveUp={() => onReorderKeyResult(goal.id, krIndex, krIndex - 1)}
+                        onMoveDown={() => onReorderKeyResult(goal.id, krIndex, krIndex + 1)}
+                        isFirst={krIndex === 0}
+                        isLast={krIndex === goal.keyResults.length - 1}
+                        variant="compact"
+                      />
                     </div>
                     <div className="flex-1">
                       <KeyResultCard kr={kr} quarterId={quarterId} goalId={goal.id} />

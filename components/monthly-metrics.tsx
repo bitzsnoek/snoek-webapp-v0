@@ -179,8 +179,8 @@ function AddMetricDialog({
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function MonthlyMetrics() {
-  const { activeCompany, updateMetricValue, addMetric, deleteMetric } = useApp()
-  const metrics = activeCompany.metrics
+  const { activeClient, updateMetricValue, addMetric, deleteMetric } = useApp()
+  const metrics = activeClient.metrics
   const [showAdd, setShowAdd] = useState(false)
 
   // Current month (1-based)

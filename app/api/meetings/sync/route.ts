@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 import { z } from "zod"
 import {
   requireAuth,
-  requireCompanyAccess,
+  requireClientAccess,
   validateInput,
   errorResponse,
   successResponse,
@@ -68,10 +68,10 @@ async function fetchGoogleCalendarEvents(
 }
 
 const syncSchema = z.object({
-  company_id: schemas.uuid.optional(),
-  companyId: schemas.uuid.optional(),
-}).refine((data) => data.company_id || data.companyId, {
-  message: "company_id or companyId is required",
+  client_id: schemas.uuid.optional(),
+  clientId: schemas.uuid.optional(),
+}).refine((data) => data.client_id || data.clientId, {
+  message: "client_id or clientId is required",
 })
 
 export async function POST(request: NextRequest) {
@@ -86,10 +86,10 @@ export async function POST(request: NextRequest) {
     const validation = validateInput(syncSchema, body)
     if (!validation.success) return validation.error
 
-    const companyId = validation.data.company_id || validation.data.companyId
+    const clientId = validation.data.client_id || validation.data.clientId
 
-    // 3. Authorization - verify user has access to this company (coach only)
-    const { hasAccess } = await requireCompanyAccess(user.id, companyId!, "coach")
+    // 3. Authorization - verify user has access to this client (coach only)
+    const { hasAccess } = await requireClientAccess(user.id, clientId!, "coach")
     if (!hasAccess) {
       return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
     }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     const { data: connection } = await supabase
       .from("google_calendar_connections")
       .select("*")
-      .eq("company_id", companyId)
+      .eq("client_id", clientId)
       .single()
 
     if (!connection) {
@@ -135,33 +135,33 @@ export async function POST(request: NextRequest) {
       timeMax
     )
 
-    // Get all founder emails from company_members
+    // Get all member emails from client_members
     const { data: members } = await supabase
-      .from("company_members")
+      .from("client_members")
       .select("emails")
-      .eq("company_id", companyId)
-      .eq("role", "founder")
+      .eq("client_id", clientId)
+      .eq("role", "member")
 
-    const founderEmails = new Set<string>()
+    const memberEmails = new Set<string>()
     members?.forEach((member: Record<string, unknown>) => {
       const emails = member.emails as string[] | undefined
       (emails || []).forEach((email: string) => {
-        founderEmails.add(email.toLowerCase())
+        memberEmails.add(email.toLowerCase())
       })
     })
 
-    // Filter events that include any founder email
+    // Filter events that include any member email
     const filteredEvents = events.filter((event) => {
-      if (founderEmails.size === 0) {
+      if (memberEmails.size === 0) {
         return true
       }
       const attendeeEmails = (event.attendees?.map((a) => a.email.toLowerCase()) || [])
-      return attendeeEmails.some((email) => founderEmails.has(email))
+      return attendeeEmails.some((email) => memberEmails.has(email))
     })
 
     // Upsert meetings (only filtered ones)
     const meetingData = filteredEvents.map((event) => ({
-      company_id: companyId,
+      client_id: clientId,
       google_event_id: event.id,
       title: event.summary,
       description: event.description,
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
 
     if (meetingData.length > 0) {
       const { error: upsertError } = await supabase.from("meetings").upsert(meetingData, {
-        onConflict: "company_id,google_event_id",
+        onConflict: "client_id,google_event_id",
       })
 
       if (upsertError) {

@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get the conversation to find the recipient
     const { data: conversation, error: convoError } = await supabase
       .from("conversations")
-      .select("coach_id, founder_id, company_id")
+      .select("coach_id, member_id, client_id")
       .eq("id", conversationId)
       .single()
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Determine the recipient (the other participant in the conversation)
     const recipientId =
       senderId === conversation.coach_id
-        ? conversation.founder_id
+        ? conversation.member_id
         : conversation.coach_id
 
     // Get the sender's name

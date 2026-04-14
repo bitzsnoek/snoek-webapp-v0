@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import {
   requireAuth,
-  requireCompanyAccess,
+  requireClientAccess,
   validateInput,
   errorResponse,
   ERROR_MESSAGES,
@@ -15,7 +15,7 @@ const GOOGLE_OAUTH_SCOPES = [
 ].join(" ")
 
 const connectSchema = z.object({
-  company_id: schemas.uuid,
+  client_id: schemas.uuid,
 })
 
 export async function GET(request: NextRequest) {
@@ -26,30 +26,30 @@ export async function GET(request: NextRequest) {
     if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
 
     // 2. Validate input
-    const companyId = request.nextUrl.searchParams.get("company_id")
-    const validation = validateInput(connectSchema, { company_id: companyId })
+    const clientId = request.nextUrl.searchParams.get("client_id")
+    const validation = validateInput(connectSchema, { client_id: clientId })
     if (!validation.success) return validation.error
 
-    // 3. Authorization - verify user is a coach in this company
-    const { hasAccess } = await requireCompanyAccess(user.id, validation.data.company_id, "coach")
+    // 3. Authorization - verify user is a coach in this client
+    const { hasAccess } = await requireClientAccess(user.id, validation.data.client_id, "coach")
     if (!hasAccess) {
       return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
     }
 
     // 4. Check configuration
-    const clientId = process.env.GOOGLE_CLIENT_ID
+    const googleClientId = process.env.GOOGLE_CLIENT_ID
     const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    if (!clientId || !appUrl) {
+    if (!googleClientId || !appUrl) {
       console.error("Google OAuth not configured")
       return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
     }
 
     // 5. Build OAuth URL
     const redirectUri = `${appUrl}/api/google-calendar/callback`
-    const state = JSON.stringify({ company_id: validation.data.company_id, user_id: user.id })
+    const state = JSON.stringify({ client_id: validation.data.client_id, user_id: user.id })
 
     const params = new URLSearchParams({
-      client_id: clientId,
+      client_id: googleClientId,
       redirect_uri: redirectUri,
       response_type: "code",
       scope: GOOGLE_OAUTH_SCOPES,

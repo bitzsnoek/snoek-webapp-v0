@@ -27,7 +27,7 @@ interface PresenceState {
 }
 
 interface UseRealtimeGoalsOptions {
-  companyId: string
+  clientId: string
   userId: string
   userName: string
   userAvatar: string
@@ -35,7 +35,7 @@ interface UseRealtimeGoalsOptions {
 }
 
 export function useRealtimeGoals({
-  companyId,
+  clientId,
   userId,
   userName,
   userAvatar,
@@ -77,7 +77,7 @@ export function useRealtimeGoals({
 
   // Set up real-time subscriptions
   useEffect(() => {
-    if (!companyId || !userId) return
+    if (!clientId || !userId) return
 
     const supabase = createClient()
 
@@ -89,14 +89,14 @@ export function useRealtimeGoals({
 
     // Create a channel for database changes
     const dbChannel = supabase
-      .channel(`goals:${companyId}`)
+      .channel(`goals:${clientId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "quarterly_goals",
-          filter: `company_id=eq.${companyId}`,
+          filter: `client_id=eq.${clientId}`,
         },
         handleChange("quarterly_goals")
       )
@@ -115,7 +115,7 @@ export function useRealtimeGoals({
           event: "*",
           schema: "public",
           table: "yearly_goals",
-          filter: `company_id=eq.${companyId}`,
+          filter: `client_id=eq.${clientId}`,
         },
         handleChange("yearly_goals")
       )
@@ -137,6 +137,34 @@ export function useRealtimeGoals({
         },
         handleChange("weekly_values")
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "goal_boards",
+          filter: `client_id=eq.${clientId}`,
+        },
+        handleChange("goal_boards")
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "standard_goals",
+        },
+        handleChange("standard_goals")
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "standard_goal_values",
+        },
+        handleChange("standard_goal_values")
+      )
       .subscribe((status) => {
         console.log(`[v0] Realtime: Database channel status: ${status}`)
         setIsConnected(status === "SUBSCRIBED")
@@ -145,7 +173,7 @@ export function useRealtimeGoals({
     channelRef.current = dbChannel
 
     // Create a separate channel for presence (who's editing what)
-    const presenceChannel = supabase.channel(`presence:goals:${companyId}`, {
+    const presenceChannel = supabase.channel(`presence:goals:${clientId}`, {
       config: {
         presence: {
           key: userId,
@@ -209,7 +237,7 @@ export function useRealtimeGoals({
       channelRef.current = null
       presenceChannelRef.current = null
     }
-  }, [companyId, userId, userName, userAvatar]) // debouncedOnDataChange is stable via useMemo
+  }, [clientId, userId, userName, userAvatar]) // debouncedOnDataChange is stable via useMemo
 
   // Update presence when editing state changes
   useEffect(() => {

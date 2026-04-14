@@ -21,30 +21,30 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Mail, Copy, Trash2, X, AlertCircle } from "lucide-react"
-import type { Invitation, UnconnectedFounder } from "@/lib/supabase-data"
-import { dbGetUnconnectedFounders } from "@/lib/supabase-data"
+import type { Invitation, UnconnectedMember } from "@/lib/supabase-data"
+import { dbGetUnconnectedMembers } from "@/lib/supabase-data"
 import { createClient } from "@/lib/supabase/client"
 
 export function InvitationsManager() {
-  const { inviteUser, getInvitations, cancelInvitation, activeCompanyId, currentUser } = useApp()
+  const { inviteUser, getInvitations, cancelInvitation, activeClientId, currentUser } = useApp()
 
-  // Founders cannot manage invitations
-  if (currentUser.role === "founder") return null
+  // Members cannot manage invitations
+  if (currentUser.role === "member") return null
   const [invitations, setInvitations] = useState<Invitation[]>([])
-  const [unconnectedFounders, setUnconnectedFounders] = useState<UnconnectedFounder[]>([])
+  const [unconnectedMembers, setUnconnectedMembers] = useState<UnconnectedMember[]>([])
   const [loading, setLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState<"founder" | "coach">("founder")
+  const [role, setRole] = useState<"member" | "coach">("member")
   const [inviting, setInviting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [activatingFounderId, setActivatingFounderId] = useState<string | null>(null)
+  const [activatingMemberId, setActivatingMemberId] = useState<string | null>(null)
   const [activateEmails, setActivateEmails] = useState<Record<string, string>>({})
 
   useEffect(() => {
     loadInvitations()
-    loadUnconnectedFounders()
-  }, [activeCompanyId])
+    loadUnconnectedMembers()
+  }, [activeClientId])
 
   async function loadInvitations() {
     setLoading(true)
@@ -53,9 +53,9 @@ export function InvitationsManager() {
     setLoading(false)
   }
 
-  async function loadUnconnectedFounders() {
-    const founders = await dbGetUnconnectedFounders(activeCompanyId)
-    setUnconnectedFounders(founders)
+  async function loadUnconnectedMembers() {
+    const members = await dbGetUnconnectedMembers(activeClientId)
+    setUnconnectedMembers(members)
   }
 
   async function handleInvite() {
@@ -67,7 +67,7 @@ export function InvitationsManager() {
     if (result) {
       await loadInvitations()
       setEmail("")
-      setRole("founder")
+      setRole("member")
       setDialogOpen(false)
     }
   }
@@ -77,15 +77,15 @@ export function InvitationsManager() {
     await loadInvitations()
   }
 
-  async function handleActivateFounder(founder: UnconnectedFounder, email: string) {
+  async function handleActivateMember(member: UnconnectedMember, email: string) {
     if (!email.trim()) return
-    setActivatingFounderId(founder.id)
-    const result = await inviteUser(email, "founder", founder.id)
-    setActivatingFounderId(null)
+    setActivatingMemberId(member.id)
+    const result = await inviteUser(email, "member", member.id)
+    setActivatingMemberId(null)
     
     if (result) {
       await loadInvitations()
-      await loadUnconnectedFounders()
+      await loadUnconnectedMembers()
     }
   }
 
@@ -105,9 +105,9 @@ export function InvitationsManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Invite to Company</DialogTitle>
+            <DialogTitle>Invite to Client</DialogTitle>
             <DialogDescription>
-              Send an invitation to a founder or coach to join your company.
+              Send an invitation to a member or coach to join your client.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
@@ -116,7 +116,7 @@ export function InvitationsManager() {
               <Input
                 id="email"
                 type="email"
-                placeholder="founder@example.com"
+                placeholder="member@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleInvite()}
@@ -124,12 +124,12 @@ export function InvitationsManager() {
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as "founder" | "coach")}>
+              <Select value={role} onValueChange={(v) => setRole(v as "member" | "coach")}>
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="founder">Founder</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
                   <SelectItem value="coach">Coach</SelectItem>
                 </SelectContent>
               </Select>
@@ -148,14 +148,14 @@ export function InvitationsManager() {
 
       {/* Main Section */}
       <section className="mt-10 rounded-xl border border-border bg-card p-4 md:p-6">
-        {/* Unconnected Founders Alert */}
-        {unconnectedFounders.length > 0 && (
+        {/* Unconnected Members Alert */}
+        {unconnectedMembers.length > 0 && (
           <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 flex gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h3 className="font-medium text-amber-900">Activate {unconnectedFounders.length} founder{unconnectedFounders.length !== 1 ? 's' : ''}</h3>
+              <h3 className="font-medium text-amber-900">Activate {unconnectedMembers.length} member{unconnectedMembers.length !== 1 ? 's' : ''}</h3>
               <p className="text-sm text-amber-800 mt-1">
-                These founders exist in your company but don't have user accounts yet. Send them activation links below.
+                These members exist in your client but don't have user accounts yet. Send them activation links below.
               </p>
             </div>
           </div>
@@ -181,41 +181,41 @@ export function InvitationsManager() {
           </div>
         ) : (
           <div className="flex flex-col gap-6">
-            {/* Unconnected Founders Section */}
-            {unconnectedFounders.length > 0 && (
+            {/* Unconnected Members Section */}
+            {unconnectedMembers.length > 0 && (
               <div className="flex flex-col gap-3">
-                <h3 className="text-sm font-medium text-foreground">Activate Founders ({unconnectedFounders.length})</h3>
+                <h3 className="text-sm font-medium text-foreground">Activate Members ({unconnectedMembers.length})</h3>
                 <div className="space-y-2">
-                  {unconnectedFounders.map((founder) => (
+                  {unconnectedMembers.map((member) => (
                     <div
-                      key={founder.id}
+                      key={member.id}
                       className="flex flex-col gap-3 rounded-lg border border-border/50 bg-background p-3"
                     >
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{founder.name}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{founder.role} - No account yet</p>
+                          <p className="text-sm font-medium text-foreground">{member.name}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{member.role} - No account yet</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Input
                           type="email"
-                          placeholder={`Email for ${founder.name}`}
-                          value={activateEmails[founder.id] || ""}
-                          onChange={(e) => setActivateEmails((prev) => ({ ...prev, [founder.id]: e.target.value }))}
-                          onKeyDown={(e) => e.key === "Enter" && handleActivateFounder(founder, activateEmails[founder.id] || "")}
+                          placeholder={`Email for ${member.name}`}
+                          value={activateEmails[member.id] || ""}
+                          onChange={(e) => setActivateEmails((prev) => ({ ...prev, [member.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === "Enter" && handleActivateMember(member, activateEmails[member.id] || "")}
                           className="h-8 text-sm flex-1"
-                          disabled={activatingFounderId === founder.id}
+                          disabled={activatingMemberId === member.id}
                         />
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleActivateFounder(founder, activateEmails[founder.id] || "")}
-                          disabled={activatingFounderId === founder.id || !activateEmails[founder.id]?.trim()}
+                          onClick={() => handleActivateMember(member, activateEmails[member.id] || "")}
+                          disabled={activatingMemberId === member.id || !activateEmails[member.id]?.trim()}
                           className="gap-1.5 shrink-0"
                         >
                           <Mail className="h-3.5 w-3.5" />
-                          {activatingFounderId === founder.id ? "Sending..." : "Send invite"}
+                          {activatingMemberId === member.id ? "Sending..." : "Send invite"}
                         </Button>
                       </div>
                     </div>

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useApp } from "@/lib/store"
+import { isCoachOrAdmin } from "@/lib/mock-data"
 import { createClient } from "@/lib/supabase/client"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,7 @@ import { User, Mail, Lock, LogOut, Check, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function AccountSettings() {
-  const { currentUser, companies, updateProfile } = useApp()
+  const { currentUser, clients, updateProfile } = useApp()
   const router = useRouter()
   const supabase = createClient()
 
@@ -104,7 +105,7 @@ export function AccountSettings() {
           </Avatar>
           <div>
             <p className="text-lg font-medium text-foreground">{currentUser.name || "User"}</p>
-            <p className="text-sm capitalize text-muted-foreground">{currentUser.role}</p>
+            <p className="text-sm capitalize text-muted-foreground">{currentUser.role === "super_admin" ? "Super Admin" : currentUser.role}</p>
           </div>
         </div>
 
@@ -176,37 +177,37 @@ export function AccountSettings() {
         </div>
       </section>
 
-      {/* Companies Section */}
+      {/* Clients Section */}
       <section className="mb-10 rounded-xl border border-border bg-card p-4 md:p-6">
         <div className="mb-4 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary">
             <Building2 className="h-4 w-4 text-foreground" />
           </div>
-          <h2 className="text-base font-semibold text-foreground">Companies</h2>
+          <h2 className="text-base font-semibold text-foreground">Clients</h2>
         </div>
 
         <p className="mb-4 text-sm text-muted-foreground">
-          {currentUser.role === "coach"
-            ? "Companies you manage as a coach."
-            : "Companies you are a member of."}
+          {isCoachOrAdmin(currentUser.role)
+            ? "Clients you manage as a coach."
+            : "Clients you are a member of."}
         </p>
 
-        {companies.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No companies connected yet.</p>
+        {clients.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No clients connected yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {companies.map((company) => (
+            {clients.map((client) => (
               <div
-                key={company.id}
+                key={client.id}
                 className="flex items-center gap-3 rounded-lg border border-border bg-background p-3"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                   <Building2 className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{company.name}</p>
+                  <p className="text-sm font-medium text-foreground">{client.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {company.founders.length} {company.founders.length === 1 ? "founder" : "founders"}
+                    {client.members.length} {client.members.length === 1 ? "member" : "members"}
                   </p>
                 </div>
               </div>

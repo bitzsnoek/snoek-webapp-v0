@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const { data: invitation, error } = await adminSupabase
       .from("invitations")
-      .select("email, company_id, status, expires_at")
+      .select("email, client_id, status, expires_at")
       .eq("token", token)
       .single()
 
@@ -53,16 +53,16 @@ export async function GET(request: NextRequest) {
       return errorResponse("This invitation has expired. Please ask for a new one.", 410)
     }
 
-    // Get company name
-    const { data: company } = await adminSupabase
-      .from("companies")
+    // Get client name
+    const { data: client } = await adminSupabase
+      .from("clients")
       .select("name")
-      .eq("id", invitation.company_id)
+      .eq("id", invitation.client_id)
       .single()
 
     return successResponse({
       email: invitation.email,
-      companyName: company?.name || null,
+      clientName: client?.name || null,
     })
   } catch (err) {
     console.error("Invitation details error:", err)

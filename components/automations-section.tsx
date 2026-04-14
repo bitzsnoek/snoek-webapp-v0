@@ -50,7 +50,7 @@ import {
 // Types
 interface Automation {
   id: string
-  company_id: string
+  client_id: string
   coach_id: string
   type: "recurring" | "scheduled"
   name: string
@@ -80,7 +80,7 @@ interface ConversationOption {
   is_group: boolean
 }
 
-interface FounderOption {
+interface MemberOption {
   id: string // company_member id
   name: string
 }
@@ -126,7 +126,7 @@ const DAYS_OF_WEEK = [
 ]
 
 export function AutomationsSection() {
-  const { activeCompany, currentUser } = useApp()
+  const { activeClient, currentUser } = useApp()
   const [automations, setAutomations] = useState<Automation[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -156,13 +156,13 @@ export function AutomationsSection() {
     conversation_id: "",
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
-  const [selectedFounders, setSelectedFounders] = useState<FounderOption[]>([])
+  const [selectedMembers, setSelectedMembers] = useState<MemberOption[]>([])
   const [selectedConversations, setSelectedConversations] = useState<ConversationOption[]>([])
   const [conversations, setConversations] = useState<ConversationOption[]>([])
   const [testingId, setTestingId] = useState<string | null>(null)
 
   // Get all key results from the active company
-  const allKeyResults: KeyResultOption[] = activeCompany.quarters.flatMap((quarter) =>
+  const allKeyResults: KeyResultOption[] = activeClient.quarters.flatMap((quarter) =>
     quarter.goals.flatMap((goal) =>
       goal.keyResults.map((kr) => ({
         id: kr.id,
@@ -175,31 +175,31 @@ export function AutomationsSection() {
     )
   )
 
-  // Get all founders from the active company
-  const allFounders: FounderOption[] = (activeCompany.members || [])
-    .filter((m) => m.role === "founder")
+  // Get all members from the active client
+  const allMembers: MemberOption[] = (activeClient.members || [])
+    .filter((m) => m.role === "member")
     .map((m) => ({ id: m.id, name: m.name }))
 
   // Fetch conversations for the company
   const fetchConversations = useCallback(async () => {
-    if (!activeCompany.id) return
+    if (!activeClient.id) return
     
     const supabase = createClient()
     
     try {
       const { data: convos, error } = await supabase
         .from("conversations")
-        .select("id, name, is_group, coach_id, founder_id")
-        .eq("company_id", activeCompany.id)
+        .select("id, name, is_group, coach_id, member_id")
+        .eq("client_id", activeClient.id)
       
       if (error) throw error
       
-      // For 1:1 chats, get founder names by looking up the user_id in company_members
+      // For 1:1 chats, get member names by looking up the user_id in company_members
       const { data: members } = await supabase
         .from("company_members")
         .select("user_id, name")
-        .eq("company_id", activeCompany.id)
-        .eq("role", "founder")
+        .eq("client_id", activeClient.id)
+        .eq("role", "member")
       
       // Build a lookup map from user_id to name
       const userIdToName = new Map<string, string>()
@@ -212,9 +212,9 @@ export function AutomationsSection() {
       // Build conversation options with names
       const options: ConversationOption[] = (convos ?? []).map((c) => {
         let name = c.name || "Unknown"
-        if (!c.is_group && c.founder_id) {
-          // For 1:1 chats, find the founder name via user_id
-          name = userIdToName.get(c.founder_id) || "1:1 Chat"
+        if (!c.is_group && c.member_id) {
+          // For 1:1 chats, find the member name via user_id
+          name = userIdToName.get(c.member_id) || "1:1 Chat"
         }
         return {
           id: c.id,
@@ -227,11 +227,11 @@ export function AutomationsSection() {
     } catch (err) {
       console.error("Error fetching conversations:", err)
     }
-  }, [activeCompany.id])
+  }, [activeClient.id])
 
   // Fetch automations
   const fetchAutomations = useCallback(async () => {
-    if (!activeCompany.id) return
+    if (!activeClient.id) return
     
     const supabase = createClient()
     setLoading(true)
@@ -241,7 +241,7 @@ export function AutomationsSection() {
       const { data: autos, error } = await supabase
         .from("automations")
         .select("*")
-        .eq("company_id", activeCompany.id)
+        .eq("client_id", activeClient.id)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -265,21 +265,21 @@ export function AutomationsSection() {
         } else if (auto.type === "scheduled") {
           const { data: sc } = await supabase
             .from("automation_scheduled_config")
-            .select("*, conversations(name, is_group, founder_id)")
+            .select("*, conversations(name, is_group, member_id)")
             .eq("automation_id", auto.id)
             .single()
           if (sc) {
             let convoName = "Chat"
             if (sc.conversations?.is_group) {
               convoName = sc.conversations?.name || "Group Chat"
-            } else if (sc.conversations?.founder_id) {
-              // For 1:1 chats, fetch the founder's name
+            } else if (sc.conversations?.member_id) {
+              // For 1:1 chats, fetch the member's name
               const { data: founder } = await supabase
                 .from("profiles")
                 .select("full_name")
-                .eq("id", sc.conversations.founder_id)
+                .eq("id", sc.conversations.member_id)
                 .single()
-              convoName = founder?.full_name || "Founder"
+              convoName = founder?.full_name || "Member"
             }
             scheduled_config = {
               scheduled_at: sc.scheduled_at,
@@ -304,8 +304,8 @@ export function AutomationsSection() {
           key_results = krs || []
         }
 
-        // Fetch founders
-        let founders: { member_id: string; name: string }[] = []
+        // Fetch members
+        let membersList: { member_id: string; name: string }[] = []
         const { data: afs, error: afsError } = await supabase
           .from("automation_founders")
           .select("founder_member_id")
@@ -317,31 +317,31 @@ export function AutomationsSection() {
             .from("company_members")
             .select("id, name")
             .in("id", memberIds)
-          founders = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
+          membersList = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
         }
 
         // Fetch conversations linked to this automation
         let linkedConversations: { id: string; name: string; is_group: boolean }[] = []
         const { data: acs, error: acsError } = await supabase
           .from("automation_conversations")
-          .select("conversation_id, conversations(id, name, is_group, founder_id)")
+          .select("conversation_id, conversations(id, name, is_group, member_id)")
           .eq("automation_id", auto.id)
 
         if (acs && acs.length > 0) {
-          // For 1:1 chats, we need to fetch the founder names
-          const conversationsWithFounders = await Promise.all(
+          // For 1:1 chats, we need to fetch the member names
+          const conversationsWithMembers = await Promise.all(
             acs.map(async (ac) => {
-              const c = ac.conversations as { id: string; name: string | null; is_group: boolean; founder_id: string | null } | null
+              const c = ac.conversations as { id: string; name: string | null; is_group: boolean; member_id: string | null } | null
               let displayName = c?.name || "Chat"
               
-              // For 1:1 chats, fetch the founder's name
-              if (c && !c.is_group && c.founder_id) {
+              // For 1:1 chats, fetch the member's name
+              if (c && !c.is_group && c.member_id) {
                 const { data: founder } = await supabase
                   .from("profiles")
                   .select("full_name")
-                  .eq("id", c.founder_id)
+                  .eq("id", c.member_id)
                   .single()
-                displayName = founder?.full_name || "Founder"
+                displayName = founder?.full_name || "Member"
               }
               
               return {
@@ -351,7 +351,7 @@ export function AutomationsSection() {
               }
             })
           )
-          linkedConversations = conversationsWithFounders
+          linkedConversations = conversationsWithMembers
         }
 
         enrichedAutomations.push({
@@ -359,7 +359,7 @@ export function AutomationsSection() {
           recurring_config,
           scheduled_config,
           key_results,
-          founders,
+          founders: membersList,
           conversations: linkedConversations,
         })
       }
@@ -370,7 +370,7 @@ export function AutomationsSection() {
     } finally {
       setLoading(false)
     }
-  }, [activeCompany.id])
+  }, [activeClient.id])
 
   useEffect(() => {
     fetchAutomations()
@@ -392,7 +392,7 @@ export function AutomationsSection() {
       conversation_id: "",
     })
     setSelectedKeyResults([])
-    setSelectedFounders([])
+    setSelectedMembers([])
     setSelectedConversations([])
     setEditingId(null)
   }
@@ -450,12 +450,12 @@ export function AutomationsSection() {
     })
     setSelectedKeyResults(krs as KeyResultOption[])
 
-    // Map founders
+    // Map members
     const fndrs = (automation.founders || []).map((f) => ({
       id: f.member_id,
       name: f.name,
     }))
-    setSelectedFounders(fndrs)
+    setSelectedMembers(fndrs)
 
     // Map conversations
     const convos = (automation.conversations || []).map((c) => ({
@@ -493,7 +493,7 @@ export function AutomationsSection() {
         const { data: newAuto, error: autoError } = await supabase
           .from("automations")
           .insert({
-            company_id: activeCompany.id,
+            client_id: activeClient.id,
             coach_id: currentUser.id,
             type: selectedType,
             name: autoName,
@@ -539,13 +539,13 @@ export function AutomationsSection() {
           await supabase.from("automation_key_results").insert(inserts)
         }
 
-        // Create founder associations
-        if (selectedFounders.length > 0) {
-          const founderInserts = selectedFounders.map((f) => ({
+        // Create member associations
+        if (selectedMembers.length > 0) {
+          const memberInserts = selectedMembers.map((f) => ({
             automation_id: newAuto.id,
             founder_member_id: f.id,
           }))
-          await supabase.from("automation_founders").insert(founderInserts)
+          await supabase.from("automation_founders").insert(memberInserts)
         }
 
         // Create conversation associations (for recurring messages)
@@ -602,14 +602,14 @@ export function AutomationsSection() {
           await supabase.from("automation_key_results").insert(inserts)
         }
 
-        // Update founders - delete and re-insert
+        // Update members - delete and re-insert
         await supabase.from("automation_founders").delete().eq("automation_id", editingId)
-        if (selectedFounders.length > 0) {
-          const founderInserts = selectedFounders.map((f) => ({
+        if (selectedMembers.length > 0) {
+          const memberInserts = selectedMembers.map((f) => ({
             automation_id: editingId,
             founder_member_id: f.id,
           }))
-          await supabase.from("automation_founders").insert(founderInserts)
+          await supabase.from("automation_founders").insert(memberInserts)
         }
 
         // Update conversations - delete and re-insert
@@ -759,7 +759,7 @@ export function AutomationsSection() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Automations</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Set up automated messages to founders on a schedule or around meetings.
+            Set up automated messages to members on a schedule or around meetings.
           </p>
         </div>
         <Button onClick={openTypePicker} className="gap-2">
@@ -774,7 +774,7 @@ export function AutomationsSection() {
           <Zap className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
           <p className="text-sm font-medium text-foreground">No automations yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create your first automation to send scheduled messages to founders.
+            Create your first automation to send scheduled messages to members.
           </p>
         </div>
       ) : (
