@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invitation has expired", 410)
     }
 
-    // 6. Check if user is already a member of this company
+    // 6. Check if user is already a member of this client
     const { data: alreadyMember } = await adminSupabase
-      .from("company_members")
+      .from("client_members")
       .select("id")
-      .eq("company_id", invitation.company_id)
+      .eq("client_id", invitation.client_id)
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle()
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       if (invitation.member_id) {
         // Invitation is linked to a specific member -- connect the user to that member
         const { error: linkError } = await adminSupabase
-          .from("company_members")
+          .from("client_members")
           .update({ user_id: user.id })
           .eq("id", invitation.member_id)
           .is("user_id", null)
@@ -77,12 +77,12 @@ export async function POST(request: NextRequest) {
           return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
         }
       } else {
-        // No specific member linked -- create a new company member
+        // No specific member linked -- create a new client member
         const nameFromEmail = user.user_metadata?.full_name || invitation.email.split("@")[0]
         const { error: memberError } = await adminSupabase
-          .from("company_members")
+          .from("client_members")
           .insert({
-            company_id: invitation.company_id,
+            client_id: invitation.client_id,
             user_id: user.id,
             role: invitation.role,
             name: nameFromEmail,
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse({
       success: true,
-      companyId: invitation.company_id,
+      clientId: invitation.client_id,
     })
   } catch (err) {
     console.error("Accept invitation error:", err)

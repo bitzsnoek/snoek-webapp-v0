@@ -9,7 +9,7 @@ import MeetingsHero from "./meetings-hero"
 import MeetingsList from "./meetings-list"
 
 export default function MeetingsSection() {
-  const { activeCompanyId } = useApp()
+  const { activeClientId } = useApp()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -20,12 +20,12 @@ export default function MeetingsSection() {
   // Fetch meetings on component mount
   useEffect(() => {
     loadMeetings()
-  }, [activeCompanyId])
+  }, [activeClientId])
 
   async function loadMeetings() {
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/meetings-data?companyId=${activeCompanyId}`)
+      const res = await fetch(`/api/meetings-data?clientId=${activeClientId}`)
       if (res.ok) {
         const data = await res.json()
         setMeetings(data.meetings || [])
@@ -46,7 +46,7 @@ export default function MeetingsSection() {
       const res = await fetch("/api/meetings/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: activeCompanyId }),
+        body: JSON.stringify({ clientId: activeClientId }),
       })
       if (res.ok) {
         await loadMeetings()
@@ -59,7 +59,7 @@ export default function MeetingsSection() {
   }
 
   function handleConnectCalendar() {
-    window.location.href = `/api/google-calendar/connect?company_id=${activeCompanyId}`
+    window.location.href = `/api/google-calendar/connect?client_id=${activeClientId}`
   }
 
   if (isLoading) {

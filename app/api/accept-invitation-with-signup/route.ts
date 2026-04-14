@@ -124,11 +124,11 @@ export async function POST(request: NextRequest) {
       .from("profiles")
       .upsert({ id: userId, full_name: name }, { onConflict: "id" })
 
-    // 9. Link user to company
+    // 9. Link user to client
     const { data: alreadyMember } = await adminSupabase
-      .from("company_members")
+      .from("client_members")
       .select("id")
-      .eq("company_id", invitation.company_id)
+      .eq("client_id", invitation.client_id)
       .eq("user_id", userId)
       .limit(1)
       .maybeSingle()
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       if (invitation.member_id) {
         // Link to the specific member row and update name
         const { data: existingMember } = await adminSupabase
-          .from("company_members")
+          .from("client_members")
           .select("id, user_id, name")
           .eq("id", invitation.member_id)
           .single()
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
         if (existingMember && !existingMember.user_id) {
           // Member exists but not linked, proceed with linking
           const { error: linkError } = await adminSupabase
-            .from("company_members")
+            .from("client_members")
             .update({ user_id: userId, name })
             .eq("id", invitation.member_id)
             .is("user_id", null)
@@ -162,9 +162,9 @@ export async function POST(request: NextRequest) {
         } else if (!existingMember) {
           // Member doesn't exist, create new one
           const { error: memberError } = await adminSupabase
-            .from("company_members")
+            .from("client_members")
             .insert({
-              company_id: invitation.company_id,
+              client_id: invitation.client_id,
               user_id: userId,
               role: invitation.role,
               name,
@@ -176,11 +176,11 @@ export async function POST(request: NextRequest) {
           }
         }
       } else {
-        // Create a new company member
+        // Create a new client member
         const { error: memberError } = await adminSupabase
-          .from("company_members")
+          .from("client_members")
           .insert({
-            company_id: invitation.company_id,
+            client_id: invitation.client_id,
             user_id: userId,
             role: invitation.role,
             name,
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     return successResponse({
       success: true,
-      companyId: invitation.company_id,
+      clientId: invitation.client_id,
     })
   } catch (err) {
     console.error("Accept invitation with signup error:", err)

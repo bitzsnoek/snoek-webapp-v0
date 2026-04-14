@@ -2,18 +2,18 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { fetchUserCompanies, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateCompanyName, dbAddFounder, dbUpdateFounder, dbRemoveFounder, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchCompanyData, dbAddCompany, dbDeleteCompany, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedFounders, dbReorderYearlyGoals, dbReorderYearlyKeyResults, dbReorderQuarterlyGoals, dbReorderQuarterlyKeyResults, type Invitation, type UnconnectedFounder } from "./supabase-data"
-import type { Company, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric } from "./mock-data"
+import { fetchUserClients, fetchAllClients, dbUpdateWeeklyValue, dbAddYearlyGoal, dbUpdateYearlyGoal, dbDeleteYearlyGoal, dbUpdateYearlyKRConfidence, dbAddQuarterlyGoal, dbUpdateQuarterlyGoal, dbDeleteQuarterlyGoal, dbAddKeyResult, dbUpdateKeyResult, dbDeleteKeyResult, dbAssignKROwner, dbUpdateClientName, dbAddMember, dbUpdateMember, dbRemoveMember, dbUpdateMetricValue, dbAddMetric, dbDeleteMetric, dbArchiveQuarter, dbArchiveYear, dbAddYear, dbAddQuarter, fetchClientData, dbAddClient, dbDeleteClient, dbInviteUser, dbGetInvitations, dbCancelInvitation, dbAcceptInvitation, dbGetUnconnectedMembers, dbReorderYearlyGoals, dbReorderYearlyKeyResults, dbReorderQuarterlyGoals, dbReorderQuarterlyKeyResults, dbUpdateClientFeatures, dbAddGoalBoard, dbUpdateGoalBoard, dbArchiveGoalBoard, dbDeleteGoalBoard, dbAddStandardGoal, dbUpdateStandardGoal, dbDeleteStandardGoal, dbAssignStandardGoalOwner, dbUpdateStandardGoalValue, dbReorderStandardGoals, dbAddJournal, dbUpdateJournal, dbDeleteJournal, dbUpsertJournalEntry, type Invitation, type UnconnectedMember } from "./supabase-data"
+import type { Client, Coach, CurrentUser, KeyResult, YearlyKeyResult, Confidence, Metric, GoalBoard, StandardGoal, GoalType, ValueType, GoalFrequency, BoardType } from "./mock-data"
 
 interface AppState {
   isLoading: boolean
   coach: Coach
   currentUser: CurrentUser
-  companies: Company[]
-  activeCompanyId: string
-  activeCompany: Company
-  setActiveCompanyId: (id: string) => void
-  setCompanies: React.Dispatch<React.SetStateAction<Company[]>>
+  clients: Client[]
+  activeClientId: string
+  activeClient: Client
+  setActiveClientId: (id: string) => void
+  setClients: React.Dispatch<React.SetStateAction<Client[]>>
   updateWeeklyValue: (keyResultId: string, week: string, value: number) => void
   addYear: (year: number) => string
   addQuarter: (label: string, year: number) => string
@@ -30,38 +30,60 @@ interface AppState {
   addYearlyGoal: (yearId: string, objective: string, keyResults: string[]) => void
   updateYearlyGoal: (yearId: string, goalId: string, objective: string, keyResults: Omit<YearlyKeyResult, "id">[]) => void
   deleteYearlyGoal: (yearId: string, goalId: string) => void
-  updateCompanyName: (name: string) => void
-  addFounder: (name: string, role: string) => void
-  updateFounder: (founderId: string, name: string, role: string, emails?: string[]) => void
-  removeFounder: (founderId: string) => void
+  updateClientName: (name: string) => void
+  addMember: (name: string, role: string) => void
+  updateMember: (memberId: string, name: string, role: string, emails?: string[]) => void
   removeMember: (memberId: string) => void
+  removeClientMember: (memberId: string) => void
   updateMetricValue: (metricId: string, month: number, value: number) => void
   addMetric: (metric: Omit<Metric, "id">) => void
   deleteMetric: (metricId: string) => void
-  addCompany: (name: string) => Promise<void>
-  deleteCompany: (companyId: string) => Promise<void>
-  inviteUser: (email: string, role: "founder" | "coach", memberId?: string) => Promise<Invitation | null>
+  addClient: (name: string) => Promise<void>
+  deleteClient: (clientId: string) => Promise<void>
+  inviteUser: (email: string, role: "member" | "coach", memberId?: string) => Promise<Invitation | null>
   getInvitations: () => Promise<Invitation[]>
   cancelInvitation: (invitationId: string) => Promise<void>
-  acceptInvitation: (token: string) => Promise<{ success: boolean; companyId?: string; error?: string }>
+  acceptInvitation: (token: string) => Promise<{ success: boolean; clientId?: string; error?: string }>
   updateProfile: (name: string) => Promise<void>
   refreshData: () => Promise<void>
   reorderYearlyGoals: (yearId: string, fromIndex: number, toIndex: number) => void
   reorderYearlyKeyResults: (yearId: string, goalId: string, fromIndex: number, toIndex: number) => void
   reorderQuarterlyGoals: (quarterId: string, fromIndex: number, toIndex: number) => void
   reorderQuarterlyKeyResults: (quarterId: string, goalId: string, fromIndex: number, toIndex: number) => void
+  // Goal boards & standard goals
+  updateClientFeatures: (features: string[]) => void
+  addGoalBoard: (title: string, boardType: BoardType) => Promise<string>
+  updateGoalBoard: (boardId: string, title: string) => void
+  archiveBoard: (boardId: string) => void
+  unarchiveBoard: (boardId: string) => void
+  deleteGoalBoard: (boardId: string) => void
+  addStandardGoal: (boardId: string, goal: Omit<StandardGoal, "id" | "values">) => Promise<string>
+  updateStandardGoal: (boardId: string, goalId: string, updates: Partial<StandardGoal>) => void
+  deleteStandardGoal: (boardId: string, goalId: string) => void
+  updateStandardGoalValue: (boardId: string, goalId: string, periodKey: string, value: number) => void
+  assignStandardGoalOwner: (boardId: string, goalId: string, owner: string | null) => void
+  reorderStandardGoals: (boardId: string, fromIndex: number, toIndex: number) => void
+  // Journals
+  addJournal: (title: string, description: string | undefined, frequency: string, assignedMemberId: string | null) => Promise<string>
+  updateJournal: (journalId: string, updates: { title?: string; description?: string; frequency?: string; assignedMemberId?: string | null; archived?: boolean }) => void
+  deleteJournal: (journalId: string) => void
+  archiveJournal: (journalId: string) => void
+  upsertJournalEntry: (journalId: string, periodKey: string, content: string) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
 
-const emptyCompany: Company = {
+const emptyClient: Client = {
   id: "",
   name: "",
-  founders: [],
+  features: [],
   members: [],
+  allMembers: [],
   years: [],
   quarters: [],
+  boards: [],
   metrics: [],
+  journals: [],
 }
 
 const defaultCoach: Coach = {
@@ -76,22 +98,22 @@ const defaultUser: CurrentUser = {
   name: "",
   email: "",
   avatar: "",
-  role: "founder",
+  role: "member",
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [activeCompanyId, setActiveCompanyId] = useState("")
+  const [clients, setClients] = useState<Client[]>([])
+  const [activeClientId, setActiveClientId] = useState("")
   const [currentUser, setCurrentUser] = useState<CurrentUser>(defaultUser)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const activeCompany = companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? emptyCompany
+  const activeClient = clients.find((c) => c.id === activeClientId) ?? clients[0] ?? emptyClient
 
   // Clear all user data (used on logout or session change)
   const clearUserData = useCallback(() => {
-    setCompanies([])
-    setActiveCompanyId("")
+    setClients([])
+    setActiveClientId("")
     setCurrentUser(defaultUser)
   }, [])
 
@@ -111,9 +133,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Load user profile
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, is_super_admin")
         .eq("id", session.user.id)
         .single()
+
+      const isSuperAdmin = profile?.is_super_admin === true
 
       // Determine user role: check if they own any company OR are a coach member in any company
       const { data: ownedCompanies } = await supabase
@@ -130,7 +154,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .eq("role", "coach")
         .limit(1)
 
-      const userRole = (ownedCompanies && ownedCompanies.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "founder"
+      const userRole = isSuperAdmin
+        ? "super_admin" as const
+        : (ownedCompanies && ownedCompanies.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "member"
       const userName = profile?.full_name || session.user.email?.split("@")[0] || "User"
       const initials = userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
 
@@ -142,11 +168,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         role: userRole,
       })
 
-      const data = await fetchUserCompanies(session.user.id)
-      setCompanies(data)
+      const data = isSuperAdmin
+        ? await fetchAllClients()
+        : await fetchUserClients(session.user.id)
+      setClients(data)
       if (data.length > 0) {
-        // Preserve current active company if it still exists, otherwise default to first
-        setActiveCompanyId((current) => {
+        // Preserve current active client if it still exists, otherwise default to first
+        setActiveClientId((current) => {
           if (current && data.some((c) => c.id === current)) return current
           return data[0].id
         })
@@ -180,14 +208,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [loadData, clearUserData])
 
-  // Helper to refresh a single company after mutations.
+  // Helper to refresh a single client after mutations.
   // Merges DB data with optimistic state to avoid losing locally-added items
   // (e.g. a quarter tab added while a yearly goal save is in flight).
-  async function refreshCompany(companyId: string) {
-    const updated = await fetchCompanyData(companyId)
+  async function refreshClient(clientId: string) {
+    const updated = await fetchClientData(clientId)
     if (updated) {
-      setCompanies((prev) => prev.map((c) => {
-        if (c.id !== companyId) return c
+      setClients((prev) => prev.map((c) => {
+        if (c.id !== clientId) return c
         // Merge years: keep any optimistic years not yet in DB
         const dbYearIds = new Set(updated.years.map((y) => y.id))
         const optimisticYears = c.years.filter((y) => !dbYearIds.has(y.id))
@@ -203,11 +231,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Helper to get owner member ID from name (checks all members, not just founders)
+  // Helper to get owner member ID from name (checks all members)
   function getOwnerMemberId(ownerName: string | null): string | null {
     if (!ownerName) return null
-    const member = activeCompany.members?.find((m) => m.name === ownerName)
-      ?? activeCompany.founders.find((f) => f.name === ownerName)
+    const member = activeClient.allMembers?.find((m) => m.name === ownerName)
+      ?? activeClient.members.find((f) => f.name === ownerName)
     return member?.id ?? null
   }
 
@@ -229,7 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const match = yearId.match(/(\d{4})/)
     if (match) return parseInt(match[1])
     // Try to find the year object
-    const yearObj = activeCompany.years.find((y) => y.id === yearId)
+    const yearObj = activeClient.years.find((y) => y.id === yearId)
     return yearObj?.year ?? 2025
   }
 
@@ -237,10 +265,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function updateWeeklyValue(keyResultId: string, week: string, value: number) {
     // Optimistic local update
-    setCompanies((prev) =>
-      prev.map((company) => ({
-        ...company,
-        quarters: company.quarters.map((quarter) => ({
+    setClients((prev) =>
+      prev.map((client) => ({
+        ...client,
+        quarters: client.quarters.map((quarter) => ({
           ...quarter,
           goals: quarter.goals.map((goal) => ({
             ...goal,
@@ -260,14 +288,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function addYear(year: number): string {
     const id = `y-${year}`
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id === activeCompanyId
-          ? { ...company, years: [{ id, year, isActive: true, goals: [] }, ...company.years] }
-          : company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id === activeClientId
+          ? { ...client, years: [{ id, year, isActive: true, goals: [] }, ...client.years] }
+          : client
       )
     )
-    dbAddYear(activeCompanyId, year)
+    dbAddYear(activeClientId, year)
     return id
   }
 
@@ -275,14 +303,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const match = label.match(/Q(\d)/)
     const q = match ? parseInt(match[1]) : 1
     const id = `${year}-${q}`
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id === activeCompanyId
-          ? { ...company, quarters: [{ id, label, year, isActive: true, goals: [] }, ...company.quarters] }
-          : company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id === activeClientId
+          ? { ...client, quarters: [{ id, label, year, isActive: true, goals: [] }, ...client.quarters] }
+          : client
       )
     )
-    dbAddQuarter(activeCompanyId, label, year)
+    dbAddQuarter(activeClientId, label, year)
     return id
   }
 
@@ -290,13 +318,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     quarterId: string,
     fn: (goals: import("./mock-data").QuarterlyGoal[]) => import("./mock-data").QuarterlyGoal[]
   ) {
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : {
-              ...company,
-              quarters: company.quarters.map((q) =>
+              ...client,
+              quarters: client.quarters.map((q) =>
                 q.id === quarterId ? { ...q, goals: fn(q.goals) } : q
               ),
             }
@@ -311,7 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       { id: tempId, objective, yearlyGoalId, keyResults: [] },
     ])
     const { year, quarter } = parseQuarterKey(quarterId)
-    const realId = await dbAddQuarterlyGoal(activeCompanyId, year, quarter, yearlyGoalId, objective)
+    const realId = await dbAddQuarterlyGoal(activeClientId, year, quarter, yearlyGoalId, objective)
     if (realId) {
       // Replace temp ID with real DB ID in local state
       patchQuarters(quarterId, (goals) =>
@@ -378,13 +406,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   function updateYearlyKRConfidence(yearId: string, goalId: string, krId: string, confidence: Confidence) {
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : {
-              ...company,
-              years: company.years.map((y) =>
+              ...client,
+              years: client.years.map((y) =>
                 y.id !== yearId
                   ? y
                   : {
@@ -411,13 +439,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     yearId: string,
     fn: (goals: import("./mock-data").YearlyGoal[]) => import("./mock-data").YearlyGoal[]
   ) {
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : {
-              ...company,
-              years: company.years.map((y) =>
+              ...client,
+              years: client.years.map((y) =>
                 y.id === yearId ? { ...y, goals: fn(y.goals) } : y
               ),
             }
@@ -433,8 +461,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     patchYears(yearId, (goals) => [...goals, { id: tempGoalId, objective, keyResults }])
 
     const year = parseYear(yearId)
-    dbAddYearlyGoal(activeCompanyId, year, objective, keyResultTitles).then(() => {
-      refreshCompany(activeCompanyId)
+    dbAddYearlyGoal(activeClientId, year, objective, keyResultTitles).then(() => {
+      refreshClient(activeClientId)
     })
   }
 
@@ -461,76 +489,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dbDeleteYearlyGoal(goalId)
   }
 
-  function updateCompanyName(name: string) {
-    setCompanies((prev) =>
-      prev.map((c) => c.id === activeCompanyId ? { ...c, name } : c)
+  function updateClientName(name: string) {
+    setClients((prev) =>
+      prev.map((c) => c.id === activeClientId ? { ...c, name } : c)
     )
-    dbUpdateCompanyName(activeCompanyId, name)
+    dbUpdateClientName(activeClientId, name)
   }
 
-  function addFounder(name: string, role: string) {
+  function addMember(name: string, role: string) {
     const tempId = `f-${Date.now()}`
-    setCompanies((prev) =>
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId
-          ? { ...c, founders: [...c.founders, { id: tempId, name, role, avatar: "" }] }
+        c.id === activeClientId
+          ? { ...c, members: [...c.members, { id: tempId, name, role, avatar: "" }] }
           : c
       )
     )
-    dbAddFounder(activeCompanyId, name, role).then(() => {
-      refreshCompany(activeCompanyId)
+    dbAddMember(activeClientId, name, role).then(() => {
+      refreshClient(activeClientId)
     })
   }
 
-  function updateFounder(founderId: string, name: string, role: string, emails?: string[]) {
-    setCompanies((prev) =>
+  function updateMember(memberId: string, name: string, role: string, emails?: string[]) {
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId
+        c.id === activeClientId
           ? {
               ...c,
-              founders: c.founders.map((f) => f.id === founderId ? { ...f, name, role, emails } : f),
-              members: c.members.map((m) => m.id === founderId ? { ...m, name, roleTitle: role } : m),
+              members: c.members.map((f) => f.id === memberId ? { ...f, name, role, emails } : f),
+              allMembers: c.allMembers.map((m) => m.id === memberId ? { ...m, name, roleTitle: role } : m),
             }
           : c
       )
     )
-    dbUpdateFounder(founderId, name, role, emails)
-  }
-
-  function removeFounder(founderId: string) {
-    setCompanies((prev) =>
-      prev.map((c) =>
-        c.id === activeCompanyId
-          ? { 
-              ...c, 
-              founders: c.founders.filter((f) => f.id !== founderId),
-              members: c.members.filter((m) => m.id !== founderId),
-            }
-          : c
-      )
-    )
-    dbRemoveFounder(founderId)
+    dbUpdateMember(memberId, name, role, emails)
   }
 
   function removeMember(memberId: string) {
-    setCompanies((prev) =>
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId
-          ? { 
-              ...c, 
-              founders: c.founders.filter((f) => f.id !== memberId),
-              members: c.members.filter((m) => m.id !== memberId),
+        c.id === activeClientId
+          ? {
+              ...c,
+              members: c.members.filter((f) => f.id !== memberId),
+              allMembers: c.allMembers.filter((m) => m.id !== memberId),
             }
           : c
       )
     )
-    dbRemoveFounder(memberId) // Uses same DB function since it's the same table
+    dbRemoveMember(memberId)
+  }
+
+  function removeClientMember(memberId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id === activeClientId
+          ? {
+              ...c,
+              members: c.members.filter((f) => f.id !== memberId),
+              allMembers: c.allMembers.filter((m) => m.id !== memberId),
+            }
+          : c
+      )
+    )
+    dbRemoveMember(memberId) // Uses same DB function since it's the same table
   }
 
   function updateMetricValue(metricId: string, month: number, value: number) {
-    setCompanies((prev) =>
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId
+        c.id === activeClientId
           ? {
               ...c,
               metrics: c.metrics.map((m) =>
@@ -545,108 +573,412 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function addMetric(metric: Omit<Metric, "id">) {
     const tempId = `m-${Date.now()}`
-    setCompanies((prev) =>
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId ? { ...c, metrics: [...c.metrics, { id: tempId, ...metric }] } : c
+        c.id === activeClientId ? { ...c, metrics: [...c.metrics, { id: tempId, ...metric }] } : c
       )
     )
-    dbAddMetric(activeCompanyId, metric).then(() => {
-      refreshCompany(activeCompanyId)
+    dbAddMetric(activeClientId, metric).then(() => {
+      refreshClient(activeClientId)
     })
   }
 
   function deleteMetric(metricId: string) {
-    setCompanies((prev) =>
+    setClients((prev) =>
       prev.map((c) =>
-        c.id === activeCompanyId ? { ...c, metrics: c.metrics.filter((m) => m.id !== metricId) } : c
+        c.id === activeClientId ? { ...c, metrics: c.metrics.filter((m) => m.id !== metricId) } : c
       )
     )
     dbDeleteMetric(metricId)
   }
 
-  async function addCompany(name: string) {
+  async function addClient(name: string) {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return
 
-    const newId = await dbAddCompany(name, session.user.id)
+    const newId = await dbAddClient(name, session.user.id)
     if (!newId) return
 
-    const newCompany = await fetchCompanyData(newId)
-    if (newCompany) {
-      setCompanies((prev) => {
-        // Prevent duplicates if addCompany is called multiple times
-        if (prev.some((c) => c.id === newCompany.id)) return prev
-        return [...prev, newCompany]
+    const newClient = await fetchClientData(newId)
+    if (newClient) {
+      setClients((prev) => {
+        // Prevent duplicates if addClient is called multiple times
+        if (prev.some((c) => c.id === newClient.id)) return prev
+        return [...prev, newClient]
       })
-      setActiveCompanyId(newId)
+      setActiveClientId(newId)
     }
   }
 
-  async function deleteCompany(companyId: string) {
-    await dbDeleteCompany(companyId)
-    setCompanies((prev) => {
-      const remaining = prev.filter((c) => c.id !== companyId)
-      if (activeCompanyId === companyId && remaining.length > 0) {
-        setActiveCompanyId(remaining[0].id)
+  async function deleteClient(clientId: string) {
+    await dbDeleteClient(clientId)
+    setClients((prev) => {
+      const remaining = prev.filter((c) => c.id !== clientId)
+      if (activeClientId === clientId && remaining.length > 0) {
+        setActiveClientId(remaining[0].id)
       }
       return remaining
     })
   }
 
   function archiveTab(type: "year" | "quarter", id: string) {
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : type === "year"
-          ? { ...company, years: company.years.map((y) => y.id === id ? { ...y, isActive: false } : y) }
-          : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: false } : q) }
+          ? { ...client, years: client.years.map((y) => y.id === id ? { ...y, isActive: false } : y) }
+          : { ...client, quarters: client.quarters.map((q) => q.id === id ? { ...q, isActive: false } : q) }
       )
     )
     if (type === "year") {
-      const yearObj = activeCompany.years.find((y) => y.id === id)
-      if (yearObj) dbArchiveYear(activeCompanyId, yearObj.year, true)
+      const yearObj = activeClient.years.find((y) => y.id === id)
+      if (yearObj) dbArchiveYear(activeClientId, yearObj.year, true)
     } else {
-      dbArchiveQuarter(activeCompanyId, id, true)
+      dbArchiveQuarter(activeClientId, id, true)
     }
   }
 
   function unarchiveTab(type: "year" | "quarter", id: string) {
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : type === "year"
-          ? { ...company, years: company.years.map((y) => y.id === id ? { ...y, isActive: true } : y) }
-          : { ...company, quarters: company.quarters.map((q) => q.id === id ? { ...q, isActive: true } : q) }
+          ? { ...client, years: client.years.map((y) => y.id === id ? { ...y, isActive: true } : y) }
+          : { ...client, quarters: client.quarters.map((q) => q.id === id ? { ...q, isActive: true } : q) }
       )
     )
     if (type === "year") {
-      const yearObj = activeCompany.years.find((y) => y.id === id)
-      if (yearObj) dbArchiveYear(activeCompanyId, yearObj.year, false)
+      const yearObj = activeClient.years.find((y) => y.id === id)
+      if (yearObj) dbArchiveYear(activeClientId, yearObj.year, false)
     } else {
-      dbArchiveQuarter(activeCompanyId, id, false)
+      dbArchiveQuarter(activeClientId, id, false)
     }
   }
 
-  async function inviteUser(email: string, role: "founder" | "coach", memberId?: string): Promise<Invitation | null> {
+  // =========== GOAL BOARDS & STANDARD GOALS ===========
+
+  function updateClientFeatures(features: string[]) {
+    setClients((prev) =>
+      prev.map((c) => c.id !== activeClientId ? c : { ...c, features })
+    )
+    dbUpdateClientFeatures(activeClientId, features)
+  }
+
+  async function addGoalBoard(title: string, boardType: BoardType): Promise<string> {
+    const newId = await dbAddGoalBoard(activeClientId, title, boardType)
+    if (!newId) throw new Error("Failed to create goal board")
+    const newBoard: GoalBoard = { id: newId, title, boardType, isActive: true, goals: [] }
+    setClients((prev) =>
+      prev.map((c) => c.id !== activeClientId ? c : { ...c, boards: [...(c.boards ?? []), newBoard] })
+    )
+    return newId
+  }
+
+  function updateGoalBoard(boardId: string, title: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) => b.id === boardId ? { ...b, title } : b),
+        }
+      )
+    )
+    dbUpdateGoalBoard(boardId, title)
+  }
+
+  function archiveBoard(boardId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) => b.id === boardId ? { ...b, isActive: false } : b),
+        }
+      )
+    )
+    dbArchiveGoalBoard(boardId, true)
+  }
+
+  function unarchiveBoard(boardId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) => b.id === boardId ? { ...b, isActive: true } : b),
+        }
+      )
+    )
+    dbArchiveGoalBoard(boardId, false)
+  }
+
+  function deleteGoalBoard(boardId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).filter((b) => b.id !== boardId),
+        }
+      )
+    )
+    dbDeleteGoalBoard(boardId)
+  }
+
+  async function addStandardGoal(boardId: string, goal: Omit<StandardGoal, "id" | "values">): Promise<string> {
+    const memberId = goal.owner
+      ? activeClient.allMembers.find((m) => m.name === goal.owner)?.id ?? null
+      : null
+    const newId = await dbAddStandardGoal(boardId, {
+      ...goal,
+      ownerMemberId: memberId,
+    })
+    if (!newId) throw new Error("Failed to create standard goal")
+    const newGoal: StandardGoal = { ...goal, id: newId, values: {} }
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) =>
+            b.id !== boardId ? b : { ...b, goals: [...b.goals, newGoal] }
+          ),
+        }
+      )
+    )
+    return newId
+  }
+
+  function updateStandardGoal(boardId: string, goalId: string, updates: Partial<StandardGoal>) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) =>
+            b.id !== boardId ? b : {
+              ...b,
+              goals: b.goals.map((g) => g.id !== goalId ? g : { ...g, ...updates }),
+            }
+          ),
+        }
+      )
+    )
+    // Map owner name to member ID for DB
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.title !== undefined) dbUpdates.title = updates.title
+    if (updates.description !== undefined) dbUpdates.description = updates.description
+    if (updates.targetValue !== undefined) dbUpdates.target_value = updates.targetValue
+    if (updates.valueType !== undefined) dbUpdates.value_type = updates.valueType
+    if (updates.targetDate !== undefined) dbUpdates.target_date = updates.targetDate
+    if (updates.checkInFrequency !== undefined) dbUpdates.check_in_frequency = updates.checkInFrequency
+    if (updates.period !== undefined) dbUpdates.period = updates.period
+    if (updates.isPriority !== undefined) dbUpdates.is_priority = updates.isPriority
+    if (updates.confidence !== undefined) dbUpdates.confidence = updates.confidence
+    if (updates.goalType !== undefined) dbUpdates.goal_type = updates.goalType
+    if (Object.keys(dbUpdates).length > 0) dbUpdateStandardGoal(goalId, dbUpdates)
+  }
+
+  function deleteStandardGoal(boardId: string, goalId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) =>
+            b.id !== boardId ? b : { ...b, goals: b.goals.filter((g) => g.id !== goalId) }
+          ),
+        }
+      )
+    )
+    dbDeleteStandardGoal(goalId)
+  }
+
+  function updateStandardGoalValue(boardId: string, goalId: string, periodKey: string, value: number) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) =>
+            b.id !== boardId ? b : {
+              ...b,
+              goals: b.goals.map((g) =>
+                g.id !== goalId ? g : { ...g, values: { ...g.values, [periodKey]: value } }
+              ),
+            }
+          ),
+        }
+      )
+    )
+    dbUpdateStandardGoalValue(goalId, periodKey, value)
+  }
+
+  function assignStandardGoalOwner(boardId: string, goalId: string, owner: string | null) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) =>
+            b.id !== boardId ? b : {
+              ...b,
+              goals: b.goals.map((g) => g.id !== goalId ? g : { ...g, owner }),
+            }
+          ),
+        }
+      )
+    )
+    const memberId = owner
+      ? activeClient.allMembers.find((m) => m.name === owner)?.id ?? null
+      : null
+    dbAssignStandardGoalOwner(goalId, memberId)
+  }
+
+  function reorderStandardGoals(boardId: string, fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          boards: (c.boards ?? []).map((b) => {
+            if (b.id !== boardId) return b
+            const goals = [...b.goals]
+            const [moved] = goals.splice(fromIndex, 1)
+            goals.splice(toIndex, 0, moved)
+            return { ...b, goals }
+          }),
+        }
+      )
+    )
+    const board = (activeClient.boards ?? []).find((b) => b.id === boardId)
+    if (board) {
+      const goals = [...board.goals]
+      const [moved] = goals.splice(fromIndex, 1)
+      goals.splice(toIndex, 0, moved)
+      dbReorderStandardGoals(goals.map((g) => g.id))
+    }
+  }
+
+  // ---- Journals ----
+
+  async function addJournal(title: string, description: string | undefined, frequency: string, assignedMemberId: string | null): Promise<string> {
+    const tempId = `temp-journal-${Date.now()}`
+    const memberName = assignedMemberId
+      ? (activeClient.allMembers ?? []).find((m) => m.id === assignedMemberId)?.name ?? null
+      : null
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          journals: [...(c.journals ?? []), {
+            id: tempId,
+            title,
+            description,
+            frequency: frequency as any,
+            assignedMember: memberName,
+            assignedMemberId,
+            archived: false,
+            createdAt: new Date().toISOString(),
+            entries: {},
+          }],
+        }
+      )
+    )
+    const realId = await dbAddJournal(activeClientId, { title, description, frequency, assignedMemberId, createdBy: currentUser.id })
+    if (realId) {
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id !== activeClientId ? c : {
+            ...c,
+            journals: (c.journals ?? []).map((j) => j.id === tempId ? { ...j, id: realId } : j),
+          }
+        )
+      )
+    }
+    return realId ?? tempId
+  }
+
+  function updateJournal(journalId: string, updates: { title?: string; description?: string; frequency?: string; assignedMemberId?: string | null; archived?: boolean }) {
+    const memberName = updates.assignedMemberId !== undefined
+      ? (updates.assignedMemberId ? (activeClient.allMembers ?? []).find((m) => m.id === updates.assignedMemberId)?.name ?? null : null)
+      : undefined
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          journals: (c.journals ?? []).map((j) =>
+            j.id !== journalId ? j : {
+              ...j,
+              ...(updates.title !== undefined && { title: updates.title }),
+              ...(updates.description !== undefined && { description: updates.description }),
+              ...(updates.frequency !== undefined && { frequency: updates.frequency as any }),
+              ...(updates.assignedMemberId !== undefined && { assignedMemberId: updates.assignedMemberId, assignedMember: memberName }),
+              ...(updates.archived !== undefined && { archived: updates.archived }),
+            }
+          ),
+        }
+      )
+    )
+    dbUpdateJournal(journalId, updates)
+  }
+
+  function deleteJournal(journalId: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          journals: (c.journals ?? []).filter((j) => j.id !== journalId),
+        }
+      )
+    )
+    dbDeleteJournal(journalId)
+  }
+
+  function archiveJournal(journalId: string) {
+    updateJournal(journalId, { archived: true })
+  }
+
+  function upsertJournalEntry(journalId: string, periodKey: string, content: string) {
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id !== activeClientId ? c : {
+          ...c,
+          journals: (c.journals ?? []).map((j) =>
+            j.id !== journalId ? j : {
+              ...j,
+              entries: {
+                ...j.entries,
+                [periodKey]: {
+                  id: j.entries[periodKey]?.id ?? `temp-je-${Date.now()}`,
+                  journalId,
+                  periodKey,
+                  authorId: currentUser.id,
+                  authorName: currentUser.name,
+                  content,
+                  updatedAt: new Date().toISOString(),
+                },
+              },
+            }
+          ),
+        }
+      )
+    )
+    dbUpsertJournalEntry(journalId, periodKey, currentUser.id, content)
+  }
+
+  async function inviteUser(email: string, role: "member" | "coach", memberId?: string): Promise<Invitation | null> {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return null
 
-    return await dbInviteUser(activeCompanyId, email, role, session.user.id, undefined, memberId)
+    return await dbInviteUser(activeClientId, email, role, session.user.id, undefined, memberId)
   }
 
   async function getInvitations(): Promise<Invitation[]> {
-    return await dbGetInvitations(activeCompanyId)
+    return await dbGetInvitations(activeClientId)
   }
 
   async function cancelInvitation(invitationId: string): Promise<void> {
     await dbCancelInvitation(invitationId)
   }
 
-  async function acceptInvitation(token: string): Promise<{ success: boolean; companyId?: string; error?: string }> {
+  async function acceptInvitation(token: string): Promise<{ success: boolean; clientId?: string; error?: string }> {
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return { success: false, error: "Not authenticated" }
@@ -672,13 +1004,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function reorderYearlyGoals(yearId: string, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : {
-              ...company,
-              years: company.years.map((y) => {
+              ...client,
+              years: client.years.map((y) => {
                 if (y.id !== yearId) return y
                 const goals = [...y.goals]
                 const [moved] = goals.splice(fromIndex, 1)
@@ -689,7 +1021,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
     )
     // Persist to DB
-    const year = activeCompany.years.find((y) => y.id === yearId)
+    const year = activeClient.years.find((y) => y.id === yearId)
     if (year) {
       const goals = [...year.goals]
       const [moved] = goals.splice(fromIndex, 1)
@@ -700,13 +1032,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function reorderYearlyKeyResults(yearId: string, goalId: string, fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return
-    setCompanies((prev) =>
-      prev.map((company) =>
-        company.id !== activeCompanyId
-          ? company
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id !== activeClientId
+          ? client
           : {
-              ...company,
-              years: company.years.map((y) => {
+              ...client,
+              years: client.years.map((y) => {
                 if (y.id !== yearId) return y
                 return {
                   ...y,
@@ -723,7 +1055,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
     )
     // Persist to DB
-    const year = activeCompany.years.find((y) => y.id === yearId)
+    const year = activeClient.years.find((y) => y.id === yearId)
     const goal = year?.goals.find((g) => g.id === goalId)
     if (goal) {
       const keyResults = [...goal.keyResults]
@@ -742,7 +1074,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return copy
     })
     // Persist to DB
-    const quarter = activeCompany.quarters.find((q) => q.id === quarterId)
+    const quarter = activeClient.quarters.find((q) => q.id === quarterId)
     if (quarter) {
       const goals = [...quarter.goals]
       const [moved] = goals.splice(fromIndex, 1)
@@ -763,7 +1095,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
     )
     // Persist to DB
-    const quarter = activeCompany.quarters.find((q) => q.id === quarterId)
+    const quarter = activeClient.quarters.find((q) => q.id === quarterId)
     const goal = quarter?.goals.find((g) => g.id === goalId)
     if (goal) {
       const keyResults = [...goal.keyResults]
@@ -791,11 +1123,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isLoading,
         coach: defaultCoach,
         currentUser,
-        companies,
-        activeCompanyId,
-        activeCompany,
-        setActiveCompanyId,
-        setCompanies,
+        clients,
+        activeClientId,
+        activeClient,
+        setActiveClientId,
+        setClients,
         updateWeeklyValue,
         addYear,
         addQuarter,
@@ -812,16 +1144,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addYearlyGoal,
         updateYearlyGoal,
         deleteYearlyGoal,
-        updateCompanyName,
-        addFounder,
-        updateFounder,
-        removeFounder,
+        updateClientName,
+        addMember,
+        updateMember,
         removeMember,
+        removeClientMember,
         updateMetricValue,
         addMetric,
         deleteMetric,
-        addCompany,
-        deleteCompany,
+        addClient,
+        deleteClient,
         inviteUser,
         getInvitations,
         cancelInvitation,
@@ -832,6 +1164,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reorderYearlyKeyResults,
         reorderQuarterlyGoals,
         reorderQuarterlyKeyResults,
+        updateClientFeatures,
+        addGoalBoard,
+        updateGoalBoard,
+        archiveBoard,
+        unarchiveBoard,
+        deleteGoalBoard,
+        addStandardGoal,
+        updateStandardGoal,
+        deleteStandardGoal,
+        updateStandardGoalValue,
+        assignStandardGoalOwner,
+        reorderStandardGoals,
+        addJournal,
+        updateJournal,
+        deleteJournal,
+        archiveJournal,
+        upsertJournalEntry,
       }}
     >
       {children}

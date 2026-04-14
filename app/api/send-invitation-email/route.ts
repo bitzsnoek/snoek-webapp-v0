@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { z } from "zod"
 import {
   requireAuth,
-  requireCompanyAccess,
+  requireClientAccess,
   checkRateLimit,
   getRateLimitKey,
   validateInput,
@@ -15,10 +15,10 @@ import { createClient } from "@supabase/supabase-js"
 
 const sendInvitationSchema = z.object({
   email: schemas.email,
-  founderName: schemas.name,
+  memberName: schemas.name,
   invitationToken: schemas.token,
   senderName: z.string().max(255).optional(),
-  companyId: schemas.uuid,
+  clientId: schemas.uuid,
 })
 
 export async function POST(request: NextRequest) {
@@ -40,15 +40,15 @@ export async function POST(request: NextRequest) {
     const validation = validateInput(sendInvitationSchema, body)
     if (!validation.success) return validation.error
 
-    const { email, founderName, invitationToken, senderName, companyId } = validation.data
+    const { email, memberName, invitationToken, senderName, clientId } = validation.data
 
-    // 4. Authorization - verify user is a coach in this company
-    const { hasAccess } = await requireCompanyAccess(user.id, companyId, "coach")
+    // 4. Authorization - verify user is a coach in this client
+    const { hasAccess } = await requireClientAccess(user.id, clientId, "coach")
     if (!hasAccess) {
       return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
     }
 
-    // 5. Verify the invitation exists and belongs to this company
+    // 5. Verify the invitation exists and belongs to this client
     const adminSupabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
     
     const { data: invitation } = await adminSupabase
       .from("invitations")
-      .select("id, company_id")
+      .select("id, client_id")
       .eq("token", invitationToken)
-      .eq("company_id", companyId)
+      .eq("client_id", clientId)
       .eq("status", "pending")
       .single()
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const acceptLink = `${productionHost}/invitations/accept?token=${invitationToken}`
 
     const emailContent = `
-    <p>Hi ${founderName},</p>
+    <p>Hi ${memberName},</p>
     
     <p>${senderName || "Your coach"} has invited you to join Snoek and collaborate on strategic planning.</p>
     
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         To: email,
         Subject: `You're invited to join Snoek`,
         HtmlBody: emailContent,
-        TextBody: `Hi ${founderName},\n\n${senderName || "Your coach"} has invited you to join Snoek.\n\nVisit this link to accept: ${acceptLink}\n\nThis link expires in 7 days.`,
+        TextBody: `Hi ${memberName},\n\n${senderName || "Your coach"} has invited you to join Snoek.\n\nVisit this link to accept: ${acceptLink}\n\nThis link expires in 7 days.`,
         MessageStream: "outbound",
       }),
     })

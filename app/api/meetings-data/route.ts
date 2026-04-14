@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextRequest } from "next/server"
 import {
   requireAuth,
-  requireCompanyAccess,
+  requireClientAccess,
   validateInput,
   errorResponse,
   successResponse,
@@ -17,18 +17,18 @@ export async function GET(request: NextRequest) {
     if (authError) return authError
     if (!user) return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
 
-    const companyId = request.nextUrl.searchParams.get("companyId")
+    const clientId = request.nextUrl.searchParams.get("clientId")
 
-    // 2. Validate companyId
-    if (!companyId) {
-      return errorResponse(ERROR_MESSAGES.BAD_REQUEST, 400, "Missing companyId")
+    // 2. Validate clientId
+    if (!clientId) {
+      return errorResponse(ERROR_MESSAGES.BAD_REQUEST, 400, "Missing clientId")
     }
 
-    const validation = validateInput(schemas.uuid, companyId)
+    const validation = validateInput(schemas.uuid, clientId)
     if (!validation.success) return validation.error
 
-    // 3. Authorization - verify user has access to this company
-    const { hasAccess } = await requireCompanyAccess(user.id, companyId)
+    // 3. Authorization - verify user has access to this client
+    const { hasAccess } = await requireClientAccess(user.id, clientId)
     if (!hasAccess) {
       return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
     }
@@ -39,14 +39,14 @@ export async function GET(request: NextRequest) {
     const { data: connection } = await supabase
       .from("google_calendar_connections")
       .select("id, google_calendar_id, last_synced_at")
-      .eq("company_id", companyId)
+      .eq("client_id", clientId)
       .single()
 
     // Fetch meetings with document types
     const { data: rawMeetings, error } = await supabase
       .from("meetings")
       .select("*, meeting_documents(id, document_type)")
-      .eq("company_id", companyId)
+      .eq("client_id", clientId)
       .order("start_time", { ascending: false })
 
     if (error) throw error
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
         startTime: m.start_time,
         endTime: m.end_time,
         attendeeEmails: m.attendee_emails || [],
-        founderIds: [],
+        memberIds: [],
         hasDocuments: docs.length > 0,
         documentCount: docs.length,
         transcriptCount,

@@ -67,7 +67,7 @@ async function executeRecurringAutomations(supabase: ReturnType<typeof createCli
     .select(`
       *,
       automation_recurring_config(*),
-      companies(timezone)
+      clients(timezone)
     `)
     .eq("type", "recurring")
     .eq("is_active", true)
@@ -88,10 +88,10 @@ async function executeRecurringAutomations(supabase: ReturnType<typeof createCli
       continue
     }
 
-    const companyTimezone = automation.companies?.timezone || "UTC"
+    const clientTimezone = automation.clients?.timezone || "UTC"
     
-    // Convert current UTC time to company timezone
-    const localTime = new Date(now.toLocaleString("en-US", { timeZone: companyTimezone }))
+    // Convert current UTC time to client timezone
+    const localTime = new Date(now.toLocaleString("en-US", { timeZone: clientTimezone }))
     const localHour = localTime.getHours()
     const localMinute = localTime.getMinutes()
     const localDay = localTime.getDay()

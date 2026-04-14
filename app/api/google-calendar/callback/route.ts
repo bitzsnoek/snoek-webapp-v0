@@ -9,7 +9,7 @@ import {
 
 // Schema for the state parameter
 const stateSchema = z.object({
-  company_id: schemas.uuid,
+  client_id: schemas.uuid,
   user_id: schemas.uuid,
 })
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       return errorResponse(ERROR_MESSAGES.BAD_REQUEST, 400)
     }
 
-    const { company_id, user_id } = parsedState
+    const { client_id, user_id } = parsedState
 
     // Verify the authenticated user matches the state
     const { data: { user } } = await supabase.auth.getUser()
@@ -91,12 +91,12 @@ export async function GET(request: NextRequest) {
     await supabase
       .from("google_calendar_connections")
       .delete()
-      .eq("company_id", company_id)
+      .eq("client_id", client_id)
 
     const { error: dbError } = await supabase
       .from("google_calendar_connections")
       .insert({
-        company_id,
+        client_id,
         user_id,
         google_access_token: access_token,
         google_refresh_token: refresh_token || access_token, // Some flows don't return refresh_token
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Redirect back to the meetings section
-    return NextResponse.redirect(new URL(`/?section=meetings&company=${company_id}`, request.nextUrl.origin))
+    return NextResponse.redirect(new URL(`/?section=meetings&client=${client_id}`, request.nextUrl.origin))
   } catch (error) {
     console.error("OAuth callback error:", error)
     return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)

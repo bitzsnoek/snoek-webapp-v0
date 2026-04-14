@@ -55,17 +55,31 @@ export async function requireAuth(request?: NextRequest) {
 // Authorization Helpers
 // ============================================================
 
-export async function requireCompanyAccess(
+async function checkSuperAdmin(userId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_super_admin")
+    .eq("id", userId)
+    .single()
+  return data?.is_super_admin === true
+}
+
+export async function requireClientAccess(
   userId: string,
-  companyId: string,
+  clientId: string,
   requiredRole?: "coach" | "founder"
 ) {
+  if (await checkSuperAdmin(userId)) {
+    return { hasAccess: true, role: "coach" as const }
+  }
+
   const supabase = await createClient()
-  
+
   let query = supabase
-    .from("company_members")
+    .from("client_members")
     .select("id, role")
-    .eq("company_id", companyId)
+    .eq("client_id", clientId)
     .eq("user_id", userId)
 
   if (requiredRole) {
@@ -87,21 +101,21 @@ export async function requireMeetingAccess(
 ) {
   const supabase = await createClient()
   
-  // Get the meeting's company
+  // Get the meeting's client
   const { data: meeting, error: meetingError } = await supabase
     .from("meetings")
-    .select("company_id")
+    .select("client_id")
     .eq("id", meetingId)
     .single()
 
   if (meetingError || !meeting) {
-    return { hasAccess: false, companyId: null }
+    return { hasAccess: false, clientId: null }
   }
 
-  // Check if user is a member of that company
-  const { hasAccess } = await requireCompanyAccess(userId, meeting.company_id)
-  
-  return { hasAccess, companyId: meeting.company_id }
+  // Check if user is a member of that client
+  const { hasAccess } = await requireClientAccess(userId, meeting.client_id)
+
+  return { hasAccess, clientId: meeting.client_id }
 }
 
 export async function requireConversationAccess(
@@ -109,10 +123,10 @@ export async function requireConversationAccess(
   conversationId: string
 ) {
   const supabase = await createClient()
-  
+
   const { data: conversation, error } = await supabase
     .from("conversations")
-    .select("coach_id, founder_id")
+    .select("coach_id, member_id")
     .eq("id", conversationId)
     .single()
 
@@ -120,8 +134,12 @@ export async function requireConversationAccess(
     return { hasAccess: false, isParticipant: false }
   }
 
-  const isParticipant = conversation.coach_id === userId || conversation.founder_id === userId
-  
+  const isParticipant = conversation.coach_id === userId || conversation.member_id === userId
+
+  if (!isParticipant && await checkSuperAdmin(userId)) {
+    return { hasAccess: true, isParticipant: false }
+  }
+
   return { hasAccess: isParticipant, isParticipant }
 }
 

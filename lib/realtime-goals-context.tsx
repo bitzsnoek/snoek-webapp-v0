@@ -17,7 +17,7 @@ interface RealtimeGoalsContextValue {
 const RealtimeGoalsContext = createContext<RealtimeGoalsContextValue | null>(null)
 
 export function RealtimeGoalsProvider({ children }: { children: ReactNode }) {
-  const { activeCompany, currentUser, refreshData } = useApp()
+  const { activeClient, currentUser, refreshData } = useApp()
 
   const initials = currentUser.name
     .split(" ")
@@ -27,7 +27,7 @@ export function RealtimeGoalsProvider({ children }: { children: ReactNode }) {
     .slice(0, 2)
 
   const realtimeGoals = useRealtimeGoals({
-    companyId: activeCompany.id,
+    clientId: activeClient.id,
     userId: currentUser.id,
     userName: currentUser.name,
     userAvatar: initials,

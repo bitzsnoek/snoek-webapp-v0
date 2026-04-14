@@ -8,3 +8,11 @@ node_modules/
 .next/
 .env*.local
 .DS_Store
+.vercel
+
+# Local SQL dumps (may contain secrets)
+scripts/data-dump.sql
+scripts/data-import.sql
+scripts/schema-dump.sql
+scripts/schema.sql
+
