@@ -596,6 +596,30 @@ export function getProgressPercent(kr: KeyResult): number {
   return kr.target > 0 ? Math.round((sum / kr.target) * 100) : 0
 }
 
+/** Returns the ISO 8601 week number (1-53) for the given date. */
+export function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
+
+/**
+ * Returns the ISO week numbers for the N weeks starting at the first day of
+ * the given quarter. Used to display calendar-year week labels (W14..W26 for
+ * Q2) on quarterly OKR boards, while the underlying storage stays keyed by
+ * quarter-relative week 1..13.
+ */
+export function getQuarterISOWeeks(year: number, quarter: 1 | 2 | 3 | 4, count = 13): number[] {
+  const quarterStart = new Date(year, (quarter - 1) * 3, 1)
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(quarterStart)
+    d.setDate(d.getDate() + i * 7)
+    return getISOWeek(d)
+  })
+}
+
 /** Returns the current week key (e.g. "W10") within the active quarter. */
 export function getCurrentWeekKey(): string {
   const now = new Date()

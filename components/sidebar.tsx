@@ -47,10 +47,10 @@ export type MainSection = "goals" | "metrics" | "meetings" | "chat" | "journals"
 
 const mainNavItems: { id: MainSection; label: string; icon: typeof Target; coachOnly?: boolean; feature?: string }[] = [
   { id: "goals", label: "Goals", icon: Target },
+  { id: "journals", label: "Journals", icon: BookOpen, feature: "journals" },
   { id: "metrics", label: "Monthly Metrics", icon: BarChart3, feature: "metrics" },
   { id: "meetings", label: "Meetings", icon: Calendar, feature: "meetings" },
   { id: "chat", label: "Chat", icon: MessageCircle },
-  { id: "journals", label: "Journals", icon: BookOpen, feature: "journals" },
   { id: "automations", label: "Automations", icon: Zap, coachOnly: true, feature: "automations" },
 ]
 
