@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useApp } from "@/lib/store"
 import {
   getActiveJournals,
@@ -37,11 +37,20 @@ import { Plus, MoreHorizontal, Pencil, Archive, Trash2, ChevronDown, ChevronRigh
 import { cn } from "@/lib/utils"
 
 export function CoachJournalsView() {
-  const { activeClient, updateJournal, deleteJournal, archiveJournal } = useApp()
+  const { activeClient, updateJournal, deleteJournal, archiveJournal, pendingJournalNav, setPendingJournalNav } = useApp()
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editJournal, setEditJournal] = useState<Journal | null>(null)
   const [memberFilter, setMemberFilter] = useState<string>("all")
   const [showArchived, setShowArchived] = useState(false)
+
+  // Coaches don't have a writing mode — just clear the pending nav so the
+  // effect doesn't re-fire, and scroll the requested journal card into view.
+  useEffect(() => {
+    if (!pendingJournalNav) return
+    const el = document.getElementById(`journal-card-${pendingJournalNav.journalId}`)
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    setPendingJournalNav(null)
+  }, [pendingJournalNav, setPendingJournalNav])
 
   const activeJournals = useMemo(() => getActiveJournals(activeClient), [activeClient])
   const archivedJournals = useMemo(() => getArchivedJournals(activeClient), [activeClient])
@@ -137,7 +146,7 @@ function JournalCard({
   const hasMore = entries.length > 5
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+    <div id={`journal-card-${journal.id}`} className="rounded-lg border border-border bg-card p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">

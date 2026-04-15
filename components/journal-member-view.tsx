@@ -25,7 +25,7 @@ interface WritingState {
 }
 
 export function MemberJournalsView() {
-  const { activeClient, currentUser, upsertJournalEntry } = useApp()
+  const { activeClient, currentUser, upsertJournalEntry, pendingJournalNav, setPendingJournalNav } = useApp()
   const [writing, setWriting] = useState<WritingState | null>(null)
 
   const journals = useMemo(() => {
@@ -38,6 +38,17 @@ export function MemberJournalsView() {
       (j) => j.assignedMemberId === null || j.assignedMemberId === memberRecord?.id
     )
   }, [activeClient, currentUser])
+
+  // When a chat attachment requested navigation to a specific entry, open it
+  // in writing mode and clear the pending request.
+  useEffect(() => {
+    if (!pendingJournalNav) return
+    const journal = journals.find((j) => j.id === pendingJournalNav.journalId)
+    if (journal) {
+      setWriting({ journal, periodKey: pendingJournalNav.periodKey })
+    }
+    setPendingJournalNav(null)
+  }, [pendingJournalNav, journals, setPendingJournalNav])
 
   if (writing) {
     return (

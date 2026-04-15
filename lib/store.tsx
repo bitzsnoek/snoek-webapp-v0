@@ -69,6 +69,11 @@ interface AppState {
   deleteJournal: (journalId: string) => void
   archiveJournal: (journalId: string) => void
   upsertJournalEntry: (journalId: string, periodKey: string, content: string) => void
+  // Cross-section navigation: when set, app-shell switches to the journals
+  // section and the journals view opens this (journal, period). Consumers
+  // should clear it after handling so the effect is one-shot.
+  pendingJournalNav: { journalId: string; periodKey: string } | null
+  setPendingJournalNav: (nav: { journalId: string; periodKey: string } | null) => void
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -107,6 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser>(defaultUser)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [pendingJournalNav, setPendingJournalNav] = useState<{ journalId: string; periodKey: string } | null>(null)
 
   const activeClient = clients.find((c) => c.id === activeClientId) ?? clients[0] ?? emptyClient
 
@@ -1181,6 +1187,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteJournal,
         archiveJournal,
         upsertJournalEntry,
+        pendingJournalNav,
+        setPendingJournalNav,
       }}
     >
       {children}

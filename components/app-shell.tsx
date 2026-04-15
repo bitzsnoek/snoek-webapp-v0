@@ -47,8 +47,13 @@ type GoalTabId = `year-${string}` | `quarter-${string}` | `board-${string}` | "p
 type AddDialogType = "year" | "quarter" | "board" | null
 
 export function AppShell() {
-  const { activeClient, clients, addYear, addQuarter, archiveTab, archiveBoard, addClient, addGoalBoard, isLoading, currentUser } = useApp()
+  const { activeClient, clients, addYear, addQuarter, archiveTab, archiveBoard, addClient, addGoalBoard, isLoading, currentUser, pendingJournalNav } = useApp()
   const [activeSection, setActiveSection] = useState<MainSection>("goals")
+
+  // Jump to the journals section when a chat attachment requests navigation.
+  useEffect(() => {
+    if (pendingJournalNav) setActiveSection("journals")
+  }, [pendingJournalNav])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 

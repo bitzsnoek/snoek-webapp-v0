@@ -37,6 +37,10 @@ interface KeyResultDisplay {
   owner?: string | null
 }
 
+// A journal period attached to a chat message. `id` is the underlying
+// `journals.id` (the attachment is keyed by journal + period_key, matching
+// the mobile app's `message_journal_attachments` table). Content is resolved
+// lazily from the currently loaded journal entries.
 interface JournalEntryDisplay {
   id: string
   journalTitle: string
@@ -122,7 +126,8 @@ interface ChatSectionProps {
 }
 
 export function ChatSection({ selectedTab }: ChatSectionProps) {
-  const { activeClient, currentUser } = useApp()
+  const { activeClient, currentUser, setPendingJournalNav } = useApp()
+  const viewerIsCoach = isCoachOrAdmin(currentUser.role)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
@@ -163,15 +168,17 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     )
   const allKeyResults: KeyResultOption[] = [...okrKeyResults, ...standardGoalOptions]
 
-  // Build journal entry options for the picker (current period entries only)
+  // Build journal entry options for the picker (current period entries only).
+  // `id` is the journal_id — the new attachment model keys by (journal, period),
+  // not by a specific entry row.
   const journalEntryOptions: JournalEntryDisplay[] = getActiveJournals(activeClient).flatMap((journal) => {
     const currentKey = getCurrentPeriodKey(journal.frequency as GoalFrequency)
     const entry = journal.entries[currentKey]
     if (!entry || !entry.content.trim()) return []
     return [{
-      id: entry.id,
+      id: journal.id,
       journalTitle: journal.title,
-      periodKey: entry.periodKey,
+      periodKey: currentKey,
       content: entry.content,
       frequency: journal.frequency,
     }]
@@ -279,43 +286,33 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           }
         }
 
-        // Fetch journal entries from message_journal_entries
-        const { data: mjes, error: mjeError } = await supabase
-          .from("message_journal_entries")
-          .select(`
-            message_id,
-            journal_entry_id,
-            journal_entries (
-              id,
-              journal_id,
-              period_key,
-              content,
-              journals (
-                title,
-                frequency
-              )
-            )
-          `)
+        // Fetch journal attachments (period-based, matches mobile). Content
+        // is resolved from the currently loaded journal entries below.
+        const { data: mjas, error: mjaError } = await supabase
+          .from("message_journal_attachments")
+          .select("message_id, journal_id, period_key")
           .in("message_id", messageIds)
 
-        if (mjeError) {
-          console.error("Error fetching message_journal_entries:", mjeError)
+        if (mjaError) {
+          console.error("Error fetching message_journal_attachments:", mjaError)
         }
 
-        for (const mje of (mjes ?? [])) {
-          const je = mje.journal_entries as { id: string; journal_id: string; period_key: string; content: string; journals: { title: string; frequency: string } | null } | null
-          if (je && je.journals) {
-            if (!messageJournalEntriesMap[mje.message_id]) {
-              messageJournalEntriesMap[mje.message_id] = []
-            }
-            messageJournalEntriesMap[mje.message_id].push({
-              id: je.id,
-              journalTitle: je.journals.title,
-              periodKey: je.period_key,
-              content: je.content,
-              frequency: je.journals.frequency,
-            })
+        const journalsById = new Map((activeClient.journals ?? []).map((j) => [j.id, j]))
+
+        for (const mja of (mjas ?? []) as { message_id: string; journal_id: string; period_key: string }[]) {
+          const journal = journalsById.get(mja.journal_id)
+          if (!journal) continue
+          const entry = journal.entries?.[mja.period_key]
+          if (!messageJournalEntriesMap[mja.message_id]) {
+            messageJournalEntriesMap[mja.message_id] = []
           }
+          messageJournalEntriesMap[mja.message_id].push({
+            id: journal.id,
+            journalTitle: journal.title,
+            periodKey: mja.period_key,
+            content: entry?.content ?? "",
+            frequency: journal.frequency,
+          })
         }
 
         // Also handle legacy key_result_id - fetch separately if needed
@@ -376,7 +373,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     } catch (err) {
       console.error("Error fetching messages:", err)
     }
-  }, [])
+  }, [activeClient.journals])
 
   // Send a message
   const sendMessage = async () => {
@@ -434,19 +431,21 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
       }
 
-      // Insert journal entries into junction table
+      // Insert journal attachments (period-based). `je.id` is the journal_id
+      // under the new model — see JournalEntryDisplay.
       if (selectedJournalEntries.length > 0 && newMsg) {
         const journalInserts = selectedJournalEntries.map((je) => ({
           message_id: newMsg.id,
-          journal_entry_id: je.id,
+          journal_id: je.id,
+          period_key: je.periodKey,
         }))
 
         const { error: jeError } = await supabase
-          .from("message_journal_entries")
+          .from("message_journal_attachments")
           .insert(journalInserts)
 
         if (jeError) {
-          console.error("Error inserting journal entries:", jeError)
+          console.error("Error inserting journal attachments:", jeError)
         }
       }
 
@@ -740,36 +739,59 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                         {/* Attached Journal Entries */}
                         {message.journal_entries && message.journal_entries.length > 0 && (
                           <div className="mt-2 flex flex-col gap-2">
-                            {message.journal_entries.map((je) => (
-                              <div
-                                key={je.id}
-                                className={cn(
-                                  "rounded-lg border p-3",
-                                  isOwnMessage
-                                    ? "border-primary-foreground/20 bg-primary-foreground/10"
-                                    : "border-border bg-background/50"
-                                )}
-                              >
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <BookOpen className={cn(
-                                    "h-3.5 w-3.5",
-                                    isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
-                                  )} />
-                                  <p className={cn(
-                                    "text-xs font-medium",
-                                    isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
-                                  )}>
-                                    {je.journalTitle} · {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
-                                  </p>
-                                </div>
-                                <p className={cn(
-                                  "text-sm line-clamp-3 whitespace-pre-wrap",
-                                  isOwnMessage ? "text-primary-foreground" : "text-foreground"
-                                )}>
-                                  {je.content}
-                                </p>
-                              </div>
-                            ))}
+                            {message.journal_entries.map((je) => {
+                              const hasContent = je.content.trim().length > 0
+                              return (
+                                <button
+                                  key={je.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setPendingJournalNav({ journalId: je.id, periodKey: je.periodKey })
+                                  }
+                                  className={cn(
+                                    "rounded-lg border p-3 text-left transition-colors",
+                                    isOwnMessage
+                                      ? "border-primary-foreground/20 bg-primary-foreground/10 hover:bg-primary-foreground/20"
+                                      : "border-border bg-background/50 hover:bg-background/80"
+                                  )}
+                                >
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <BookOpen className={cn(
+                                      "h-3.5 w-3.5",
+                                      isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
+                                    )} />
+                                    <p className={cn(
+                                      "text-xs font-medium",
+                                      isOwnMessage ? "text-primary-foreground/70" : "text-muted-foreground"
+                                    )}>
+                                      {je.journalTitle} · {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
+                                    </p>
+                                  </div>
+                                  {hasContent ? (
+                                    <p className={cn(
+                                      "text-sm line-clamp-3 whitespace-pre-wrap",
+                                      isOwnMessage ? "text-primary-foreground" : "text-foreground"
+                                    )}>
+                                      {je.content}
+                                    </p>
+                                  ) : viewerIsCoach ? (
+                                    <p className={cn(
+                                      "text-sm italic",
+                                      isOwnMessage ? "text-primary-foreground/60" : "text-muted-foreground"
+                                    )}>
+                                      No entry yet
+                                    </p>
+                                  ) : (
+                                    <p className={cn(
+                                      "text-sm font-medium",
+                                      isOwnMessage ? "text-primary-foreground" : "text-primary"
+                                    )}>
+                                      Tap to start journaling →
+                                    </p>
+                                  )}
+                                </button>
+                              )
+                            })}
                           </div>
                         )}
                         </div>

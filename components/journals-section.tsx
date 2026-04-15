@@ -14,3 +14,4 @@ export function JournalsSection() {
 
   return <MemberJournalsView />
 }
+
