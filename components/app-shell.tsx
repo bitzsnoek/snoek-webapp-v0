@@ -201,9 +201,14 @@ export function AppShell() {
     [activeQuarters]
   )
 
+  const showStandardGoals = hasFeature(activeClient, "standard-goals")
+
   const sortedBoards = useMemo(
-    () => getActiveBoards(activeClient).filter((b) => b.boardType === "standard"),
-    [activeClient]
+    () =>
+      showStandardGoals
+        ? getActiveBoards(activeClient).filter((b) => b.boardType === "standard")
+        : [],
+    [activeClient, showStandardGoals]
   )
 
   const showOkr = hasFeature(activeClient, "okr")
@@ -507,9 +512,11 @@ export function AppShell() {
                       Add new board
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => openAddDialog("board")}>
-                      Goals Board
-                    </DropdownMenuItem>
+                    {showStandardGoals && (
+                      <DropdownMenuItem onClick={() => openAddDialog("board")}>
+                        Goals Board
+                      </DropdownMenuItem>
+                    )}
                     {!showPriorities && (
                       <DropdownMenuItem onClick={async () => {
                         const newId = await addGoalBoard("Priorities", "priorities")
