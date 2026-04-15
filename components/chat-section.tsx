@@ -208,7 +208,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
       // Fetch key results from the junction table (message_key_results)
       const messageIds = (msgs ?? []).map((m) => m.id)
       let messageKeyResultsMap: Record<string, KeyResultDisplay[]> = {}
-      
+      let messageJournalEntriesMap: Record<string, JournalEntryDisplay[]> = {}
+
       if (messageIds.length > 0) {
         // Fetch message_key_results with joined quarterly_key_results data
         const { data: mkrs, error: mkrError } = await supabase
@@ -279,7 +280,6 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         }
 
         // Fetch journal entries from message_journal_entries
-        let messageJournalEntriesMap: Record<string, JournalEntryDisplay[]> = {}
         const { data: mjes, error: mjeError } = await supabase
           .from("message_journal_entries")
           .select(`

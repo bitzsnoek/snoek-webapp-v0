@@ -312,6 +312,7 @@ export function ClientSettings() {
 
             {[
               { key: "okr", label: "OKR (Objectives & Key Results)", description: "Yearly objectives with quarterly key results and weekly tracking" },
+              { key: "standard-goals", label: "Standard Goal Boards", description: "Custom goal boards with per-period tracking (non-OKR)" },
               { key: "metrics", label: "Monthly Metrics", description: "Track monthly metrics and KPIs" },
               { key: "meetings", label: "Meetings", description: "Meeting scheduling, notes, and Google Calendar sync" },
               { key: "journals", label: "Journals", description: "Periodic reflection prompts and journal entries" },

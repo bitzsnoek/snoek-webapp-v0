@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 import type { KeyResult } from "@/lib/mock-data"
-import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarget } from "@/lib/mock-data"
+import { getProgressPercent, sumWeeklyValues, getCurrentWeekKey, getWeeksOnTarget, getQuarterISOWeeks } from "@/lib/mock-data"
 import { useApp } from "@/lib/store"
 import { useOptionalRealtimeGoals } from "@/lib/realtime-goals-context"
 import { EditingIndicator } from "@/components/editing-indicator"
@@ -351,6 +351,17 @@ export function KeyResultCard({
     : 13
   const weeks = Array.from({ length: maxWeek }, (_, i) => `W${i + 1}`)
 
+  // Resolve the quarter's calendar year + quarter number from `quarterId`
+  // (format: "${year}-${quarter}", see supabase-data.ts:171). Fall back to the
+  // current quarter if the id is malformed.
+  const [qYearStr, qNumStr] = quarterId.split("-")
+  const qYear = Number.parseInt(qYearStr, 10)
+  const qNum = Number.parseInt(qNumStr, 10)
+  const now = new Date()
+  const safeYear = Number.isFinite(qYear) ? qYear : now.getFullYear()
+  const safeQuarter = (qNum >= 1 && qNum <= 4 ? qNum : Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4
+  const isoWeekNumbers = getQuarterISOWeeks(safeYear, safeQuarter, maxWeek)
+
   return (
     <div className={cn(
       "rounded-lg border bg-background/50 p-4 transition-colors hover:border-border/80",
@@ -471,7 +482,7 @@ export function KeyResultCard({
           <table className="w-full text-xs" style={{ minWidth: `${weeks.length * 52}px` }}>
             <thead>
               <tr>
-                {weeks.map((week) => {
+                {weeks.map((week, i) => {
                   const isCurrent = week === currentWeek
                   return (
                     <th
@@ -479,7 +490,7 @@ export function KeyResultCard({
                       className={cn("pb-2 text-center font-medium", isCurrent ? "text-primary" : "text-muted-foreground")}
                     >
                       <span className={cn("inline-flex items-center justify-center rounded-full px-1.5 py-0.5", isCurrent && "bg-primary/10 font-semibold")}>
-                        {week}
+                        W{isoWeekNumbers[i]}
                       </span>
                     </th>
                   )
