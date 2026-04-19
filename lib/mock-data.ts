@@ -100,6 +100,7 @@ export interface Member {
 
 export interface ClientMember {
   id: string
+  userId: string | null  // supabase auth user ID, null if member has no auth account
   name: string
   role: "coach" | "member"
   roleTitle: string
@@ -458,29 +459,22 @@ export function getPeriodSeries(frequency: GoalFrequency, existingKeys: string[]
 /**
  * Builds the sequence of period keys for a journal's completion strip.
  *
- * Starts at the period containing `createdAt`, ends at the current period (inclusive),
- * capped to the last `maxCount` entries (rolling window when the journal is older than
- * `maxCount` periods). No future periods are returned.
- *
- * If `createdAt` is missing we fall back to (currentPeriod − maxCount + 1).
+ * Window: one period before `createdAt` up through max(currentPeriod, createdAt + 1).
+ * This gives a brand-new journal a 3-pill starting state (−1, creation, +1) and
+ * extends forward as time passes. Capped to the last `maxCount` entries (rolling
+ * window once the strip grows beyond `maxCount`).
  */
 export function getJournalPeriodSeries(
   frequency: JournalFrequency,
   createdAt: string | null | undefined,
-  maxCount = 12,
+  maxCount = 520,
+  filledKeys?: Iterable<string>,
 ): string[] {
   const current = getCurrentPeriodKey(frequency as GoalFrequency)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const start = createdAt ? new Date(createdAt) : null
-  const cursor = start ? new Date(start) : new Date(today)
-  cursor.setHours(0, 0, 0, 0)
-
-  if (cursor.getTime() > today.getTime()) return [current]
-
-  const keys: string[] = []
-  const step = (d: Date) => {
+  const stepForward = (d: Date) => {
     switch (frequency) {
       case "daily": d.setDate(d.getDate() + 1); break
       case "weekly": d.setDate(d.getDate() + 7); break
@@ -488,31 +482,55 @@ export function getJournalPeriodSeries(
       case "monthly": d.setMonth(d.getMonth() + 1); break
     }
   }
+  const stepBackward = (d: Date) => {
+    switch (frequency) {
+      case "daily": d.setDate(d.getDate() - 1); break
+      case "weekly": d.setDate(d.getDate() - 7); break
+      case "biweekly": d.setDate(d.getDate() - 14); break
+      case "monthly": d.setMonth(d.getMonth() - 1); break
+    }
+  }
 
+  const anchor = createdAt ? new Date(createdAt) : new Date(today)
+  anchor.setHours(0, 0, 0, 0)
+
+  // Start one period before the anchor (creation period).
+  const startCursor = new Date(anchor)
+  stepBackward(startCursor)
+
+  // Extend backward to include any filled periods that precede the anchor window.
+  if (filledKeys) {
+    const filledSet = new Set(filledKeys)
+    for (let i = 0; i < 1000; i++) {
+      const k = getCurrentPeriodKeyForDate(startCursor, frequency)
+      const hasEarlier = Array.from(filledSet).some((fk) => fk < k)
+      if (!hasEarlier) break
+      stepBackward(startCursor)
+    }
+  }
+
+  // End at max(currentPeriod, anchor + 1 period).
+  const anchorPlus1 = new Date(anchor)
+  stepForward(anchorPlus1)
+  const endCursor = anchorPlus1.getTime() > today.getTime() ? anchorPlus1 : new Date(today)
+  // Always extend at least to current period.
+  if (endCursor.getTime() < today.getTime()) endCursor.setTime(today.getTime())
+
+  const keys: string[] = []
+  const cursor = new Date(startCursor)
   for (let i = 0; i < 1000; i++) {
     const k = getCurrentPeriodKeyForDate(cursor, frequency)
     if (keys[keys.length - 1] !== k) keys.push(k)
-    if (k === current) break
-    step(cursor)
-    if (cursor.getTime() > today.getTime()) break
+    if (cursor.getTime() >= endCursor.getTime() && k !== current) {
+      // We've passed the end cursor but make sure current is included
+      if (!keys.includes(current)) keys.push(current)
+      break
+    }
+    if (cursor.getTime() >= endCursor.getTime()) break
+    stepForward(cursor)
   }
 
   if (keys.length === 0) keys.push(current)
-
-  // Pad backward when no createdAt so old journals still get a full strip.
-  if (!createdAt && keys.length < maxCount) {
-    const back = new Date(today)
-    while (keys.length < maxCount) {
-      switch (frequency) {
-        case "daily": back.setDate(back.getDate() - 1); break
-        case "weekly": back.setDate(back.getDate() - 7); break
-        case "biweekly": back.setDate(back.getDate() - 14); break
-        case "monthly": back.setMonth(back.getMonth() - 1); break
-      }
-      const k = getCurrentPeriodKeyForDate(back, frequency)
-      if (!keys.includes(k)) keys.unshift(k)
-    }
-  }
 
   return keys.length > maxCount ? keys.slice(keys.length - maxCount) : keys
 }
