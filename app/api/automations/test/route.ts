@@ -1,26 +1,29 @@
 import { createClient as createServerClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
-import { successResponse, errorResponse, ERROR_MESSAGES } from "@/lib/api-security"
+import { successResponse, errorResponse, ERROR_MESSAGES, validateInput, schemas } from "@/lib/api-security"
+import { z } from "zod"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+const testAutomationSchema = z.object({
+  automationId: schemas.uuid,
+})
 
 export async function POST(request: Request) {
   try {
     // Verify user is authenticated
     const userSupabase = await createClient()
     const { data: { user } } = await userSupabase.auth.getUser()
-    
+
     if (!user) {
       return errorResponse(ERROR_MESSAGES.UNAUTHORIZED, 401)
     }
 
-    const body = await request.json()
-    const { automationId } = body
-
-    if (!automationId) {
-      return errorResponse("Missing automationId", 400)
-    }
+    const body = await request.json().catch(() => null)
+    const validation = validateInput(testAutomationSchema, body)
+    if (!validation.success) return validation.error
+    const { automationId } = validation.data
 
     // Use service role to send messages
     const supabase = createServerClient(supabaseUrl, supabaseServiceKey)
@@ -80,9 +83,31 @@ export async function POST(request: Request) {
 
     console.log("[Test] Sending to conversations:", conversationIds)
 
+    // Re-authorize each target conversation. The caller is already verified
+    // as the automation's coach, but the automation could have been configured
+    // with a conversation_id that doesn't belong to this coach. The service
+    // role client bypasses RLS, so we must confirm ownership explicitly here.
+    const { data: allowedConversations, error: convCheckError } = await supabase
+      .from("conversations")
+      .select("id")
+      .in("id", conversationIds)
+      .eq("coach_id", user.id)
+
+    if (convCheckError) {
+      console.error("[Test] Error verifying conversation ownership:", convCheckError)
+      return errorResponse(ERROR_MESSAGES.INTERNAL_ERROR, 500)
+    }
+
+    const allowedIds = new Set((allowedConversations ?? []).map((c: { id: string }) => c.id))
+    const authorizedConversationIds = conversationIds.filter((id) => allowedIds.has(id))
+
+    if (authorizedConversationIds.length === 0) {
+      return errorResponse(ERROR_MESSAGES.FORBIDDEN, 403)
+    }
+
     // Send message to each conversation
     let successCount = 0
-    for (const conversationId of conversationIds) {
+    for (const conversationId of authorizedConversationIds) {
       const { data: newMessage, error: msgError } = await supabase
         .from("messages")
         .insert({
