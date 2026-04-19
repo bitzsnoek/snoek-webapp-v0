@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from "react"
 import { useApp } from "@/lib/store"
 import {
   getActiveJournals,
-  getArchivedJournals,
   getJournalFrequencyLabel,
   formatPeriodKey,
   type Journal,
@@ -25,7 +24,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -33,15 +31,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { Plus, MoreHorizontal, Pencil, Archive, Trash2, ChevronDown, ChevronRight, ArchiveRestore } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Plus, MoreHorizontal, Pencil, Archive, ChevronDown, ChevronRight } from "lucide-react"
 
 export function CoachJournalsView() {
-  const { activeClient, updateJournal, deleteJournal, archiveJournal, pendingJournalNav, setPendingJournalNav } = useApp()
+  const { activeClient, updateJournal, pendingJournalNav, setPendingJournalNav } = useApp()
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editJournal, setEditJournal] = useState<Journal | null>(null)
   const [memberFilter, setMemberFilter] = useState<string>("all")
-  const [showArchived, setShowArchived] = useState(false)
 
   // Coaches don't have a writing mode — just clear the pending nav so the
   // effect doesn't re-fire, and scroll the requested journal card into view.
@@ -53,14 +49,12 @@ export function CoachJournalsView() {
   }, [pendingJournalNav, setPendingJournalNav])
 
   const activeJournals = useMemo(() => getActiveJournals(activeClient), [activeClient])
-  const archivedJournals = useMemo(() => getArchivedJournals(activeClient), [activeClient])
   const members = activeClient.members ?? []
 
   const filteredJournals = useMemo(() => {
-    const list = showArchived ? archivedJournals : activeJournals
-    if (memberFilter === "all") return list
-    return list.filter((j) => j.assignedMemberId === memberFilter || j.assignedMemberId === null)
-  }, [activeJournals, archivedJournals, memberFilter, showArchived])
+    if (memberFilter === "all") return activeJournals
+    return activeJournals.filter((j) => j.assignedMemberId === memberFilter || j.assignedMemberId === null)
+  }, [activeJournals, memberFilter])
 
   return (
     <div className="space-y-6">
@@ -78,15 +72,6 @@ export function CoachJournalsView() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowArchived(!showArchived)}
-            className={cn(showArchived && "text-primary")}
-          >
-            <Archive className="mr-1.5 h-4 w-4" />
-            Archived ({archivedJournals.length})
-          </Button>
         </div>
         <Button size="sm" onClick={() => { setEditJournal(null); setAddDialogOpen(true) }}>
           <Plus className="mr-1.5 h-4 w-4" />
@@ -97,7 +82,7 @@ export function CoachJournalsView() {
       {/* Journal cards */}
       {filteredJournals.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
-          {showArchived ? "No archived journals." : "No journals yet. Create one to get started."}
+          No journals yet. Create one to get started.
         </div>
       )}
 
@@ -107,9 +92,7 @@ export function CoachJournalsView() {
             key={journal.id}
             journal={journal}
             onEdit={() => { setEditJournal(journal); setAddDialogOpen(true) }}
-            onArchive={() => updateJournal(journal.id, { archived: !journal.archived })}
-            onDelete={() => deleteJournal(journal.id)}
-            isArchived={journal.archived}
+            onArchive={() => updateJournal(journal.id, { archived: true })}
           />
         ))}
       </div>
@@ -127,14 +110,10 @@ function JournalCard({
   journal,
   onEdit,
   onArchive,
-  onDelete,
-  isArchived,
 }: {
   journal: Journal
   onEdit: () => void
   onArchive: () => void
-  onDelete: () => void
-  isArchived: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -178,13 +157,8 @@ function JournalCard({
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onArchive}>
-              {isArchived ? <ArchiveRestore className="mr-2 h-4 w-4" /> : <Archive className="mr-2 h-4 w-4" />}
-              {isArchived ? "Unarchive" : "Archive"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
+              <Archive className="mr-2 h-4 w-4" />
+              Archive
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

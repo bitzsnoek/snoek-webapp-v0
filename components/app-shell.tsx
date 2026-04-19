@@ -457,7 +457,6 @@ export function AppShell() {
                     label={formatYearLabel(year.year)}
                     isActive={isActive}
                     onClick={() => setActiveTabId(tabId)}
-                    onArchive={() => handleArchive("year", year.id)}
                   />
                 )
               })}
@@ -472,7 +471,6 @@ export function AppShell() {
                     label={formatQuarterLabel(quarter.label, quarter.year)}
                     isActive={isActive}
                     onClick={() => setActiveTabId(tabId)}
-                    onArchive={() => handleArchive("quarter", quarter.id)}
                   />
                 )
               })}
@@ -487,7 +485,6 @@ export function AppShell() {
                     label={board.title}
                     isActive={isActive}
                     onClick={() => setActiveTabId(tabId)}
-                    onArchive={() => handleArchive("board", board.id)}
                   />
                 )
               })}
@@ -660,6 +657,21 @@ export function AppShell() {
               {activeYear && <YearlyGoals years={[activeYear]} />}
               {activeQuarter && <QuarterlyGoals quarters={[activeQuarter]} years={activeYears} />}
               {activeBoard && <StandardGoalsBoard board={activeBoard} />}
+              {(activeYear || activeQuarter || activeBoard) && (
+                <div className="mt-10 flex justify-end">
+                  <button
+                    onClick={() => {
+                      if (activeYear) handleArchive("year", activeYear.id)
+                      else if (activeQuarter) handleArchive("quarter", activeQuarter.id)
+                      else if (activeBoard) handleArchive("board", activeBoard.id)
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+                  >
+                    <Archive className="h-3 w-3" />
+                    Archive this board
+                  </button>
+                </div>
+              )}
             </RealtimeGoalsProvider>
           )}
           {activeSection === "metrics" && <MonthlyMetrics />}
@@ -729,15 +741,13 @@ function GoalTab({
   label,
   isActive,
   onClick,
-  onArchive,
 }: {
   label: string
   isActive: boolean
   onClick: () => void
-  onArchive?: () => void
 }) {
   return (
-    <div className="group relative flex h-full shrink-0 items-stretch">
+    <div className="relative flex h-full shrink-0 items-stretch">
       <button
         role="tab"
         aria-selected={isActive}
@@ -746,8 +756,7 @@ function GoalTab({
           "relative flex items-center gap-1 px-3 text-sm whitespace-nowrap transition-colors",
           isActive
             ? "font-medium text-success"
-            : "text-muted-foreground hover:text-foreground",
-          onArchive && "pr-2"
+            : "text-muted-foreground hover:text-foreground"
         )}
       >
         {label}
@@ -755,24 +764,6 @@ function GoalTab({
           <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-success" />
         )}
       </button>
-
-      {/* Archive button — only shown on hover, only when archiveable */}
-      {onArchive && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onArchive()
-          }}
-          title="Archive this board"
-          className={cn(
-            "hidden md:flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100",
-            isActive && "text-muted-foreground/60"
-          )}
-          aria-label="Archive board"
-        >
-          <Archive className="h-3 w-3" />
-        </button>
-      )}
     </div>
   )
 }

@@ -168,21 +168,64 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     )
   const allKeyResults: KeyResultOption[] = [...okrKeyResults, ...standardGoalOptions]
 
-  // Build journal entry options for the picker (current period entries only).
-  // `id` is the journal_id — the new attachment model keys by (journal, period),
-  // not by a specific entry row.
-  const journalEntryOptions: JournalEntryDisplay[] = getActiveJournals(activeClient).flatMap((journal) => {
+  // Build journal entry options for the picker. Attachments key by (journal, period),
+  // so we always offer the current period — even if no entry exists yet, the attachment
+  // resolves to the entry once it's written. Preview content falls back to the most
+  // recent prior entry if the current period is empty.
+  const journalEntryOptions: JournalEntryDisplay[] = getActiveJournals(activeClient).map((journal) => {
     const currentKey = getCurrentPeriodKey(journal.frequency as GoalFrequency)
-    const entry = journal.entries[currentKey]
-    if (!entry || !entry.content.trim()) return []
-    return [{
+    const currentEntry = journal.entries[currentKey]
+    let previewContent = currentEntry?.content ?? ""
+    if (!previewContent.trim()) {
+      const latest = Object.values(journal.entries)
+        .filter((e) => e.content?.trim())
+        .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0]
+      previewContent = latest?.content ?? ""
+    }
+    return {
       id: journal.id,
       journalTitle: journal.title,
       periodKey: currentKey,
-      content: entry.content,
+      content: previewContent,
       frequency: journal.frequency,
-    }]
+    }
   })
+
+  // Participant-scoped filtering for the picker.
+  // 1-on-1: show only goals/journals belonging to either participant or unassigned (null).
+  // Group: show everything.
+  // Match current user to their client_members record; fall back to email if user_id is unlinked
+  const currentUserMemberId = activeClient.allMembers.find(
+    (m) => m.userId === currentUser.id || m.email === currentUser.email
+  )?.id ?? null
+
+  const isOneOnOne = selectedTab && !selectedTab.isGroup
+
+  // Goals use owner name; collect both participant names for the filter
+  const participantNames: Set<string> | null = isOneOnOne
+    ? new Set([currentUser.name, selectedTab!.name].filter(Boolean))
+    : null
+
+  // Journals use assignedMemberId (client_members.id).
+  // If the current user can't be identified in allMembers, skip filtering to avoid
+  // hiding journals that belong to them.
+  const participantMemberIds: Set<string> | null =
+    isOneOnOne && currentUserMemberId !== null
+      ? new Set(
+          [currentUserMemberId, selectedTab!.odooMemberId].filter((id): id is string => Boolean(id))
+        )
+      : null
+
+  const pickerKeyResults: KeyResultOption[] = participantNames
+    ? allKeyResults.filter((kr) => kr.owner === null || participantNames.has(kr.owner))
+    : allKeyResults
+
+  const pickerJournalEntries: JournalEntryDisplay[] = participantMemberIds
+    ? journalEntryOptions.filter((je) => {
+        const journal = (activeClient.journals ?? []).find((j) => j.id === je.id)
+        return !journal || journal.assignedMemberId === null || participantMemberIds.has(journal.assignedMemberId)
+      })
+    : journalEntryOptions
 
   // Fetch messages for current conversation
   const fetchMessages = useCallback(async (conversationId: string) => {
@@ -941,10 +984,10 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
           <ScrollArea className="max-h-[60vh]">
             <div className="flex flex-col gap-2 pr-4">
               {/* Goals section */}
-              {allKeyResults.length > 0 && (
+              {pickerKeyResults.length > 0 && (
                 <>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-1">Goals</p>
-                  {allKeyResults.map((kr) => {
+                  {pickerKeyResults.map((kr) => {
                     const config = typeConfig[kr.type]
                     const TypeIcon = config.icon
                     const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
@@ -995,10 +1038,10 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
               )}
 
               {/* Journal entries section */}
-              {journalEntryOptions.length > 0 && (
+              {pickerJournalEntries.length > 0 && (
                 <>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider pt-3">Journal Entries</p>
-                  {journalEntryOptions.map((je) => {
+                  {pickerJournalEntries.map((je) => {
                     const isSelected = selectedJournalEntries.some((j) => j.id === je.id)
                     return (
                       <button
@@ -1044,7 +1087,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                 </>
               )}
 
-              {allKeyResults.length === 0 && journalEntryOptions.length === 0 && (
+              {pickerKeyResults.length === 0 && pickerJournalEntries.length === 0 && (
                 <p className="py-4 text-center text-sm text-muted-foreground">
                   No goals or journal entries available to attach.
                 </p>

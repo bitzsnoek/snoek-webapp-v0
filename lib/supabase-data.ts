@@ -133,6 +133,7 @@ export async function fetchClientData(clientId: string): Promise<Client | null> 
   // Build all members (coaches + members) for owner assignment
   const allMembers: ClientMember[] = (members ?? []).map((m: any) => ({
     id: m.id,
+    userId: m.user_id ?? null,
     name: m.name ?? "",
     role: m.role ?? "member",
     roleTitle: m.role_title ?? m.role ?? "",
