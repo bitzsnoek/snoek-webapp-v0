@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, Fragment } from "react"
 import { useApp } from "@/lib/store"
 import { isCoachOrAdmin, getActiveJournals, getCurrentPeriodKey, formatPeriodKey, getJournalFrequencyLabel, type GoalFrequency } from "@/lib/mock-data"
 import { createClient } from "@/lib/supabase/client"
@@ -578,6 +578,39 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     }
   }
 
+  // Local-date day key (YYYY-MM-DD) for grouping messages
+  const localDayKey = (iso: string) => {
+    const d = new Date(iso)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  }
+
+  // WhatsApp-style day separator label
+  const formatDaySeparator = (iso: string) => {
+    const d = new Date(iso)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const startOfDay = new Date(d)
+    startOfDay.setHours(0, 0, 0, 0)
+    const diffDays = Math.round(
+      (today.getTime() - startOfDay.getTime()) / (24 * 60 * 60 * 1000)
+    )
+    if (diffDays === 0) return "Today"
+    if (diffDays === 1) return "Yesterday"
+    if (diffDays > 1 && diffDays < 7) {
+      return d.toLocaleDateString(undefined, { weekday: "long" })
+    }
+    const sameYear = d.getFullYear() === new Date().getFullYear()
+    return d.toLocaleDateString(
+      undefined,
+      sameYear
+        ? { weekday: "short", day: "numeric", month: "short" }
+        : { weekday: "short", day: "numeric", month: "short", year: "numeric" }
+    )
+  }
+
   // Determine if current user is the sender
   const isSender = (senderId: string) => senderId === currentUser.id
 
@@ -687,11 +720,21 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                   </p>
                 </div>
               ) : (
-                messages.map((message) => {
+                messages.map((message, i) => {
                   const isOwnMessage = isSender(message.sender_id)
+                  const prev = i > 0 ? messages[i - 1] : null
+                  const showDaySeparator =
+                    !prev || localDayKey(prev.created_at) !== localDayKey(message.created_at)
                   return (
+                    <Fragment key={message.id}>
+                      {showDaySeparator && (
+                        <div className="my-2 flex items-center justify-center">
+                          <span className="rounded-full bg-muted/80 px-3 py-1 text-xs font-medium text-muted-foreground">
+                            {formatDaySeparator(message.created_at)}
+                          </span>
+                        </div>
+                      )}
                     <div
-                      key={message.id}
                       className={cn(
                         "group flex items-start gap-2",
                         isOwnMessage ? "flex-row-reverse" : "flex-row"
@@ -857,6 +900,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                         <Reply className="h-4 w-4" />
                       </button>
                     </div>
+                    </Fragment>
                   )
                 })
               )}
