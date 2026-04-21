@@ -561,21 +561,10 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     }
   }, [selectedTab?.conversationId, fetchMessages])
 
-  // Format timestamp
+  // Format timestamp — always show the time (day is handled by separators)
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
-    const now = new Date()
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) {
-      return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-    } else if (diffDays === 1) {
-      return "Yesterday"
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString("en-US", { weekday: "short" })
-    } else {
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    }
+    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
   }
 
   // Local-date day key (YYYY-MM-DD) for grouping messages
