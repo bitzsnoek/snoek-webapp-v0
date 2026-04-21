@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useApp } from "@/lib/store"
+import {
+  getActiveJournals,
+  getCurrentPeriodKey,
+  getJournalFrequencyLabel,
+  formatPeriodKey,
+  type GoalFrequency,
+  type JournalFrequency,
+} from "@/lib/mock-data"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -45,6 +53,8 @@ import {
   MessageSquare,
   Play,
   Loader2,
+  BookOpen,
+  Check,
 } from "lucide-react"
 
 // Types
@@ -69,7 +79,27 @@ interface Automation {
     conversation_id: string
     conversation_name?: string
   }
-  key_results?: { id: string; title: string; type: string; target: number }[]
+  // OKR key results + standard goals are unified into a single `key_results`
+  // array (with a `source` discriminator) so the UI can display them together
+  // just like the chat composer does. Persistence still goes to two tables:
+  // `automation_key_results` (OKR) and `automation_standard_goals` (standard).
+  key_results?: {
+    id: string
+    title: string
+    type: string
+    target: number
+    source?: "okr" | "standard"
+  }[]
+  // Attached journals — `id` is the `journals.id`; `period_key` is computed at
+  // fire time from the journal's frequency, so it's not persisted on the
+  // automation itself. We keep it on the display object for the UI preview.
+  journal_entries?: {
+    id: string
+    journalTitle: string
+    periodKey: string
+    content: string
+    frequency: string
+  }[]
   founders?: { member_id: string; name: string }[]
   conversations?: { id: string; name: string; is_group: boolean }[]
 }
@@ -92,6 +122,20 @@ interface KeyResultOption {
   target: number
   goalObjective: string
   owner: string | null
+  // Distinguish OKR quarterly key results from standard goals in the picker.
+  // Defaults to "okr" for backwards compat when loading from older records.
+  source?: "okr" | "standard"
+}
+
+// Mirrors the chat composer's JournalEntryDisplay: `id` is the `journals.id`
+// — the automation's journal attachment is keyed by (automation, journal),
+// with the period resolved to "current" at fire time.
+interface JournalEntryDisplay {
+  id: string
+  journalTitle: string
+  periodKey: string
+  content: string
+  frequency: string
 }
 
 const typeConfig = {
@@ -156,13 +200,17 @@ export function AutomationsSection() {
     conversation_id: "",
   })
   const [selectedKeyResults, setSelectedKeyResults] = useState<KeyResultOption[]>([])
+  const [selectedJournalEntries, setSelectedJournalEntries] = useState<JournalEntryDisplay[]>([])
   const [selectedMembers, setSelectedMembers] = useState<MemberOption[]>([])
   const [selectedConversations, setSelectedConversations] = useState<ConversationOption[]>([])
   const [conversations, setConversations] = useState<ConversationOption[]>([])
   const [testingId, setTestingId] = useState<string | null>(null)
 
-  // Get all key results from the active company
-  const allKeyResults: KeyResultOption[] = activeClient.quarters.flatMap((quarter) =>
+  // Build the attachable-goals list exactly like the chat composer does:
+  // OKR quarterly key results + standard goals from active boards, unified
+  // into one array with a `source` discriminator. Standard goals render with
+  // the "output" visual treatment since the UI only has three type configs.
+  const okrKeyResults: KeyResultOption[] = activeClient.quarters.flatMap((quarter) =>
     quarter.goals.flatMap((goal) =>
       goal.keyResults.map((kr) => ({
         id: kr.id,
@@ -171,9 +219,47 @@ export function AutomationsSection() {
         target: kr.target,
         goalObjective: goal.objective,
         owner: kr.owner,
+        source: "okr" as const,
       }))
     )
   )
+  const standardGoalOptions: KeyResultOption[] = (activeClient.boards ?? [])
+    .filter((b) => b.isActive)
+    .flatMap((board) =>
+      board.goals.map((g) => ({
+        id: g.id,
+        title: g.title,
+        type: "output" as const,
+        target: g.targetValue,
+        goalObjective: board.title,
+        owner: g.owner,
+        source: "standard" as const,
+      }))
+    )
+  const allKeyResults: KeyResultOption[] = [...okrKeyResults, ...standardGoalOptions]
+
+  // Journal options mirror the chat composer: one row per active journal,
+  // always targeting the current period so the attachment resolves to "now"
+  // whenever the automation fires. Preview content falls back to the latest
+  // prior entry when the current period is empty.
+  const journalEntryOptions: JournalEntryDisplay[] = getActiveJournals(activeClient).map((journal) => {
+    const currentKey = getCurrentPeriodKey(journal.frequency as GoalFrequency)
+    const currentEntry = journal.entries[currentKey]
+    let previewContent = currentEntry?.content ?? ""
+    if (!previewContent.trim()) {
+      const latest = Object.values(journal.entries)
+        .filter((e) => e.content?.trim())
+        .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))[0]
+      previewContent = latest?.content ?? ""
+    }
+    return {
+      id: journal.id,
+      journalTitle: journal.title,
+      periodKey: currentKey,
+      content: previewContent,
+      frequency: journal.frequency,
+    }
+  })
 
   // Get all members from the active client
   const allMembers: MemberOption[] = (activeClient.members || [])
@@ -253,7 +339,15 @@ export function AutomationsSection() {
         let recurring_config = undefined
 
         let scheduled_config = undefined
-        let key_results: { id: string; title: string; type: string; target: number }[] = []
+        // Unified OKR + standard goals list for the card display and edit form.
+        let key_results: {
+          id: string
+          title: string
+          type: string
+          target: number
+          source?: "okr" | "standard"
+        }[] = []
+        let journal_entries: JournalEntryDisplay[] = []
 
         if (auto.type === "recurring") {
           const { data: rc } = await supabase
@@ -289,7 +383,7 @@ export function AutomationsSection() {
           }
         }
 
-        // Fetch key results
+        // Fetch OKR key results
         const { data: akrs } = await supabase
           .from("automation_key_results")
           .select("quarterly_key_result_id")
@@ -301,7 +395,62 @@ export function AutomationsSection() {
             .from("quarterly_key_results")
             .select("id, title, type, target")
             .in("id", krIds)
-          key_results = krs || []
+          key_results = (krs || []).map((kr) => ({ ...kr, source: "okr" as const }))
+        }
+
+        // Fetch standard goals (same table as chat composer uses)
+        const { data: asgs } = await supabase
+          .from("automation_standard_goals")
+          .select("standard_goal_id")
+          .eq("automation_id", auto.id)
+
+        if (asgs && asgs.length > 0) {
+          const sgIds = asgs.map((sg) => sg.standard_goal_id)
+          const { data: sgs } = await supabase
+            .from("standard_goals")
+            .select("id, title, target_value")
+            .in("id", sgIds)
+          if (sgs) {
+            // Standard goals display with the "output" visual treatment to
+            // match the picker — their underlying schema has no "type".
+            key_results = [
+              ...key_results,
+              ...sgs.map((sg) => ({
+                id: sg.id,
+                title: sg.title,
+                type: "output",
+                target: sg.target_value ?? 0,
+                source: "standard" as const,
+              })),
+            ]
+          }
+        }
+
+        // Fetch journal attachments. Only `journal_id` is persisted — we
+        // compute the display `periodKey` from the journal's current frequency
+        // at render time so the UI always shows the "now" period, matching
+        // what the executor will actually insert at fire time.
+        const { data: ajas } = await supabase
+          .from("automation_journal_attachments")
+          .select("journal_id, journals!inner(id, title, frequency)")
+          .eq("automation_id", auto.id)
+
+        if (ajas && ajas.length > 0) {
+          type JournalRow = { id: string; title: string; frequency: string }
+          journal_entries = ajas
+            .map((aja) => {
+              const rel = aja.journals as unknown as JournalRow | JournalRow[] | null
+              const j = Array.isArray(rel) ? rel[0] : rel
+              if (!j) return null
+              return {
+                id: j.id,
+                journalTitle: j.title,
+                periodKey: getCurrentPeriodKey(j.frequency as GoalFrequency),
+                content: "",
+                frequency: j.frequency,
+              }
+            })
+            .filter((x): x is JournalEntryDisplay => x !== null)
         }
 
         // Fetch members
@@ -359,6 +508,7 @@ export function AutomationsSection() {
           recurring_config,
           scheduled_config,
           key_results,
+          journal_entries,
           founders: membersList,
           conversations: linkedConversations,
         })
@@ -392,6 +542,7 @@ export function AutomationsSection() {
       conversation_id: "",
     })
     setSelectedKeyResults([])
+    setSelectedJournalEntries([])
     setSelectedMembers([])
     setSelectedConversations([])
     setEditingId(null)
@@ -443,12 +594,32 @@ export function AutomationsSection() {
       conversation_id: automation.scheduled_config?.conversation_id || "",
     })
 
-    // Map key results
-    const krs = (automation.key_results || []).map((kr) => {
+    // Map key results. Prefer the hydrated entry from `allKeyResults` (which
+    // has goalObjective/owner/source populated), but fall back to a minimal
+    // shape for anything that's been deleted since the automation was saved
+    // so we don't silently drop the attachment from the edit form.
+    const krs: KeyResultOption[] = (automation.key_results || []).map((kr) => {
       const found = allKeyResults.find((akr) => akr.id === kr.id)
-      return found || { ...kr, type: kr.type as "input" | "output" | "project", goalObjective: "", owner: kr.owner }
+      if (found) return found
+      return {
+        id: kr.id,
+        title: kr.title,
+        type: kr.type as "input" | "output" | "project",
+        target: kr.target,
+        goalObjective: "",
+        owner: null,
+        source: kr.source ?? "okr",
+      }
     })
-    setSelectedKeyResults(krs as KeyResultOption[])
+    setSelectedKeyResults(krs)
+
+    // Map journal entries. Resolve against the fresh `journalEntryOptions` so
+    // the preview content reflects the current period, not a stale snapshot.
+    const jes: JournalEntryDisplay[] = (automation.journal_entries || []).map((je) => {
+      const found = journalEntryOptions.find((j) => j.id === je.id)
+      return found ?? je
+    })
+    setSelectedJournalEntries(jes)
 
     // Map members
     const fndrs = (automation.founders || []).map((f) => ({
@@ -530,13 +701,40 @@ export function AutomationsSection() {
           if (scError) throw scError
         }
 
-        // Create key result associations
+        // Create key result associations — split by source so OKR goals go
+        // to `automation_key_results` and standard goals go to
+        // `automation_standard_goals`, matching the chat composer's pattern.
         if (selectedKeyResults.length > 0) {
-          const inserts = selectedKeyResults.map((kr) => ({
+          const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
+          const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
+
+          if (okrItems.length > 0) {
+            const inserts = okrItems.map((kr) => ({
+              automation_id: newAuto.id,
+              quarterly_key_result_id: kr.id,
+            }))
+            await supabase.from("automation_key_results").insert(inserts)
+          }
+
+          if (standardItems.length > 0) {
+            const inserts = standardItems.map((g) => ({
+              automation_id: newAuto.id,
+              standard_goal_id: g.id,
+            }))
+            await supabase.from("automation_standard_goals").insert(inserts)
+          }
+        }
+
+        // Create journal attachments. Only the journal_id is persisted — the
+        // executor recomputes `period_key` from `journals.frequency` at fire
+        // time so a recurring automation always attaches to the "current"
+        // period.
+        if (selectedJournalEntries.length > 0) {
+          const journalInserts = selectedJournalEntries.map((je) => ({
             automation_id: newAuto.id,
-            quarterly_key_result_id: kr.id,
+            journal_id: je.id,
           }))
-          await supabase.from("automation_key_results").insert(inserts)
+          await supabase.from("automation_journal_attachments").insert(journalInserts)
         }
 
         // Create member associations
@@ -592,14 +790,43 @@ export function AutomationsSection() {
             .eq("automation_id", editingId)
         }
 
-        // Update key results - delete and re-insert
+        // Update key results — delete-and-reinsert for both OKR + standard
+        // tables. Split by source so OKR goals go to `automation_key_results`
+        // and standard goals go to `automation_standard_goals`.
         await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
+        await supabase.from("automation_standard_goals").delete().eq("automation_id", editingId)
         if (selectedKeyResults.length > 0) {
-          const inserts = selectedKeyResults.map((kr) => ({
+          const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
+          const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
+
+          if (okrItems.length > 0) {
+            const inserts = okrItems.map((kr) => ({
+              automation_id: editingId,
+              quarterly_key_result_id: kr.id,
+            }))
+            await supabase.from("automation_key_results").insert(inserts)
+          }
+
+          if (standardItems.length > 0) {
+            const inserts = standardItems.map((g) => ({
+              automation_id: editingId,
+              standard_goal_id: g.id,
+            }))
+            await supabase.from("automation_standard_goals").insert(inserts)
+          }
+        }
+
+        // Update journal attachments — delete-and-reinsert.
+        await supabase
+          .from("automation_journal_attachments")
+          .delete()
+          .eq("automation_id", editingId)
+        if (selectedJournalEntries.length > 0) {
+          const journalInserts = selectedJournalEntries.map((je) => ({
             automation_id: editingId,
-            quarterly_key_result_id: kr.id,
+            journal_id: je.id,
           }))
-          await supabase.from("automation_key_results").insert(inserts)
+          await supabase.from("automation_journal_attachments").insert(journalInserts)
         }
 
         // Update members - delete and re-insert
@@ -813,9 +1040,10 @@ export function AutomationsSection() {
                   <p className="mt-2 line-clamp-2 text-sm text-foreground/80">
                     {auto.message_content}
                   </p>
-                  {auto.key_results && auto.key_results.length > 0 && (
+                  {((auto.key_results && auto.key_results.length > 0) ||
+                    (auto.journal_entries && auto.journal_entries.length > 0)) && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {auto.key_results.map((kr) => {
+                      {(auto.key_results || []).map((kr) => {
                         if (!kr || !kr.type) return null
                         const config = typeConfig[kr.type as keyof typeof typeConfig]
                         if (!config) return null
@@ -833,6 +1061,15 @@ export function AutomationsSection() {
                           </span>
                         )
                       })}
+                      {(auto.journal_entries || []).map((je) => (
+                        <span
+                          key={je.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-chart-4/10 px-2 py-0.5 text-xs text-chart-4"
+                        >
+                          <BookOpen className="h-3 w-3" />
+                          {je.journalTitle}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1162,10 +1399,10 @@ export function AutomationsSection() {
               />
             </div>
 
-            {/* Attached Goals */}
+            {/* Attached Goals & Journal Entries */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label>Attached Goals</Label>
+                <Label>Attached Goals & Journals</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1173,10 +1410,10 @@ export function AutomationsSection() {
                   className="gap-1.5 text-xs"
                 >
                   <Plus className="h-3 w-3" />
-                  Add Goal
+                  Add
                 </Button>
               </div>
-              {selectedKeyResults.length > 0 ? (
+              {selectedKeyResults.length > 0 || selectedJournalEntries.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {selectedKeyResults.map((kr) => {
                     const config = typeConfig[kr.type]
@@ -1200,9 +1437,28 @@ export function AutomationsSection() {
                       </div>
                     )
                   })}
+                  {selectedJournalEntries.map((je) => (
+                    <div
+                      key={je.id}
+                      className="flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1"
+                    >
+                      <BookOpen className="h-3 w-3 text-chart-4" />
+                      <span className="max-w-[120px] truncate text-xs text-foreground">
+                        {je.journalTitle}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setSelectedJournalEntries((prev) => prev.filter((j) => j.id !== je.id))
+                        }
+                        className="ml-0.5 rounded-full p-0.5 hover:bg-background/50"
+                      >
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No goals attached</p>
+                <p className="text-xs text-muted-foreground">No goals or journals attached</p>
               )}
             </div>
           </div>
@@ -1225,68 +1481,132 @@ export function AutomationsSection() {
         </DialogContent>
       </Dialog>
 
-      {/* Goal Picker Dialog */}
+      {/* Goal & Journal Picker Dialog */}
       <Dialog open={goalPickerOpen} onOpenChange={setGoalPickerOpen}>
         <DialogContent className="max-h-[80vh] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Attach Goals</DialogTitle>
+            <DialogTitle>Attach Goals & Journal Entries</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="flex flex-col gap-2 pr-4">
-              {allKeyResults.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  No goals available to attach.
-                </p>
-              ) : (
-                allKeyResults.map((kr) => {
-                  if (!kr || !kr.type) return null
-                  const config = typeConfig[kr.type]
-                  if (!config) return null
-                  const TypeIcon = config.icon
-                  const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
-                  return (
-                    <button
-                      key={kr.id}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedKeyResults((prev) => prev.filter((k) => k.id !== kr.id))
-                        } else {
-                          setSelectedKeyResults((prev) => [...prev, kr])
-                        }
-                      }}
-                      className={cn(
-                        "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
-                        isSelected ? "border-primary bg-primary/5" : "border-border"
-                      )}
-                    >
-                      <div className="flex w-full items-start gap-2">
-                        <div className={cn("mt-0.5 rounded p-1", config.bgColor)}>
-                          <TypeIcon className={cn("h-3 w-3", config.color)} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{kr.title}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                            <span className="text-xs font-medium text-primary-foreground">
-                              {selectedKeyResults.findIndex((k) => k.id === kr.id) + 1}
-                            </span>
-                          </div>
+              {/* Goals section (OKR + standard goals, unified) */}
+              {allKeyResults.length > 0 && (
+                <>
+                  <p className="pt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Goals
+                  </p>
+                  {allKeyResults.map((kr) => {
+                    if (!kr || !kr.type) return null
+                    const config = typeConfig[kr.type]
+                    if (!config) return null
+                    const TypeIcon = config.icon
+                    const isSelected = selectedKeyResults.some((k) => k.id === kr.id)
+                    return (
+                      <button
+                        key={kr.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedKeyResults((prev) => prev.filter((k) => k.id !== kr.id))
+                          } else {
+                            setSelectedKeyResults((prev) => [...prev, kr])
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
+                          isSelected ? "border-primary bg-primary/5" : "border-border"
                         )}
-                      </div>
-                    </button>
-                  )
-                })
+                      >
+                        <div className="flex w-full items-start gap-2">
+                          <div className={cn("mt-0.5 rounded p-1", config.bgColor)}>
+                            <TypeIcon className={cn("h-3 w-3", config.color)} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{kr.title}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
+                            </p>
+                            {kr.goalObjective && (
+                              <p className="mt-1 truncate text-xs text-muted-foreground/70">
+                                {kr.goalObjective}
+                              </p>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                              <span className="text-xs font-medium text-primary-foreground">
+                                {selectedKeyResults.findIndex((k) => k.id === kr.id) + 1}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* Journal entries section */}
+              {journalEntryOptions.length > 0 && (
+                <>
+                  <p className="pt-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Journal Entries
+                  </p>
+                  {journalEntryOptions.map((je) => {
+                    const isSelected = selectedJournalEntries.some((j) => j.id === je.id)
+                    return (
+                      <button
+                        key={je.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedJournalEntries((prev) => prev.filter((j) => j.id !== je.id))
+                          } else {
+                            setSelectedJournalEntries((prev) => [...prev, je])
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-start rounded-lg border p-3 text-left transition-colors hover:bg-secondary/50",
+                          isSelected ? "border-primary bg-primary/5" : "border-border"
+                        )}
+                      >
+                        <div className="flex w-full items-start gap-2">
+                          <div className="mt-0.5 rounded bg-chart-4/10 p-1">
+                            <BookOpen className="h-3 w-3 text-chart-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground">{je.journalTitle}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {getJournalFrequencyLabel(je.frequency as JournalFrequency)} ·{" "}
+                              {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
+                            </p>
+                            {je.content && (
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/70">
+                                {je.content}
+                              </p>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+
+              {allKeyResults.length === 0 && journalEntryOptions.length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  No goals or journal entries available to attach.
+                </p>
               )}
             </div>
           </ScrollArea>
-          {selectedKeyResults.length > 0 && (
+          {(selectedKeyResults.length > 0 || selectedJournalEntries.length > 0) && (
             <div className="flex justify-end border-t pt-4">
               <Button onClick={() => setGoalPickerOpen(false)}>
-                Done ({selectedKeyResults.length} selected)
+                Done ({selectedKeyResults.length + selectedJournalEntries.length} selected)
               </Button>
             </div>
           )}

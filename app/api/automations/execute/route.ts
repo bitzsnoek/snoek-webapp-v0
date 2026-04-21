@@ -7,6 +7,7 @@ import {
   successResponse,
   ERROR_MESSAGES,
 } from "@/lib/api-security"
+import { attachAutomationItems } from "@/lib/automation-attachments"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -260,19 +261,9 @@ async function sendScheduledMessage(
 
   console.log("[Automations] Message inserted successfully:", newMessage?.id)
 
-  // Attach key results if any
-  const { data: keyResults } = await supabase
-    .from("automation_key_results")
-    .select("quarterly_key_result_id")
-    .eq("automation_id", automation.id as string)
-
-  if (keyResults && keyResults.length > 0 && newMessage) {
-    const inserts = keyResults.map((kr: Record<string, unknown>) => ({
-      message_id: newMessage.id,
-      quarterly_key_result_id: kr.quarterly_key_result_id,
-    }))
-    
-    await supabase.from("message_key_results").insert(inserts)
+  // Attach OKR key results, standard goals, and journals (matches chat composer)
+  if (newMessage) {
+    await attachAutomationItems(supabase, automation.id as string, newMessage.id)
   }
 
   // Send push notification
@@ -330,19 +321,9 @@ async function sendAutomationMessage(
       continue
     }
 
-    // Attach key results if any
-    const { data: keyResults } = await supabase
-      .from("automation_key_results")
-      .select("quarterly_key_result_id")
-      .eq("automation_id", automation.id as string)
-
-    if (keyResults && keyResults.length > 0 && newMessage) {
-      const inserts = keyResults.map((kr: Record<string, unknown>) => ({
-        message_id: newMessage.id,
-        quarterly_key_result_id: kr.quarterly_key_result_id,
-      }))
-      
-      await supabase.from("message_key_results").insert(inserts)
+    // Attach OKR key results, standard goals, and journals (matches chat composer)
+    if (newMessage) {
+      await attachAutomationItems(supabase, automation.id as string, newMessage.id)
     }
 
     // Send push notification

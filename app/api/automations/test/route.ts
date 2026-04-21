@@ -1,6 +1,7 @@
 import { createClient as createServerClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { successResponse, errorResponse, ERROR_MESSAGES, validateInput, schemas } from "@/lib/api-security"
+import { attachAutomationItems } from "@/lib/automation-attachments"
 import { z } from "zod"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -125,19 +126,9 @@ export async function POST(request: Request) {
 
       console.log("[Test] Message sent:", newMessage?.id)
 
-      // Attach key results if any
-      const { data: keyResults } = await supabase
-        .from("automation_key_results")
-        .select("quarterly_key_result_id")
-        .eq("automation_id", automationId)
-
-      if (keyResults && keyResults.length > 0 && newMessage) {
-        const inserts = keyResults.map((kr: { quarterly_key_result_id: string }) => ({
-          message_id: newMessage.id,
-          quarterly_key_result_id: kr.quarterly_key_result_id,
-        }))
-        
-        await supabase.from("message_key_results").insert(inserts)
+      // Attach OKR key results, standard goals, and journals (matches chat composer)
+      if (newMessage) {
+        await attachAutomationItems(supabase, automationId, newMessage.id, "[Test]")
       }
 
       // Send push notification
