@@ -9,7 +9,7 @@ import { YearlyGoals } from "./yearly-goals"
 import { QuarterlyGoals } from "./quarterly-goals"
 import { MonthlyPriorities } from "./monthly-priorities"
 import { RealtimeGoalsProvider } from "@/lib/realtime-goals-context"
-import { RealtimeConnectionStatus, ActiveEditorsIndicator } from "@/components/editing-indicator"
+import { ActiveEditorsIndicator } from "@/components/editing-indicator"
 import { StandardGoalsBoard } from "./standard-goals-board"
 import { MonthlyMetrics } from "./monthly-metrics"
 import MeetingsSection from "./meetings-section"
@@ -649,9 +649,8 @@ export function AppShell() {
           {activeSection === "goals" && (
             <RealtimeGoalsProvider>
               {/* Realtime status bar */}
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center">
                 <ActiveEditorsIndicator />
-                <RealtimeConnectionStatus />
               </div>
               {activeTabId === "priorities" && <MonthlyPriorities />}
               {activeYear && <YearlyGoals years={[activeYear]} />}
