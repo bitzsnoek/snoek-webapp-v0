@@ -446,6 +446,18 @@ export function KeyResultCard({
             ) : (
               <span className="text-xs text-muted-foreground">no data</span>
             )
+          ) : kr.type === "output" ? (
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-sm font-semibold tabular-nums",
+                  progress >= 100 ? "text-primary" : progress >= 50 ? "text-chart-3" : "text-muted-foreground"
+                )}
+              >
+                {total}
+              </span>
+              <span className="text-xs text-muted-foreground">/ {kr.target}</span>
+            </div>
           ) : (
             <span
               className={cn(

@@ -280,9 +280,9 @@ export function AutomationsSection() {
       
       if (error) throw error
       
-      // For 1:1 chats, get member names by looking up the user_id in company_members
+      // For 1:1 chats, get member names by looking up the user_id in client_members
       const { data: members } = await supabase
-        .from("company_members")
+        .from("client_members")
         .select("user_id, name")
         .eq("client_id", activeClient.id)
         .eq("role", "member")
@@ -463,7 +463,7 @@ export function AutomationsSection() {
         if (afs && afs.length > 0) {
           const memberIds = afs.map((af) => af.founder_member_id)
           const { data: members } = await supabase
-            .from("company_members")
+            .from("client_members")
             .select("id, name")
             .in("id", memberIds)
           membersList = (members || []).map((m) => ({ member_id: m.id, name: m.name }))
