@@ -24,6 +24,53 @@ interface WritingState {
   periodKey: string
 }
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+function isoWeekMonday(year: number, week: number): Date {
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const jan4Day = jan4.getUTCDay() || 7
+  const mondayW1 = new Date(jan4)
+  mondayW1.setUTCDate(jan4.getUTCDate() - jan4Day + 1)
+  const target = new Date(mondayW1)
+  target.setUTCDate(target.getUTCDate() + (week - 1) * 7)
+  return target
+}
+
+function formatShortDate(d: Date): string {
+  return `${MONTH_ABBR[d.getUTCMonth()]} ${d.getUTCDate()}`
+}
+
+function formatPeriodDateRange(key: string, frequency: GoalFrequency): string | null {
+  switch (frequency) {
+    case "weekly": {
+      const [yStr, wStr] = key.split("-W")
+      const year = parseInt(yStr, 10)
+      const week = parseInt(wStr, 10)
+      if (!year || !week) return null
+      const monday = isoWeekMonday(year, week)
+      const sunday = new Date(monday)
+      sunday.setUTCDate(sunday.getUTCDate() + 6)
+      return `${formatShortDate(monday)} – ${formatShortDate(sunday)}`
+    }
+    case "biweekly": {
+      const [yStr, bwStr] = key.split("-BW")
+      const year = parseInt(yStr, 10)
+      const biweek = parseInt(bwStr, 10)
+      if (!year || !biweek) return null
+      const monday = isoWeekMonday(year, (biweek - 1) * 2 + 1)
+      const end = new Date(monday)
+      end.setUTCDate(end.getUTCDate() + 13)
+      return `${formatShortDate(monday)} – ${formatShortDate(end)}`
+    }
+    case "monthly": {
+      const [yStr] = key.split("-")
+      return yStr || null
+    }
+    default:
+      return null
+  }
+}
+
 export function MemberJournalsView() {
   const { activeClient, currentUser, upsertJournalEntry, pendingJournalNav, setPendingJournalNav } = useApp()
   const [writing, setWriting] = useState<WritingState | null>(null)
@@ -88,6 +135,10 @@ function OverviewMode({
     )
   }
 
+  if (journals.length === 1) {
+    return <SingleJournalView journal={journals[0]} onWrite={onWrite} />
+  }
+
   // Sort by urgency: daily first, then weekly, biweekly, monthly
   const frequencyOrder = { daily: 0, weekly: 1, biweekly: 2, monthly: 3 }
   const sorted = [...journals].sort(
@@ -100,6 +151,127 @@ function OverviewMode({
         <JournalCard key={journal.id} journal={journal} onWrite={onWrite} />
       ))}
     </div>
+  )
+}
+
+function SingleJournalView({
+  journal,
+  onWrite,
+}: {
+  journal: Journal
+  onWrite: (journal: Journal, periodKey: string) => void
+}) {
+  const currentKey = getCurrentPeriodKey(journal.frequency as GoalFrequency)
+
+  const periods = useMemo(() => {
+    const series = getPeriodSeries(
+      journal.frequency as GoalFrequency,
+      Object.keys(journal.entries)
+    )
+    return series.filter((k) => k <= currentKey).reverse()
+  }, [journal.frequency, journal.entries, currentKey])
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">{journal.title}</h2>
+          <Badge variant="secondary" className="text-xs shrink-0">
+            {getJournalFrequencyLabel(journal.frequency)}
+          </Badge>
+        </div>
+        {journal.description ? (
+          <p className="text-sm text-muted-foreground mt-1">{journal.description}</p>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        {periods.map((periodKey) => (
+          <PeriodRow
+            key={periodKey}
+            periodKey={periodKey}
+            frequency={journal.frequency}
+            entry={journal.entries[periodKey]}
+            isCurrent={periodKey === currentKey}
+            onClick={() => onWrite(journal, periodKey)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PeriodRow({
+  periodKey,
+  frequency,
+  entry,
+  isCurrent,
+  onClick,
+}: {
+  periodKey: string
+  frequency: Journal["frequency"]
+  entry: JournalEntry | undefined
+  isCurrent: boolean
+  onClick: () => void
+}) {
+  const hasEntry = !!entry
+  const dateRange = formatPeriodDateRange(periodKey, frequency as GoalFrequency)
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left rounded-lg border px-4 py-3 transition-colors",
+        isCurrent
+          ? "border-primary bg-primary/5 hover:bg-primary/10"
+          : hasEntry
+            ? "border-border bg-card hover:bg-muted/30"
+            : "border-dashed border-border/60 hover:bg-muted/20"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium">
+              {formatPeriodKey(periodKey, frequency as GoalFrequency)}
+            </span>
+            {dateRange ? (
+              <span className="text-xs text-muted-foreground">{dateRange}</span>
+            ) : null}
+            {isCurrent ? (
+              <Badge variant="default" className="h-5 px-1.5 text-[10px]">
+                Current
+              </Badge>
+            ) : null}
+          </div>
+          <p
+            className={cn(
+              "mt-1 text-sm whitespace-pre-wrap",
+              hasEntry ? "text-foreground line-clamp-2" : "text-muted-foreground"
+            )}
+          >
+            {hasEntry ? entry!.content : "No entry yet"}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 inline-flex items-center gap-1 text-xs",
+            hasEntry ? "text-primary" : "text-muted-foreground"
+          )}
+        >
+          {hasEntry ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Done
+            </>
+          ) : (
+            <>
+              <Pencil className="h-3.5 w-3.5" />
+              Empty
+            </>
+          )}
+        </span>
+      </div>
+    </button>
   )
 }
 
