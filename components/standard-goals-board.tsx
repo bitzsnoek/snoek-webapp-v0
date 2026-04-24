@@ -69,7 +69,7 @@ export function StandardGoalsBoard({ board }: { board: GoalBoard }) {
               {isCoach && (
                 <button
                   onClick={() => { setTitleDraft(board.title); setEditingTitle(true) }}
-                  className="rounded-md p-1 text-muted-foreground/40 hover:text-muted-foreground"
+                  className="rounded-md p-1 text-faint-foreground hover:text-muted-foreground"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -89,7 +89,7 @@ export function StandardGoalsBoard({ board }: { board: GoalBoard }) {
       {/* Goals list */}
       {board.goals.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <Target className="mb-3 h-10 w-10 text-muted-foreground/20" />
+          <Target className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No goals yet</p>
           {isCoach && (
             <p className="mt-1 text-xs text-muted-foreground">

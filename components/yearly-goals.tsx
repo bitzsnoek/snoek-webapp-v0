@@ -25,12 +25,12 @@ const CONFIDENCE_OPTIONS: {
   color: string
   dot: string
 }[] = [
-  { value: "not_started",          label: "Not started",          color: "text-muted-foreground",   dot: "bg-muted-foreground/40" },
+  { value: "not_started",          label: "Not started",          color: "text-muted-foreground",   dot: "bg-faint-foreground" },
   { value: "confident",            label: "Confident",            color: "text-emerald-400",         dot: "bg-emerald-400" },
   { value: "moderately_confident", label: "Moderately confident", color: "text-amber-400",           dot: "bg-amber-400" },
   { value: "not_confident",        label: "Not confident",        color: "text-red-400",             dot: "bg-red-400" },
   { value: "done",                 label: "Done",                 color: "text-sky-400",             dot: "bg-sky-400" },
-  { value: "discontinued",         label: "Discontinued",         color: "text-muted-foreground/60", dot: "bg-muted-foreground/30" },
+  { value: "discontinued",         label: "Discontinued",         color: "text-subtle-foreground", dot: "bg-faint-foreground" },
 ]
 
 function getOption(confidence: Confidence) {
@@ -209,12 +209,12 @@ function GoalDialog({ state, onClose }: { state: DialogState; onClose: () => voi
           <div className="flex flex-col gap-2">
             {krTitles.map((title, idx) => (
               <div key={idx} className="flex items-center gap-2">
-                <span className="w-4 shrink-0 text-right text-xs text-muted-foreground/40">{idx + 1}.</span>
+                <span className="w-4 shrink-0 text-right text-xs text-faint-foreground">{idx + 1}.</span>
                 <Input value={title} onChange={(e) => setKr(idx, e.target.value)}
                   placeholder={`Key result ${idx + 1}`} className="bg-background"
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKrRow() } }} />
                 {krTitles.length > 1 && (
-                  <button onClick={() => removeKrRow(idx)} className="shrink-0 rounded p-1 text-muted-foreground/40 hover:text-muted-foreground">
+                  <button onClick={() => removeKrRow(idx)} className="shrink-0 rounded p-1 text-faint-foreground hover:text-muted-foreground">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -319,7 +319,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                   </div>
                   <button
                     onClick={() => setDialog({ yearId: year.id, goal })}
-                    className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 md:opacity-0 transition-all hover:bg-secondary hover:text-muted-foreground md:group-hover:opacity-100"
+                    className="shrink-0 rounded-md p-1.5 text-faint-foreground md:opacity-0 transition-all hover:bg-secondary hover:text-muted-foreground md:group-hover:opacity-100"
                     title="Edit goal"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -351,13 +351,13 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                           {isDone ? (
                             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-sky-400" />
                           ) : (
-                            <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30" />
+                            <Circle className="h-3.5 w-3.5 shrink-0 text-faint-foreground" />
                           )}
                           <span
                             className={cn(
                               "text-foreground/80",
                               isDone && "font-medium text-sky-300",
-                              isDiscontinued && "line-through text-muted-foreground/50"
+                              isDiscontinued && "line-through text-faint-foreground"
                             )}
                           >
                             {kr.title}
@@ -414,7 +414,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
 
       {years.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <Target className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <Target className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No active yearly goals yet</p>
         </div>
       )}

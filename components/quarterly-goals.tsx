@@ -31,7 +31,7 @@ export function QuarterlyGoals({
     return (
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <TrendingUp className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <TrendingUp className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No active quarterly goals yet</p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export function QuarterlyGoals({
                 <div className="flex flex-col gap-8">
                   {groups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-                      <TrendingUp className="mb-3 h-8 w-8 text-muted-foreground/30" />
+                      <TrendingUp className="mb-3 h-8 w-8 text-faint-foreground" />
                       <p className="text-sm text-muted-foreground">No goals yet for {quarter.label}</p>
                       <button
                         onClick={() => setDialogState({ quarterId: quarter.id })}
@@ -229,8 +229,8 @@ function YearlyGoalGroup({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <Target className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
-        <span className="text-sm font-semibold text-muted-foreground/60">
+        <Target className="h-3.5 w-3.5 shrink-0 text-faint-foreground" />
+        <span className="text-sm font-semibold text-subtle-foreground">
           {group.yearlyObjective}
         </span>
         <div className="h-px flex-1 bg-border/50" />

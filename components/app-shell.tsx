@@ -664,7 +664,7 @@ export function AppShell() {
                       else if (activeQuarter) handleArchive("quarter", activeQuarter.id)
                       else if (activeBoard) handleArchive("board", activeBoard.id)
                     }}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+                    className="flex items-center gap-1.5 text-xs text-subtle-foreground transition-colors hover:text-muted-foreground"
                   >
                     <Archive className="h-3 w-3" />
                     Archive this board

@@ -204,7 +204,7 @@ export function ClientSettings() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <Label htmlFor="client-name" className="text-sm text-muted-foreground">
+          <Label htmlFor="client-name" className="text-sm">
             Client name
           </Label>
           {nameEditing ? (
@@ -248,7 +248,7 @@ export function ClientSettings() {
                     setClientName(activeClient.name)
                     setNameEditing(true)
                   }}
-                  className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-secondary hover:text-foreground"
+                  className="rounded-md p-1 text-faint-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   title="Edit client name"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -269,7 +269,7 @@ export function ClientSettings() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <Label htmlFor="company-timezone" className="text-sm text-muted-foreground">
+          <Label htmlFor="company-timezone" className="text-sm">
             Timezone for automations and scheduled messages
           </Label>
           <div className="flex items-center gap-3">
@@ -355,7 +355,7 @@ export function ClientSettings() {
 
         {activeClient.members.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
-            <UserPlus className="mb-2 h-8 w-8 text-muted-foreground/30" />
+            <UserPlus className="mb-2 h-8 w-8 text-faint-foreground" />
             <p className="text-sm text-muted-foreground">No members added yet</p>
             <p className="mt-1 text-xs text-muted-foreground">Invite members using the invitations section below</p>
           </div>
@@ -449,7 +449,7 @@ export function ClientSettings() {
           if (coaches.length === 0) {
             return (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-10">
-                <Users className="mb-2 h-8 w-8 text-muted-foreground/30" />
+                <Users className="mb-2 h-8 w-8 text-faint-foreground" />
                 <p className="text-sm text-muted-foreground">No coaches added yet</p>
                 <p className="mt-1 text-xs text-muted-foreground">Invite coaches using the invitations section below</p>
               </div>
@@ -569,7 +569,7 @@ export function ClientSettings() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="delete-confirm" className="text-sm text-muted-foreground">
+              <Label htmlFor="delete-confirm" className="text-sm">
                 Type <span className="font-semibold text-foreground">{activeClient.name}</span> to confirm
               </Label>
               <Input
@@ -615,7 +615,7 @@ export function ClientSettings() {
             {/* Connected user email */}
             {memberDialog.userEmail && (
               <div className="flex flex-col gap-2">
-                <Label className="text-muted-foreground">Connected account</Label>
+                <Label>Connected account</Label>
                 <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2 text-sm text-foreground">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span>{memberDialog.userEmail}</span>

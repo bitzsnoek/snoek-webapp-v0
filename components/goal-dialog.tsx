@@ -217,7 +217,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
                 <div className="grid grid-cols-3 gap-3">
                   {/* Type */}
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <Label className="text-xs">Type</Label>
                     <Select value={kr.type} onValueChange={(v) => updateKr(i, { type: v as KeyResultType })}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
@@ -232,7 +232,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
 
                   {/* Owner */}
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Owner</Label>
+                    <Label className="text-xs">Owner</Label>
                     <Select
                       value={kr.owner || "_unassigned"}
                       onValueChange={(v) => updateKr(i, { owner: v === "_unassigned" ? "" : v })}
@@ -254,7 +254,7 @@ export function GoalDialog({ quarterId, years, goal, onClose }: GoalDialogProps)
 
                   {/* Target */}
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
+                    <Label className="text-xs">
                       {kr.type === "input" ? "Weekly target" : kr.type === "project" ? "Target (%)" : "Quarterly target"}
                     </Label>
                     <Input

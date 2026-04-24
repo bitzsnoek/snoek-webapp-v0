@@ -132,7 +132,7 @@ export function ArchiveView() {
     <div className="flex flex-col">
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24">
-          <Archive className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <Archive className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No archived items yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Archive a board from the Goals section
@@ -159,7 +159,7 @@ export function ArchiveView() {
                     )}
                   >
                     {tab.label}
-                    <span className="ml-0.5 rounded-sm bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                    <span className="ml-0.5 rounded-sm bg-muted px-1 py-0.5 text-xs text-muted-foreground">
                       {isJournalsAllTab ? archivedJournals.length : "archived"}
                     </span>
                     {isActive && (
@@ -176,8 +176,8 @@ export function ArchiveView() {
                       }}
                       title="Unarchive — move back to Goals"
                       className={cn(
-                        "flex items-center self-center rounded-sm p-0.5 text-muted-foreground/40 md:opacity-0 transition-all hover:text-primary md:group-hover:opacity-100",
-                        isActive && "text-muted-foreground/60"
+                        "flex items-center self-center rounded-sm p-0.5 text-faint-foreground md:opacity-0 transition-all hover:text-primary md:group-hover:opacity-100",
+                        isActive && "text-subtle-foreground"
                       )}
                       aria-label="Unarchive"
                     >
@@ -296,7 +296,7 @@ function ArchivedYearContent({
             <div className="ml-11 flex flex-col gap-2">
               {goal.keyResults.map((kr) => (
                 <div key={kr.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-faint-foreground" />
                   <span>{kr.title}</span>
                 </div>
               ))}
@@ -337,7 +337,7 @@ function ArchivedQuarterContent({
         {quarter.goals.map((goal) => (
           <div key={goal.id} className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground/60" />
+              <TrendingUp className="h-4 w-4 text-subtle-foreground" />
               <p className="text-sm font-semibold text-foreground">{goal.objective}</p>
             </div>
             <div className="ml-6 flex flex-col gap-2">
