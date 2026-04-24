@@ -111,7 +111,7 @@ export function AccountSettings() {
 
         {/* Display Name */}
         <div className="flex flex-col gap-3">
-          <Label htmlFor="display-name" className="text-sm text-muted-foreground">
+          <Label htmlFor="display-name" className="text-sm">
             Display name
           </Label>
           {nameEditing ? (
@@ -231,7 +231,7 @@ export function AccountSettings() {
 
         <form onSubmit={handleSetPassword} className="flex flex-col gap-4 max-w-sm">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="new-password" className="text-sm text-muted-foreground">
+            <Label htmlFor="new-password" className="text-sm">
               New password
             </Label>
             <Input
@@ -243,7 +243,7 @@ export function AccountSettings() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="confirm-password" className="text-sm text-muted-foreground">
+            <Label htmlFor="confirm-password" className="text-sm">
               Confirm password
             </Label>
             <Input

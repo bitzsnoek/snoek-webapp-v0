@@ -619,7 +619,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     return (
       <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl items-center justify-center">
         <div className="text-center">
-          <MessageCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+          <MessageCircle className="mx-auto mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">
             Select a conversation to start chatting
           </p>
@@ -691,7 +691,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
     return (
       <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-3xl items-center justify-center">
         <div className="text-center">
-          <MessageCircle className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+          <MessageCircle className="mx-auto mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">
             No conversation with {selectedTab.name} yet.
           </p>
@@ -714,7 +714,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
             <div className="flex flex-col gap-3">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <MessageCircle className="mb-3 h-10 w-10 text-muted-foreground/30" />
+                  <MessageCircle className="mb-3 h-10 w-10 text-faint-foreground" />
                   <p className="text-sm text-muted-foreground">
                     No messages yet. Start the conversation!
                   </p>
@@ -881,7 +881,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                           </div>
                         )}
                         </div>
-                        <span className="mt-1 px-2 text-[10px] text-muted-foreground">
+                        <span className="mt-1 px-2 text-xs text-muted-foreground">
                           {formatTime(message.created_at)}
                         </span>
                       </div>
@@ -1063,7 +1063,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
                             </p>
-                            <p className="mt-1 truncate text-xs text-muted-foreground/70">
+                            <p className="mt-1 truncate text-xs text-subtle-foreground">
                               {kr.goalObjective}
                             </p>
                           </div>
@@ -1115,7 +1115,7 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {getJournalFrequencyLabel(je.frequency as any)} · {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
                             </p>
-                            <p className="mt-1 text-xs text-muted-foreground/70 line-clamp-2">
+                            <p className="mt-1 text-xs text-subtle-foreground line-clamp-2">
                               {je.content}
                             </p>
                           </div>

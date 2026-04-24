@@ -181,7 +181,7 @@ export function MonthlyPriorities() {
                   item.type === "okr" ? (
                     <div key={item.keyResult.id}>
                       {/* Objective context label */}
-                      <p className="mb-1.5 ml-1 text-xs text-muted-foreground/60">
+                      <p className="mb-1.5 ml-1 text-xs text-subtle-foreground">
                         {item.goal.objective}
                       </p>
                       <KeyResultCard
@@ -192,7 +192,7 @@ export function MonthlyPriorities() {
                     </div>
                   ) : (
                     <div key={item.goal.id}>
-                      <p className="mb-1.5 ml-1 text-xs text-muted-foreground/60">
+                      <p className="mb-1.5 ml-1 text-xs text-subtle-foreground">
                         {item.board.title}
                       </p>
                       <StandardGoalCard
@@ -212,7 +212,7 @@ export function MonthlyPriorities() {
         })
       ) : selectedMember ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <Filter className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <Filter className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No priorities for {selectedMember}</p>
           <button
             onClick={() => setSelectedMember(null)}
@@ -223,7 +223,7 @@ export function MonthlyPriorities() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <Flame className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <Flame className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No priorities set yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Mark goals or key results as priorities to see them here

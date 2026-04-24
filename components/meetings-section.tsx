@@ -128,7 +128,7 @@ export default function MeetingsSection() {
       {/* Empty state */}
       {meetings.length === 0 && hasCalendarConnection ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
-          <Calendar className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
+          <Calendar className="mx-auto h-12 w-12 text-faint-foreground mb-3" />
           <p className="text-sm font-medium text-foreground">No meetings yet</p>
           <p className="text-xs text-muted-foreground mt-1">
             Your calendar is connected but there are no meetings scheduled.
@@ -136,7 +136,7 @@ export default function MeetingsSection() {
         </div>
       ) : meetings.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
-          <Calendar className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
+          <Calendar className="mx-auto h-12 w-12 text-faint-foreground mb-3" />
           <p className="text-sm font-medium text-foreground">Connect your calendar</p>
           <p className="text-xs text-muted-foreground mt-1">
             Get started by connecting your Google Calendar to view your meetings.

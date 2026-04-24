@@ -113,7 +113,7 @@ function EditableCell({
         editingUser ? "ring-2 ring-amber-500/50 bg-amber-500/10" :
         value > 0
           ? "bg-primary/10 font-medium text-primary hover:bg-primary/20"
-          : "text-muted-foreground/50 hover:bg-secondary hover:text-muted-foreground"
+          : "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
       )}
       title={editingUser ? `${editingUser.name} is editing` : `Click to edit ${week}`}
     >
@@ -175,7 +175,7 @@ function InputCell({
           autoFocus
           className="h-7 w-12 rounded-md border border-ring bg-background text-center text-xs text-foreground outline-none ring-1 ring-ring/30 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-[10px] text-muted-foreground/50">target {target}</span>
+        <span className="text-xs text-faint-foreground">target {target}</span>
       </div>
     )
   }
@@ -193,7 +193,7 @@ function InputCell({
           "inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md transition-colors",
           editingUser 
             ? "ring-2 ring-amber-500/50 bg-amber-500/10 text-amber-500" 
-            : "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
+            : "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
         )}
         title={editingUser ? `${editingUser.name} is editing` : `Enter value for ${week}`}
       >
@@ -214,7 +214,7 @@ function InputCell({
         editingUser
           ? "ring-2 ring-amber-500/50 bg-amber-500/10"
           : !hasValue
-          ? "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
+          ? "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
           : met
           ? "bg-primary/10 hover:bg-primary/20"
           : "bg-destructive/10 hover:bg-destructive/15"
@@ -262,7 +262,7 @@ function OwnerPicker({
             "flex h-6 w-6 items-center justify-center rounded-full transition-colors",
             kr.owner
               ? "ring-1 ring-border hover:ring-primary/50"
-              : "border border-dashed border-muted-foreground/30 text-muted-foreground/40 hover:border-primary/50 hover:text-primary"
+              : "border border-dashed border-faint-foreground text-faint-foreground hover:border-primary/50 hover:text-primary"
           )}
           title={kr.owner ? `Assigned to ${kr.owner} — click to change` : "Assign owner"}
         >
@@ -513,7 +513,7 @@ export function KeyResultCard({
                 <tr>
                   {weeks.map((week) => (
                     <td key={week} className="pb-1 text-center">
-                      <span className="text-[10px] text-muted-foreground/40">
+                      <span className="text-xs text-faint-foreground">
                         {kr.target}
                       </span>
                     </td>

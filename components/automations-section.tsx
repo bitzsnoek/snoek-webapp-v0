@@ -998,7 +998,7 @@ export function AutomationsSection() {
       {/* Automations List */}
       {automations.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
-          <Zap className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
+          <Zap className="mx-auto mb-3 h-12 w-12 text-faint-foreground" />
           <p className="text-sm font-medium text-foreground">No automations yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Create your first automation to send scheduled messages to members.
@@ -1253,7 +1253,7 @@ export function AutomationsSection() {
 
                 {/* Conversation Selection */}
                 <div className="mt-3 flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  <Label className="text-xs">Send to:</Label>
                   {conversations.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
                   ) : (
@@ -1300,7 +1300,7 @@ export function AutomationsSection() {
             {selectedType === "scheduled" && (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label className="text-xs text-muted-foreground">Send to:</Label>
+                  <Label className="text-xs">Send to:</Label>
                   {conversations.length === 0 ? (
                     <p className="text-xs text-muted-foreground">No conversations available. Start a conversation first.</p>
                   ) : (
@@ -1526,7 +1526,7 @@ export function AutomationsSection() {
                               {config.label} · Target {kr.target}{kr.owner ? ` · ${kr.owner}` : ""}
                             </p>
                             {kr.goalObjective && (
-                              <p className="mt-1 truncate text-xs text-muted-foreground/70">
+                              <p className="mt-1 truncate text-xs text-subtle-foreground">
                                 {kr.goalObjective}
                               </p>
                             )}
@@ -1579,7 +1579,7 @@ export function AutomationsSection() {
                               {formatPeriodKey(je.periodKey, je.frequency as GoalFrequency)}
                             </p>
                             {je.content && (
-                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/70">
+                              <p className="mt-1 line-clamp-2 text-xs text-subtle-foreground">
                                 {je.content}
                               </p>
                             )}

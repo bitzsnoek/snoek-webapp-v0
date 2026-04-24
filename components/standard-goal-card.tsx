@@ -42,12 +42,12 @@ const CONFIDENCE_OPTIONS: {
   color: string
   dot: string
 }[] = [
-  { value: "not_started",          label: "Not started",          color: "text-muted-foreground",   dot: "bg-muted-foreground/40" },
+  { value: "not_started",          label: "Not started",          color: "text-muted-foreground",   dot: "bg-faint-foreground" },
   { value: "confident",            label: "Confident",            color: "text-emerald-400",         dot: "bg-emerald-400" },
   { value: "moderately_confident", label: "Moderately confident", color: "text-amber-400",           dot: "bg-amber-400" },
   { value: "not_confident",        label: "Not confident",        color: "text-red-400",             dot: "bg-red-400" },
   { value: "done",                 label: "Done",                 color: "text-sky-400",             dot: "bg-sky-400" },
-  { value: "discontinued",         label: "Discontinued",         color: "text-muted-foreground/60", dot: "bg-muted-foreground/30" },
+  { value: "discontinued",         label: "Discontinued",         color: "text-subtle-foreground", dot: "bg-faint-foreground" },
 ]
 
 function getOption(confidence: Confidence) {
@@ -107,7 +107,7 @@ function MilestoneCell({
         "inline-flex h-7 w-12 items-center justify-center rounded-md text-xs transition-colors cursor-text",
         value > 0
           ? "bg-primary/10 font-medium text-primary hover:bg-primary/20"
-          : "text-muted-foreground/50 hover:bg-secondary hover:text-muted-foreground"
+          : "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
       )}
     >
       {value || "–"}
@@ -166,7 +166,7 @@ function PeriodicCell({
           autoFocus
           className="h-7 w-12 rounded-md border border-ring bg-background text-center text-xs text-foreground outline-none ring-1 ring-ring/30 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-[10px] text-muted-foreground/50">target {target}</span>
+        <span className="text-xs text-faint-foreground">target {target}</span>
       </div>
     )
   }
@@ -175,7 +175,7 @@ function PeriodicCell({
     return (
       <button
         onClick={() => { setDraft(""); setEditing(true) }}
-        className="inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md text-muted-foreground/30 transition-colors hover:bg-secondary hover:text-muted-foreground"
+        className="inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md text-faint-foreground transition-colors hover:bg-secondary hover:text-muted-foreground"
       >
         <span className="text-xs">—</span>
       </button>
@@ -188,7 +188,7 @@ function PeriodicCell({
       className={cn(
         "inline-flex h-8 w-12 flex-col items-center justify-center gap-0.5 rounded-md transition-colors cursor-text",
         !hasValue
-          ? "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
+          ? "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
           : met
           ? "bg-primary/10 hover:bg-primary/20"
           : "bg-destructive/10 hover:bg-destructive/15"
@@ -390,7 +390,7 @@ export function StandardGoalCard({
                 </Avatar>
               </button>
             ) : (
-              <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground/40 hover:border-primary hover:text-primary transition-colors">
+              <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-faint-foreground hover:border-primary hover:text-primary transition-colors">
                 <UserPlus className="h-3.5 w-3.5" />
               </button>
             )}
@@ -475,7 +475,7 @@ export function StandardGoalCard({
                 <tr>
                   {periods.map((key) => (
                     <td key={key} className="pb-1 text-center">
-                      <span className="text-[10px] text-muted-foreground/40">
+                      <span className="text-xs text-faint-foreground">
                         {goal.targetValue}
                       </span>
                     </td>

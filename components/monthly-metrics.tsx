@@ -55,7 +55,7 @@ function MetricCell({
         "flex h-7 w-full items-center justify-end rounded px-1.5 text-xs transition-colors",
         value != null && value !== 0
           ? "text-foreground hover:bg-secondary"
-          : "text-muted-foreground/30 hover:bg-secondary hover:text-muted-foreground"
+          : "text-faint-foreground hover:bg-secondary hover:text-muted-foreground"
       )}
     >
       {value != null && value !== 0 ? formatDisplay(value) : "\u2014"}
@@ -258,7 +258,7 @@ export function MonthlyMetrics() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <BarChart3 className="mb-3 h-10 w-10 text-muted-foreground/30" />
+          <BarChart3 className="mb-3 h-10 w-10 text-faint-foreground" />
           <p className="text-sm text-muted-foreground">No metrics added yet</p>
           <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setShowAdd(true)}>
             <Plus className="h-4 w-4" />
@@ -365,7 +365,7 @@ function MetricRow({
         {hovered && (
           <button
             onClick={() => deleteMetric(metric.id)}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            className="flex h-6 w-6 items-center justify-center rounded text-faint-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
             title="Delete metric"
           >
             <Trash2 className="h-3 w-3" />
