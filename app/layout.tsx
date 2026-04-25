@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans, JetBrains_Mono, Noto_Serif } from 'next/font/google'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const plusJakartaSans = Plus_Jakarta_Sans({ 
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${notoSerif.variable} bg-background`} suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
         {children}
+        <Toaster richColors />
       </body>
     </html>
   )
