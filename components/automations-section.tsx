@@ -12,6 +12,7 @@ import {
 } from "@/lib/mock-data"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -456,12 +457,12 @@ export function AutomationsSection() {
         // Fetch members
         let membersList: { member_id: string; name: string }[] = []
         const { data: afs, error: afsError } = await supabase
-          .from("automation_founders")
-          .select("founder_member_id")
+          .from("automation_members")
+          .select("member_id")
           .eq("automation_id", auto.id)
 
         if (afs && afs.length > 0) {
-          const memberIds = afs.map((af) => af.founder_member_id)
+          const memberIds = afs.map((af) => af.member_id)
           const { data: members } = await supabase
             .from("client_members")
             .select("id, name")
@@ -701,58 +702,72 @@ export function AutomationsSection() {
           if (scError) throw scError
         }
 
-        // Create key result associations — split by source so OKR goals go
-        // to `automation_key_results` and standard goals go to
-        // `automation_standard_goals`, matching the chat composer's pattern.
-        if (selectedKeyResults.length > 0) {
-          const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
-          const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
+        try {
+          // Create key result associations — split by source so OKR goals go
+          // to `automation_key_results` and standard goals go to
+          // `automation_standard_goals`, matching the chat composer's pattern.
+          if (selectedKeyResults.length > 0) {
+            const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
+            const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
 
-          if (okrItems.length > 0) {
-            const inserts = okrItems.map((kr) => ({
-              automation_id: newAuto.id,
-              quarterly_key_result_id: kr.id,
-            }))
-            await supabase.from("automation_key_results").insert(inserts)
+            if (okrItems.length > 0) {
+              const inserts = okrItems.map((kr) => ({
+                automation_id: newAuto.id,
+                quarterly_key_result_id: kr.id,
+              }))
+              const { error } = await supabase.from("automation_key_results").insert(inserts)
+              if (error) throw error
+            }
+
+            if (standardItems.length > 0) {
+              const inserts = standardItems.map((g) => ({
+                automation_id: newAuto.id,
+                standard_goal_id: g.id,
+              }))
+              const { error } = await supabase.from("automation_standard_goals").insert(inserts)
+              if (error) throw error
+            }
           }
 
-          if (standardItems.length > 0) {
-            const inserts = standardItems.map((g) => ({
+          // Create journal attachments. Only the journal_id is persisted — the
+          // executor recomputes `period_key` from `journals.frequency` at fire
+          // time so a recurring automation always attaches to the "current"
+          // period.
+          if (selectedJournalEntries.length > 0) {
+            const journalInserts = selectedJournalEntries.map((je) => ({
               automation_id: newAuto.id,
-              standard_goal_id: g.id,
+              journal_id: je.id,
             }))
-            await supabase.from("automation_standard_goals").insert(inserts)
+            const { error } = await supabase
+              .from("automation_journal_attachments")
+              .insert(journalInserts)
+            if (error) throw error
           }
-        }
 
-        // Create journal attachments. Only the journal_id is persisted — the
-        // executor recomputes `period_key` from `journals.frequency` at fire
-        // time so a recurring automation always attaches to the "current"
-        // period.
-        if (selectedJournalEntries.length > 0) {
-          const journalInserts = selectedJournalEntries.map((je) => ({
-            automation_id: newAuto.id,
-            journal_id: je.id,
-          }))
-          await supabase.from("automation_journal_attachments").insert(journalInserts)
-        }
+          // Create member associations
+          if (selectedMembers.length > 0) {
+            const memberInserts = selectedMembers.map((f) => ({
+              automation_id: newAuto.id,
+              member_id: f.id,
+            }))
+            const { error } = await supabase.from("automation_members").insert(memberInserts)
+            if (error) throw error
+          }
 
-        // Create member associations
-        if (selectedMembers.length > 0) {
-          const memberInserts = selectedMembers.map((f) => ({
-            automation_id: newAuto.id,
-            founder_member_id: f.id,
-          }))
-          await supabase.from("automation_founders").insert(memberInserts)
-        }
-
-        // Create conversation associations (for recurring messages)
-        if (selectedConversations.length > 0) {
-          const convoInserts = selectedConversations.map((c) => ({
-            automation_id: newAuto.id,
-            conversation_id: c.id,
-          }))
-          await supabase.from("automation_conversations").insert(convoInserts)
+          // Create conversation associations (for recurring messages)
+          if (selectedConversations.length > 0) {
+            const convoInserts = selectedConversations.map((c) => ({
+              automation_id: newAuto.id,
+              conversation_id: c.id,
+            }))
+            const { error } = await supabase.from("automation_conversations").insert(convoInserts)
+            if (error) throw error
+          }
+        } catch (childErr) {
+          // Roll back the parent automation so a retry starts clean rather
+          // than leaving an orphaned row with no goals/journals/members.
+          await supabase.from("automations").delete().eq("id", newAuto.id)
+          throw childErr
         }
       } else {
         // Update automation
@@ -793,8 +808,20 @@ export function AutomationsSection() {
         // Update key results — delete-and-reinsert for both OKR + standard
         // tables. Split by source so OKR goals go to `automation_key_results`
         // and standard goals go to `automation_standard_goals`.
-        await supabase.from("automation_key_results").delete().eq("automation_id", editingId)
-        await supabase.from("automation_standard_goals").delete().eq("automation_id", editingId)
+        {
+          const { error } = await supabase
+            .from("automation_key_results")
+            .delete()
+            .eq("automation_id", editingId)
+          if (error) throw error
+        }
+        {
+          const { error } = await supabase
+            .from("automation_standard_goals")
+            .delete()
+            .eq("automation_id", editingId)
+          if (error) throw error
+        }
         if (selectedKeyResults.length > 0) {
           const okrItems = selectedKeyResults.filter((kr) => kr.source !== "standard")
           const standardItems = selectedKeyResults.filter((kr) => kr.source === "standard")
@@ -804,7 +831,8 @@ export function AutomationsSection() {
               automation_id: editingId,
               quarterly_key_result_id: kr.id,
             }))
-            await supabase.from("automation_key_results").insert(inserts)
+            const { error } = await supabase.from("automation_key_results").insert(inserts)
+            if (error) throw error
           }
 
           if (standardItems.length > 0) {
@@ -812,41 +840,62 @@ export function AutomationsSection() {
               automation_id: editingId,
               standard_goal_id: g.id,
             }))
-            await supabase.from("automation_standard_goals").insert(inserts)
+            const { error } = await supabase.from("automation_standard_goals").insert(inserts)
+            if (error) throw error
           }
         }
 
         // Update journal attachments — delete-and-reinsert.
-        await supabase
-          .from("automation_journal_attachments")
-          .delete()
-          .eq("automation_id", editingId)
+        {
+          const { error } = await supabase
+            .from("automation_journal_attachments")
+            .delete()
+            .eq("automation_id", editingId)
+          if (error) throw error
+        }
         if (selectedJournalEntries.length > 0) {
           const journalInserts = selectedJournalEntries.map((je) => ({
             automation_id: editingId,
             journal_id: je.id,
           }))
-          await supabase.from("automation_journal_attachments").insert(journalInserts)
+          const { error } = await supabase
+            .from("automation_journal_attachments")
+            .insert(journalInserts)
+          if (error) throw error
         }
 
         // Update members - delete and re-insert
-        await supabase.from("automation_founders").delete().eq("automation_id", editingId)
+        {
+          const { error } = await supabase
+            .from("automation_members")
+            .delete()
+            .eq("automation_id", editingId)
+          if (error) throw error
+        }
         if (selectedMembers.length > 0) {
           const memberInserts = selectedMembers.map((f) => ({
             automation_id: editingId,
-            founder_member_id: f.id,
+            member_id: f.id,
           }))
-          await supabase.from("automation_founders").insert(memberInserts)
+          const { error } = await supabase.from("automation_members").insert(memberInserts)
+          if (error) throw error
         }
 
         // Update conversations - delete and re-insert
-        await supabase.from("automation_conversations").delete().eq("automation_id", editingId)
+        {
+          const { error } = await supabase
+            .from("automation_conversations")
+            .delete()
+            .eq("automation_id", editingId)
+          if (error) throw error
+        }
         if (selectedConversations.length > 0) {
           const convoInserts = selectedConversations.map((c) => ({
             automation_id: editingId,
             conversation_id: c.id,
           }))
-          await supabase.from("automation_conversations").insert(convoInserts)
+          const { error } = await supabase.from("automation_conversations").insert(convoInserts)
+          if (error) throw error
         }
       }
 
@@ -854,7 +903,30 @@ export function AutomationsSection() {
       resetForm()
       fetchAutomations()
     } catch (err) {
-      console.error("Error saving automation:", err)
+      // Supabase's PostgrestError is a plain object with non-enumerable
+      // fields, so `console.error(err)` and `instanceof Error` both lose
+      // information. Pull `.message`, `.code`, `.details`, `.hint`
+      // explicitly so the developer log and the user-facing toast both
+      // show the real cause.
+      const e = err as {
+        message?: unknown
+        code?: unknown
+        details?: unknown
+        hint?: unknown
+      } | null
+      const message =
+        (typeof e?.message === "string" && e.message) ||
+        (typeof e?.details === "string" && e.details) ||
+        (typeof e?.hint === "string" && e.hint) ||
+        "Unknown error"
+      console.error("Error saving automation:", {
+        message: e?.message,
+        code: e?.code,
+        details: e?.details,
+        hint: e?.hint,
+        raw: err,
+      })
+      toast.error(`Couldn't save automation: ${message}`)
     } finally {
       setSaving(false)
     }

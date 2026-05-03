@@ -170,11 +170,15 @@ export function Sidebar({
                 {client.name}
               </DropdownMenuItem>
             ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setAddClientOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add client
-            </DropdownMenuItem>
+            {isCoachOrAdmin(currentUser.role) && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setAddClientOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add client
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

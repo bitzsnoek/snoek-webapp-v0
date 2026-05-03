@@ -319,7 +319,7 @@ export function YearlyGoals({ years }: { years: Year[] }) {
                   </div>
                   <button
                     onClick={() => setDialog({ yearId: year.id, goal })}
-                    className="shrink-0 rounded-md p-1.5 text-faint-foreground md:opacity-0 transition-all hover:bg-secondary hover:text-muted-foreground md:group-hover:opacity-100"
+                    className="shrink-0 rounded-md p-1.5 text-faint-foreground md:opacity-0 transition-all hover:bg-secondary hover:text-muted-foreground md:group-hover/reorder:opacity-100"
                     title="Edit goal"
                   >
                     <Pencil className="h-3.5 w-3.5" />

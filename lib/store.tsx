@@ -145,16 +145,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const isSuperAdmin = profile?.is_super_admin === true
 
-      // Determine user role: check if they own any company OR are a coach member in any company
-      const { data: ownedCompanies } = await supabase
-        .from("companies")
+      // Determine user role: check if they own any client OR are a coach in any client
+      const { data: ownedClients } = await supabase
+        .from("clients")
         .select("id")
         .eq("coach_id", session.user.id)
         .limit(1)
 
-      // Also check if the user is a coach member in any company
       const { data: coachMemberships } = await supabase
-        .from("company_members")
+        .from("client_members")
         .select("id")
         .eq("user_id", session.user.id)
         .eq("role", "coach")
@@ -162,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const userRole = isSuperAdmin
         ? "super_admin" as const
-        : (ownedCompanies && ownedCompanies.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "member"
+        : (ownedClients && ownedClients.length > 0) || (coachMemberships && coachMemberships.length > 0) ? "coach" : "member"
       const userName = profile?.full_name || session.user.email?.split("@")[0] || "User"
       const initials = userName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
 
