@@ -598,24 +598,23 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
   // Create a new 1-on-1 conversation
   const createConversation = async () => {
     if (!selectedTab || !activeClient.id || !currentUser.id) return
-    
+
     setCreatingConversation(true)
     const supabase = createClient()
 
     try {
-      // Determine coach_id and member_id based on current user's role
-      const coachId = isCoachOrAdmin(currentUser.role) ? currentUser.id : selectedTab.supabaseUserId
-      const memberId = !isCoachOrAdmin(currentUser.role) ? currentUser.id : selectedTab.supabaseUserId
-
-      // We need to find the supabase user ID for the other person
-      // Look up the member's user_id from company_members
-      const { data: memberData } = await supabase
-        .from("company_members")
-        .select("user_id")
-        .eq("id", selectedTab.odooMemberId)
-        .single()
-
-      const otherUserId = memberData?.user_id
+      // Resolve the other user's auth UUID. Prefer the value already attached
+      // to the tab (set by fetchChatTabs from the client.allMembers list);
+      // fall back to a lookup against client_members when missing.
+      let otherUserId = selectedTab.supabaseUserId
+      if (!otherUserId) {
+        const { data: memberData } = await supabase
+          .from("client_members")
+          .select("user_id")
+          .eq("id", selectedTab.odooMemberId)
+          .single()
+        otherUserId = memberData?.user_id
+      }
 
       if (!otherUserId) {
         console.error("Could not find user ID for member")
@@ -623,10 +622,31 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         return
       }
 
-      const finalCoachId = isCoachOrAdmin(currentUser.role) ? currentUser.id : otherUserId
-      const finalMemberId = !isCoachOrAdmin(currentUser.role) ? currentUser.id : otherUserId
+      // Assign coach_id / member_id deterministically. RLS requires the
+      // inserter to be coach_id with role='coach' on this client. When the
+      // current user is a coach, they go in coach_id regardless of the
+      // other party's role; this also covers coach<->coach 1:1.
+      const currentUserIsCoach = isCoachOrAdmin(currentUser.role)
+      const finalCoachId = currentUserIsCoach ? currentUser.id : otherUserId
+      const finalMemberId = currentUserIsCoach ? otherUserId : currentUser.id
 
-      const { data: newConvo, error } = await supabase
+      // If the inverse row was already created (e.g. by the other coach),
+      // open that conversation instead of inserting a duplicate.
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("client_id", activeClient.id)
+        .eq("is_group", false)
+        .eq("coach_id", finalMemberId)
+        .eq("member_id", finalCoachId)
+        .maybeSingle()
+
+      if (existing?.id) {
+        window.location.reload()
+        return
+      }
+
+      const { error } = await supabase
         .from("conversations")
         .insert({
           client_id: activeClient.id,
@@ -643,8 +663,8 @@ export function ChatSection({ selectedTab }: ChatSectionProps) {
         return
       }
 
-      // Trigger a refresh of the chat tabs by reloading the page section
-      // The parent component will refetch and update the conversationId
+      // Trigger a refresh of the chat tabs by reloading the page section.
+      // The parent component will refetch and update the conversationId.
       window.location.reload()
     } catch (err) {
       console.error("Error creating conversation:", err)

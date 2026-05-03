@@ -64,6 +64,9 @@ export function AppShell() {
   const [chatTabs, setChatTabs] = useState<ChatTab[]>([])
   const [selectedChatTab, setSelectedChatTab] = useState<ChatTab | null>(null)
   const [chatLoading, setChatLoading] = useState(false)
+  const [newGroupDialogOpen, setNewGroupDialogOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState("")
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   // Fetch chat tabs when chat section is active
   const fetchChatTabs = useCallback(async () => {
@@ -73,16 +76,16 @@ export function AppShell() {
     const supabase = createClient()
 
     try {
-      // Get all members of the client (members if coach, coaches if member)
+      // Coaches can chat with everyone else in the client (other members and
+      // other coaches). Members can only chat with coaches.
       const allMembers = activeClient.allMembers || []
       const relevantMembers = allMembers.filter((m) => {
-        if (isCoachOrAdmin(currentUser.role)) {
-          return m.role === "member"
-        }
+        if (!m.userId || m.userId === currentUser.id) return false
+        if (isCoachOrAdmin(currentUser.role)) return true
         return m.role === "coach"
       })
 
-      // Fetch conversations for this client (including group chat)
+      // Fetch conversations for this client (including group chats)
       const { data: convos, error: convosError } = await supabase
         .from("conversations")
         .select("*")
@@ -90,54 +93,28 @@ export function AppShell() {
 
       if (convosError) throw convosError
 
-      // Find existing group conversation (don't auto-create)
-      const groupConvo = (convos ?? []).find((c) => c.is_group === true)
+      const groupConvos = (convos ?? []).filter((c) => c.is_group === true)
 
-      // Get profile mappings to match conversations to members by name
-      const allUserIds = [...new Set([
-        ...(convos ?? []).map((c) => c.member_id).filter(Boolean),
-        ...(convos ?? []).map((c) => c.coach_id).filter(Boolean)
-      ])]
-
-      let profileMap: Record<string, string> = {}
-      if (allUserIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", allUserIds)
-
-        profileMap = Object.fromEntries(
-          (profiles ?? []).map((p) => [p.id, p.full_name])
-        )
-      }
-
-      // Build tabs - start with group chat tab
+      // Build tabs - group chats first
       const tabs: ChatTab[] = []
-      
-      // Add group chat tab first (client name)
-      if (groupConvo) {
+
+      groupConvos.forEach((groupConvo) => {
         tabs.push({
           odooUserId: "",
           odooMemberId: "",
-          name: activeClient.name,
+          name: groupConvo.name || activeClient.name,
           conversationId: groupConvo.id,
-          isGroup: true
+          isGroup: true,
         })
-      }
+      })
 
-      // Add individual member tabs
+      // Individual member tabs — match by user_id so coach<->coach pairs work
+      // regardless of which slot (coach_id / member_id) holds which user.
       relevantMembers.forEach((member) => {
-        // Find conversation where the member's name matches either founder or coach name
-        // Only consider non-group conversations
         const convo = (convos ?? []).find((c) => {
           if (c.is_group) return false
-          const memberName = profileMap[c.member_id]
-          const coachName = profileMap[c.coach_id]
-
-          if (isCoachOrAdmin(currentUser.role)) {
-            return memberName === member.name
-          }
-          return coachName === member.name
+          const otherUserId = c.coach_id === currentUser.id ? c.member_id : c.coach_id
+          return otherUserId === member.userId
         })
 
         tabs.push({
@@ -145,8 +122,10 @@ export function AppShell() {
           odooMemberId: member.id,
           name: member.name,
           conversationId: convo?.id,
-          supabaseUserId: convo ? (isCoachOrAdmin(currentUser.role) ? convo.member_id : convo.coach_id) : undefined,
-          isGroup: false
+          supabaseUserId: convo
+            ? (convo.coach_id === currentUser.id ? convo.member_id : convo.coach_id)
+            : member.userId || undefined,
+          isGroup: false,
         })
       })
 
@@ -169,6 +148,30 @@ export function AppShell() {
       fetchChatTabs()
     }
   }, [activeSection, activeClient.id, fetchChatTabs])
+
+  const submitNewGroup = useCallback(async () => {
+    const trimmed = newGroupName.trim()
+    if (!trimmed || creatingGroup || !activeClient.id || !currentUser.id) return
+    setCreatingGroup(true)
+    const supabase = createClient()
+    try {
+      const { error } = await supabase.from("conversations").insert({
+        client_id: activeClient.id,
+        coach_id: currentUser.id,
+        is_group: true,
+        name: trimmed,
+      })
+      if (error) {
+        console.error("Error creating group chat:", error)
+        return
+      }
+      setNewGroupDialogOpen(false)
+      setNewGroupName("")
+      fetchChatTabs()
+    } finally {
+      setCreatingGroup(false)
+    }
+  }, [activeClient.id, currentUser.id, creatingGroup, newGroupName, fetchChatTabs])
 
   // Reset selected chat tab when client changes
   useEffect(() => {
@@ -499,51 +502,49 @@ export function AppShell() {
               )}
 
               {/* Add board button */}
-              {isCoachOrAdmin(currentUser.role) && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                      aria-label="Add new board"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" sideOffset={8}>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Add new board
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {showStandardGoals && (
-                      <DropdownMenuItem onClick={() => openAddDialog("board")}>
-                        Goals Board
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                    aria-label="Add new board"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={8}>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Add new board
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {showStandardGoals && (
+                    <DropdownMenuItem onClick={() => openAddDialog("board")}>
+                      Goals Board
+                    </DropdownMenuItem>
+                  )}
+                  {!showPriorities && (
+                    <DropdownMenuItem onClick={async () => {
+                      const newId = await addGoalBoard("Priorities", "priorities")
+                      setActiveTabId("priorities")
+                    }}>
+                      Priorities
+                    </DropdownMenuItem>
+                  )}
+                  {showOkr && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        OKR
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => openAddDialog("year")}>
+                        Yearly Goals
                       </DropdownMenuItem>
-                    )}
-                    {!showPriorities && (
-                      <DropdownMenuItem onClick={async () => {
-                        const newId = await addGoalBoard("Priorities", "priorities")
-                        setActiveTabId("priorities")
-                      }}>
-                        Priorities
+                      <DropdownMenuItem onClick={() => openAddDialog("quarter")}>
+                        Quarterly Goals
                       </DropdownMenuItem>
-                    )}
-                    {showOkr && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          OKR
-                        </DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => openAddDialog("year")}>
-                          Yearly Goals
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openAddDialog("quarter")}>
-                          Quarterly Goals
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
@@ -561,12 +562,12 @@ export function AppShell() {
               ) : (
                 <>
                   {chatTabs.map((tab) => {
-                    const isActive = tab.isGroup 
-                      ? selectedChatTab?.isGroup === true
+                    const isActive = tab.isGroup
+                      ? selectedChatTab?.conversationId === tab.conversationId
                       : selectedChatTab?.odooMemberId === tab.odooMemberId
                     return (
                       <button
-                        key={tab.isGroup ? "group" : tab.odooMemberId}
+                        key={tab.conversationId || tab.odooMemberId}
                         role="tab"
                         aria-selected={isActive}
                         onClick={() => setSelectedChatTab(tab)}
@@ -584,36 +585,18 @@ export function AppShell() {
                       </button>
                     )
                   })}
-                  {/* Show "Create Group Chat" button for coaches when no group chat exists */}
-                  {isCoachOrAdmin(currentUser.role) && !chatTabs.some(t => t.isGroup) && (
+                  {/* New group chat button — coaches can create multiple groups per client */}
+                  {isCoachOrAdmin(currentUser.role) && (
                     <button
-                      onClick={async () => {
-                        const supabase = createClient()
-                        try {
-                          const { data: newGroupConvo, error } = await supabase
-                            .from("conversations")
-                            .insert({
-                              client_id: activeClient.id,
-                              coach_id: currentUser.id,
-                              is_group: true,
-                              name: activeClient.name
-                            })
-                            .select()
-                            .single()
-                          
-                          if (!error && newGroupConvo) {
-                            // Refresh chat tabs
-                            fetchChatTabs()
-                          }
-                        } catch (err) {
-                          console.error("Error creating group chat:", err)
-                        }
+                      onClick={() => {
+                        setNewGroupName("")
+                        setNewGroupDialogOpen(true)
                       }}
                       className="ml-1 flex h-7 shrink-0 items-center gap-1 self-center rounded-md border border-dashed border-border px-2 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                      title="Create group chat for this client"
+                      title="New group chat"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Group Chat</span>
+                      <span className="hidden sm:inline">New group</span>
                     </button>
                   )}
                 </>
@@ -683,6 +666,56 @@ export function AppShell() {
           {activeSection === "account" && <AccountSettings />}
         </main>
       </div>
+
+      {/* New Group Chat Dialog */}
+      <Dialog
+        open={newGroupDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNewGroupDialogOpen(false)
+            setNewGroupName("")
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New group chat</DialogTitle>
+            <DialogDescription>
+              Enter a name for this group. Anyone in this client will be able to see and post in it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <Label htmlFor="new-group-name">Group name</Label>
+            <Input
+              id="new-group-name"
+              placeholder="e.g. All hands"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNewGroup()
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setNewGroupDialogOpen(false)
+                setNewGroupName("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!newGroupName.trim() || creatingGroup || !activeClient.id || !currentUser.id}
+              onClick={submitNewGroup}
+            >
+              {creatingGroup ? "Creating..." : "Create group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Board Dialog */}
       <Dialog open={addDialog !== null} onOpenChange={(open) => !open && setAddDialog(null)}>
